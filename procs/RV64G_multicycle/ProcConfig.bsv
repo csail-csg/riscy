@@ -32,8 +32,8 @@
 
 // Set this define to use the FMA for Add and Mul
 `define REUSE_FMA
-`define NO_FDIV
-`define NO_FSQRT
+// `define NO_FDIV
+// `define NO_FSQRT
 
 // Defines to match spike's behavior
 // `define CYCLE_COUNT_EQ_INST_COUNT
