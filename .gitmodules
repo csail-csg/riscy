@@ -1,0 +1,18 @@
+[submodule "buildcache"]
+	path = buildcache
+	url = https://github.com/cambridgehackers/buildcache.git
+[submodule "connectal"]
+	path = connectal
+	url = https://github.com/csail-csg/connectal.git
+[submodule "riscv-qemu"]
+	path = riscv-qemu
+	url = git://github.com/cambridgehackers/riscv-qemu
+[submodule "riscv-tools"]
+	path = riscv-tools
+	url = https://github.com/csail-csg/riscv-tools.git
+[submodule "codegen/riscv-meta"]
+	path = codegen/riscv-meta
+	url = https://github.com/michaeljclark/riscv-meta.git
+[submodule "recycle-bsv-lib"]
+	path = recycle-bsv-lib
+	url = https://github.com/csail-csg/recycle-bsv-lib.git

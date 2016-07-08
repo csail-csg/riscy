@@ -1,0 +1,21 @@
+What do we need to do:
+
+* Clean up when statements. They are not used in an intuitive way, they are
+  just used to add guards that depend on values from action value methods.
+* Don't use FIFOF if we don't need to
+* [bug] htifStall causes a problem with typing and printing at the same time
+* Perf counters:
+    - Add perf counters in a clean way
+    - Link performance counter txt file with android.exe so you don't have to
+      copy over the txt file to the FPGA
+* Improve gitignore to ignore build folders
+* Figure out if this notation can be legal:
+    - let {addr: .phyPc, exception: .exMMU} = mmuResp.first;
+* Cleanup BSV source (lib, etc.)
+    - Use Fence interface even if not necessary
+    - Redo CSRF Interface
+    - Rely on [riscv-opcodes] or [riscv-meta] more
+    - Performance Counters
+* Improve Spike's HTIF for tandem verification
+    - Console input doesn't stay synchronized.
+* [procs] Make stop interface method send a "stopped" verification packet
