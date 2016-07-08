@@ -15,7 +15,7 @@ How to use:
 
 6) `./build.sh`
 
-7) `cd ../procs/RV64G_multicycle
+7) `cd ../procs/RV64G_multicycle`
 
 8) `make build.verilator`
 
