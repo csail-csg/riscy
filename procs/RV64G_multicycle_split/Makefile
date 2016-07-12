@@ -21,7 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PROC=RV64G_multicycle
+PROC=RV64G_multicycle_split
 
 # Suppress "duplicate folder" and "unfolding over ... steps" warnings
 # CONNECTALFLAGS += --bscflags=" -suppress-warnings S0073:G0024 "
