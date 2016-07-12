@@ -43,9 +43,9 @@ typedef DataSz MainMemoryWidth;
 
 (* synthesize *)
 module mkProc(Proc#(DataSz));
-    FrontEnd#(void) frontend <- mkMulticycleFrontEnd;
-    BackEnd#(void) backend <- mkMulticycleBackEnd;
     SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem;
+    FrontEnd#(void) frontend <- mkMulticycleFrontEnd(memorySystem.core[0].ivat, memorySystem.core[0].ifetch);
+    BackEnd#(void) backend <- mkMulticycleBackEnd(memorySystem.core[0].dvat, memorySystem.core[0].dmem);
 
     // +-------+ +------+ +---------------+
     // | front |-| back | | verification  |

@@ -42,8 +42,8 @@ typedef DataSz MainMemoryWidth;
 
 (* synthesize *)
 module mkProc(Proc#(DataSz));
-    Core core <- mkMulticycleCore;
     SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem;
+    Core core <- mkMulticycleCore(memorySystem.core[0].ivat, memorySystem.core[0].ifetch, memorySystem.core[0].dvat, memorySystem.core[0].dmem);
 
     // +----------------+ +---------------+
     // |      Core      | | verification  |

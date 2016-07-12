@@ -55,20 +55,12 @@ interface Core;
 
     method Action triggerExternalInterrupt;
 
-    interface Client#(RVIMMUReq, RVIMMUResp) ivat;
-    interface Client#(RVIMemReq, RVIMemResp) ifetch;
-    interface Client#(RVDMMUReq, RVDMMUResp) dvat;
-    interface Client#(RVDMemReq, RVDMemResp) dmem;
     interface Client#(FenceReq, FenceResp) fence;
     interface Client#(Data, Data) htif;
 endinterface
 
 instance Connectable#(Core, MemorySystem);
     module mkConnection#(Core core, MemorySystem mem)(Empty);
-        mkConnection(core.ivat, mem.ivat);
-        mkConnection(core.ifetch, mem.ifetch);
-        mkConnection(core.dvat, mem.dvat);
-        mkConnection(core.dmem, mem.dmem);
         mkConnection(core.fence, mem.fence);
         mkConnection(toGet(core.updateVMInfoI), toPut(mem.updateVMInfoI));
         mkConnection(toGet(core.updateVMInfoD), toPut(mem.updateVMInfoD));
@@ -88,8 +80,12 @@ typedef enum {
     Trap2
 } ProcState deriving (Bits, Eq, FShow);
 
-(* synthesize *)
-module mkMulticycleCore(Core);
+module mkMulticycleCore#(
+        Server#(RVIMMUReq, RVIMMUResp) ivat,
+        Server#(RVIMemReq, RVIMemResp) ifetch,
+        Server#(RVDMMUReq, RVDMMUResp) dvat,
+        Server#(RVDMemReq, RVDMemResp) dmem)
+        (Core);
     let verbose = False;
     File fout = stdout;
 
@@ -108,24 +104,12 @@ module mkMulticycleCore(Core);
     Reg#(RVDecodedInst) dInst <- mkReg(unpack(0));
     Reg#(FrontEndCsrs) csrState <- mkReadOnlyReg( FrontEndCsrs { vmI: csrf.vmI, state: csrf.csrState } );
 
-    FIFO#(RVIMMUReq)    immuReq <- mkFIFO1;
-    FIFO#(RVIMMUResp)   immuResp <- mkFIFO1;
-
-    FIFO#(RVIMemReq)    imemReq <- mkFIFO1;
-    FIFO#(RVIMemResp)   imemResp <- mkFIFO1;
-
     Reg#(Data) rVal1 <- mkReg(0);
     Reg#(Data) rVal2 <- mkReg(0);
     Reg#(Data) rVal3 <- mkReg(0);
     Reg#(Data) data <- mkReg(0);
     Reg#(Data) addr <- mkReg(0);
     Reg#(Data) nextPc <- mkReg(0);
-
-    FIFO#(RVDMMUReq)    dmmuReq <- mkFIFO1;
-    FIFO#(RVDMMUResp)   dmmuResp <- mkFIFO1;
-
-    FIFO#(RVDMemReq)    dmemReq <- mkFIFO1;
-    FIFO#(RVDMemResp)   dmemResp <- mkFIFO1;
 
     FIFO#(Data)         toHost <- mkFIFO1;
     FIFO#(Data)         fromHost <- mkFIFO1;
@@ -134,7 +118,7 @@ module mkMulticycleCore(Core);
 
     rule doInstMMU(running && state == IMMU);
         // request address translation from MMU
-        immuReq.enq(pc);
+        ivat.request.put(pc);
         // reset states
         inst <= unpack(0);
         dInst <= unpack(0);
@@ -146,14 +130,13 @@ module mkMulticycleCore(Core);
     rule doInstFetch(state == IF);
         // I wanted notation like this:
         // let {addr: .phyPc, exception: .exMMU} = mmuResp.first;
-
-        let phyPc = immuResp.first.addr;
-        let exMMU = immuResp.first.exception;
-        immuResp.deq;
+        let resp <- ivat.response.get;
+        let phyPc = resp.addr;
+        let exMMU = resp.exception;
 
         if (!isValid(exMMU)) begin
             // no translation exception
-            imemReq.enq(phyPc);
+            ifetch.request.put(phyPc);
             // go to decode stage
             state <= Dec;
         end else begin
@@ -165,8 +148,7 @@ module mkMulticycleCore(Core);
     endrule
 
     rule doDecode(state == Dec);
-        let fInst = imemResp.first;
-        imemResp.deq;
+        let fInst <- ifetch.response.get;
 
         let decInst = decodeInst(fInst);
 
@@ -211,7 +193,7 @@ module mkMulticycleCore(Core);
                     // data for store and AMO
                     dataEx = rVal2;
                     addrEx = addrCalc(rVal1, imm);
-                    dmmuReq.enq(RVDMMUReq {addr: addrEx, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
+                    dvat.request.put(RVDMMUReq {addr: addrEx, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
                 end
             tagged MulDiv .mulDivInst: mulDiv.exec(mulDivInst, rVal1, rVal2);
             tagged Fence  .fenceInst:  noAction;
@@ -232,13 +214,13 @@ module mkMulticycleCore(Core);
     endrule
 
     rule doMem(state == Mem);
-        let pAddr = dmmuResp.first.addr;
-        let exMMU = dmmuResp.first.exception;
-        dmmuResp.deq;
+        let resp <- dvat.response.get;
+        let pAddr = resp.addr;
+        let exMMU = resp.exception;
 
         // TODO: make this type safe! get rid of .Mem accesses to tagged union
         if (!isValid(exMMU)) begin
-            dmemReq.enq( RVDMemReq {
+            dmem.request.put( RVDMemReq {
                     op: dInst.execFunc.Mem.op,
                     size: dInst.execFunc.Mem.size,
                     isUnsigned: dInst.execFunc.Mem.isUnsigned,
@@ -272,8 +254,7 @@ module mkMulticycleCore(Core);
             tagged Mem .memInst:
                 begin
                     if (getsResponse(memInst.op)) begin
-                        dataWb = dmemResp.first;
-                        dmemResp.deq;
+                        dataWb <- dmem.response.get;
                     end
                 end
         endcase
@@ -386,9 +367,6 @@ module mkMulticycleCore(Core);
         csrf.hostToCsrf(msg);
     endrule
 
-    interface Client ivat = toGPClient(immuReq, immuResp);
-    interface Client ifetch = toGPClient(imemReq, imemResp);
-
     method Action start(Addr startPc);
         running <= True;
         pc <= startPc;
@@ -401,8 +379,6 @@ module mkMulticycleCore(Core);
         state <= Wait;
     endmethod
 
-    interface Client dvat = toGPClient(dmmuReq, dmmuResp);
-    interface Client dmem = toGPClient(dmemReq, dmemResp);
     interface Client htif = toGPClient(toHost, fromHost);
 
     method Action configure(Data miobase);

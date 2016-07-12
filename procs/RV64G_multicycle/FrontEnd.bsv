@@ -24,6 +24,7 @@
 import ClientServer::*;
 import DefaultValue::*;
 import FIFO::*;
+import GetPut::*;
 
 import Abstraction::*;
 import RVExec::*;
@@ -38,8 +39,10 @@ typedef enum {
     Send
 } FEState deriving (Bits, Eq, FShow);
 
-(* synthesize *)
-module mkMulticycleFrontEnd(FrontEnd#(void));
+module mkMulticycleFrontEnd#(
+        Server#(RVIMMUReq, RVIMMUResp) ivat,
+        Server#(RVIMemReq, RVIMemResp) ifetch)
+        (FrontEnd#(void));
     Bool verbose = False;
     File fout = stdout;
 
@@ -52,17 +55,11 @@ module mkMulticycleFrontEnd(FrontEnd#(void));
     Reg#(FrontEndCsrs) csrState <- mkReg(defaultValue);
     Reg#(FEState) state <- mkReg(Wait);
 
-    FIFO#(RVIMMUReq)    mmuReq <- mkFIFO;
-    FIFO#(RVIMMUResp)   mmuResp <- mkFIFO;
-
-    FIFO#(RVIMemReq)    memReq <- mkFIFO;
-    FIFO#(RVIMemResp)   memResp <- mkFIFO;
-
     FIFO#(FrontEndToBackEnd#(void)) toBackEnd <- mkFIFO;
 
     rule doInstMMU(running && state == IMMU);
         // request address translation from MMU
-        mmuReq.enq(pc);
+        ivat.request.put(pc);
         // reset states
         inst <= unpack(0);
         dInst <= unpack(0);
@@ -75,13 +72,13 @@ module mkMulticycleFrontEnd(FrontEnd#(void));
         // I wanted notation like this:
         // let {addr: .phyPc, exception: .exMMU} = mmuResp.first;
 
-        let phyPc = mmuResp.first.addr;
-        let exMMU = mmuResp.first.exception;
-        mmuResp.deq;
+        let resp <- ivat.response.get;
+        let phyPc = resp.addr;
+        let exMMU = resp.exception;
 
         if (!isValid(exMMU)) begin
             // no translation exception
-            memReq.enq(phyPc);
+            ifetch.request.put(phyPc);
             // go to decode stage
             state <= Dec;
         end else begin
@@ -93,8 +90,7 @@ module mkMulticycleFrontEnd(FrontEnd#(void));
     endrule
 
     rule doDecode(state == Dec);
-        let fInst = memResp.first;
-        memResp.deq;
+        let fInst <- ifetch.response.get;
 
         let decInst = decodeInst(fInst);
 
@@ -137,9 +133,6 @@ module mkMulticycleFrontEnd(FrontEnd#(void));
     method Action train(TrainingData d);
         noAction;
     endmethod
-
-    interface Client ivat = toGPClient(mmuReq, mmuResp);
-    interface Client ifetch = toGPClient(memReq, memResp);
 
     method Action start(Addr startPc);
         running <= True;

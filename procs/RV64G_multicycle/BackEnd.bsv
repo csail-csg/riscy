@@ -24,7 +24,7 @@
 import ClientServer::*;
 import DefaultValue::*;
 import FIFO::*;
-import Vector::*;
+import GetPut::*;
 
 import Abstraction::*;
 import RVRFile::*;
@@ -50,8 +50,10 @@ typedef enum {
     Trap2
 } BEState deriving (Bits, Eq, FShow);
 
-(* synthesize *)
-module mkMulticycleBackEnd(BackEnd#(void));
+module mkMulticycleBackEnd#(
+        Server#(RVDMMUReq, RVDMMUResp) dvat,
+        Server#(RVDMemReq, RVDMemResp) dmem)
+        (BackEnd#(void));
     let verbose = False;
     File fout = stdout;
 
@@ -76,12 +78,6 @@ module mkMulticycleBackEnd(BackEnd#(void));
 
     FIFO#(FrontEndToBackEnd#(void)) toBackEnd <- mkFIFO;
     FIFO#(Redirect#(void)) redirect <- mkFIFO;
-
-    FIFO#(RVDMMUReq)    mmuReq <- mkFIFO;
-    FIFO#(RVDMMUResp)   mmuResp <- mkFIFO;
-
-    FIFO#(RVDMemReq)    memReq <- mkFIFO;
-    FIFO#(RVDMemResp)   memResp <- mkFIFO;
 
     FIFO#(Data)         toHost <- mkFIFO;
     FIFO#(Data)         fromHost <- mkFIFO;
@@ -119,7 +115,7 @@ module mkMulticycleBackEnd(BackEnd#(void));
                     // data for store and AMO
                     dataEx = rVal2;
                     addrEx = addrCalc(rVal1, imm);
-                    mmuReq.enq(RVDMMUReq {addr: addrEx, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
+                    dvat.request.put(RVDMMUReq {addr: addrEx, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
                 end
             tagged MulDiv .mulDivInst: mulDiv.exec(mulDivInst, rVal1, rVal2);
             tagged Fence  .fenceInst:  noAction;
@@ -141,13 +137,13 @@ module mkMulticycleBackEnd(BackEnd#(void));
 
     rule doMem(state == Mem);
         if (verbose) $display("Mem");
-        let pAddr = mmuResp.first.addr;
-        let exMMU = mmuResp.first.exception;
-        mmuResp.deq;
+        let resp <- dvat.response.get;
+        let pAddr = resp.addr;
+        let exMMU = resp.exception;
 
         // TODO: make this type safe! get rid of .Mem accesses to tagged union
         if (!isValid(exMMU)) begin
-            memReq.enq( RVDMemReq {
+            dmem.request.put( RVDMemReq {
                     op: dInst.execFunc.Mem.op,
                     size: dInst.execFunc.Mem.size,
                     isUnsigned: dInst.execFunc.Mem.isUnsigned,
@@ -182,8 +178,7 @@ module mkMulticycleBackEnd(BackEnd#(void));
             tagged Mem .memInst:
                 begin
                     if (getsResponse(memInst.op)) begin
-                        dataWb = memResp.first;
-                        memResp.deq;
+                        dataWb <- dmem.response.get;
                     end
                 end
         endcase
@@ -325,8 +320,6 @@ module mkMulticycleBackEnd(BackEnd#(void));
         return ?;
     endmethod
 
-    interface Client dvat = toGPClient(mmuReq, mmuResp);
-    interface Client dmem = toGPClient(memReq, memResp);
     interface Client htif = toGPClient(toHost, fromHost);
 
     method Action configure(Data miobase);

@@ -147,8 +147,8 @@ interface FrontEnd#(type epochType);
     method Action redirect(Redirect#(epochType) r);
     method Action train(TrainingData d);
     // To Memory System
-    interface Client#(RVIMMUReq, RVIMMUResp) ivat;
-    interface Client#(RVIMemReq, RVIMemResp) ifetch;
+    // interface Client#(RVIMMUReq, RVIMMUResp) ivat;
+    // interface Client#(RVIMemReq, RVIMemResp) ifetch;
     // Debugging Interface
     method Action start(Addr pc);
     method Action stop;
@@ -160,8 +160,8 @@ interface BackEnd#(type epochType);
     method ActionValue#(Redirect#(epochType)) getRedirect;
     method ActionValue#(TrainingData) getTrain;
     // To Memory System
-    interface Client#(RVDMMUReq, RVDMMUResp) dvat;
-    interface Client#(RVDMemReq, RVDMemResp) dmem;
+    // interface Client#(RVDMMUReq, RVDMMUResp) dvat;
+    // interface Client#(RVDMemReq, RVDMemResp) dmem;
     interface Client#(FenceReq, FenceResp) fence;
     method ActionValue#(VMInfo) updateVMInfoI;
     method ActionValue#(VMInfo) updateVMInfoD;
@@ -234,14 +234,14 @@ instance Connectable#(FrontEnd#(epochType), BackEnd#(epochType));
 endinstance
 instance Connectable#(FrontEnd#(epochType), MemorySystem);
     module mkConnection#(FrontEnd#(epochType) fe, MemorySystem mem)(Empty);
-        let ivatConnection <- mkConnection(fe.ivat, mem.ivat);
-        let imemConnection <- mkConnection(fe.ifetch, mem.ifetch);
+        // let ivatConnection <- mkConnection(fe.ivat, mem.ivat);
+        // let imemConnection <- mkConnection(fe.ifetch, mem.ifetch);
     endmodule
 endinstance
 instance Connectable#(BackEnd#(epochType), MemorySystem);
     module mkConnection#(BackEnd#(epochType) be, MemorySystem mem)(Empty);
-        let dvatConnection <- mkConnection(be.dvat, mem.dvat);
-        let dmemConnection <- mkConnection(be.dmem, mem.dmem);
+        // let dvatConnection <- mkConnection(be.dvat, mem.dvat);
+        // let dmemConnection <- mkConnection(be.dmem, mem.dmem);
         let fenceConnection <- mkConnection(be.fence, mem.fence);
         let ivmConnection <- mkConnection(toGet(be.updateVMInfoI), toPut(mem.updateVMInfoI));
         let dvmConnection <- mkConnection(toGet(be.updateVMInfoD), toPut(mem.updateVMInfoD));
