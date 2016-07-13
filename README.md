@@ -1,24 +1,43 @@
 riscy
 =====
 
-How to use:
+How to use (in Ubuntu 14.04):
 
-1. `git submodule update --init --recursive`
+1. Get all the submodules
+```
+$ git submodule update --init --recursive
+```
 
-2. Edit setup.sh so RISCY_HOME points to the riscy directory
+2. Edit setup.sh so `RISCY_HOME` points to the riscy directory
 
-3. `source ./setup.sh`
+3. Setup environment for RISCY
+```
+$ source ./setup.sh
+```
 
-4. `cd riscv-tools`
+4. Get dependencies for building riscv tools.
+```
+$ sudo apt-get install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc
+```
 
-5. ` sudo apt-get install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc`
+5. Get newer version of Verilator. The version of Verilator in the Ubuntu package has a bug that prevents running our BSV designs. We use a PPA to provide a newer version of Verilator.
+```
+$ sudo apt-add-repository -y ppa:jamey-hicks/connectal
+$ sudo apt-get update
+$ sudo apt-get install verilator
+```
 
-6. `./build.sh`
+6. Build riscv-tools
+```
+$ cd riscv-tools
+$ ./build.sh
+```
 
-7. `cd ../procs/RV64G_multicycle`
+7. Build multicycle processor
+```
+$ cd ../procs/RV64G_multicycle
+$ make build.verilator
+```
 
-8. `make build.verilator`
+8. Simulate tests by running `./runtests.sh` and then select which tests to run
 
-9. `./runtests.sh`
-
-10. select which tests you want to run
