@@ -26,23 +26,30 @@ import RVTypes::*;
 import ConcatReg::*;
 import ConfigReg::*;
 import DefaultValue::*;
-import Ehr::*;
-import FIFOF::*;
 import RegUtil::*;
 import Vector::*;
+
+typedef union tagged {
+    struct {
+        TrapCause exception;
+        Addr      trapHandlerPC;
+    } Exception;     // exception/interrupt redirection
+    Addr RedirectPC; // non-trap redirection (xRET)
+    Data CsrData;    // CSR read operations
+    void None;       // all other operations
+} CsrReturn deriving (Bits, Eq, FShow);
 
 interface RVCsrFile;
     // Read and Write ports
     // method Data rd(CSR csr);
-    method ActionValue#(Tuple3#(Maybe#(Trap), Maybe#(Data), Maybe#(Addr)))
-        wr( Maybe#(SystemInst) sysInst,
+    method ActionValue#(CsrReturn)
+        wr( Addr pc,
+            Maybe#(SystemInst) sysInst,
             CSR csr,
             Data data, // zimm or rval
-            Maybe#(ExceptionCause) e,
-            Bool allowInterrupt,
-            Addr pc,
-            Bool checkInstAlignment, // if true, addr == nextPc
-            Addr addr,
+            Addr addr, // badaddr
+            Maybe#(TrapCause) trap, // exception or interrupt
+            // indirect updates
             Bit#(5) fflags,
             Bool fpuDirty,
             Bool xDirty);
@@ -51,694 +58,590 @@ interface RVCsrFile;
     method VMInfo vmI;
     method VMInfo vmD;
     method CsrState csrState; // prv, frm, f_enabled, x_enabled
-
-    // tohost/fromhost
-    method Action hostToCsrf(Data val);
-    method ActionValue#(Data) csrfToHost;
-    method Bool toHostEmpty;
-    method Bool fromHostZero;
-    // other tohost/fromhost stuff
-    method Action configure(Data miobase);
-
-    // Interrupts
-    method Action triggerExternalInterrupt;
-
-    // performance stats is collected or not
-    method Bool doPerfStats;
+    method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
 endinterface
 
-interface MToHost;
-    interface Reg#(Data) reg_ifc;
-    interface FIFOF#(Data) fifo_ifc;
-endinterface
+module mkRVCsrFile#(
+            Data hartid,            // Compile-time constant
+            Data mtime, Bool mtip,  // From RTC
+            Bool msip,              // From IPI
+            Bool meip               // From interrupt controller
+        )(RVCsrFile);
 
-module mkMToHost(MToHost);
-    FIFOF#(Data) fifo <- mkFIFOF;
-
-    interface Reg reg_ifc;
-        method Action _write(Data x);
-            fifo.enq(x);
-        endmethod
-        method Data _read;
-            if (fifo.notEmpty) begin
-                return fifo.first;
-            end else begin
-                return 0;
-            end
-        endmethod
-    endinterface
-    interface FIFOF fifo_ifc = fifo;
-endmodule
-
-module mkRVCsrFileWithId#(Data hartid)(RVCsrFile);
     let verbose = False;
     File fout = stdout;
 
-    let mkCsrReg = mkReg; // can use config reg if necessary
     RiscVISASubset isa = defaultValue;
-`ifdef LOOK_LIKE_A_ROCKET
-    Data mimpid = {'b0, 16'h0001};
-`else
-    Data mimpid = {'b0, 16'h8000};
-`endif
+    Data mvendorid     = 64'h0; // non-commercial
+    Data marchid       = 64'h0; // not implemented
+    Data mimpid        = 64'h0; // not implemented
+    Addr default_mtvec = 64'h0000_1000;
+    Addr default_stvec = 64'h0000_8000;
 
-    // Storage elements for CSRs
-    //---------------------------
-    // User level CSRs
-    Reg#(Bit#(5)) fflags_reg  <- mkCsrReg(0);
-    Ehr#(2,Bit#(3)) frm_ehr     <- mkEhr(0);
-    Ehr#(2,Data)  cycle_ehr   <- mkEhr(0);
-    Ehr#(2,Bit#(TAdd#(64,10))) time_ehr <- mkEhr(0); // 10 extra bits so time_reg ticks once every 1024 clock cycles
-    Ehr#(2,Data)  instret_ehr <- mkEhr(0);
-    Reg#(Data)    cycle_reg   =  cycle_ehr[0];
-    Reg#(Data)    time_reg    =  truncateRegLSB(time_ehr[0]);
-    Reg#(Data)    instret_reg =  instret_ehr[0];
+    Reg#(Bit#(2)) prv <- mkReg(prvM); // resets to machine mode
 
-    // whether performance stats is collected (only need 1 bit)
-    Reg#(Data)    stats_reg   <- mkConfigReg(0); 
+    // Counters
+    Reg#(Bit#(64)) cycle_counter <- mkReg(0);
+    Reg#(Bit#(64)) instret_counter <- mkReg(0);
 
-    // Supervisor level CSRs
-    // stvec
-    Reg#(Bit#(62)) stvec_reg <- mkCsrReg(0);
-    // sie
-    // stimecmp
-    Reg#(Data) stimecmp_reg <- mkCsrReg(0);
-    // sscratch
-    Reg#(Data) sscratch_reg <- mkCsrReg(0);
-    // sepc
-    Reg#(Data) sepc_reg <- mkCsrReg(0);
-    // scause
-    Reg#(Bit#(1)) scause_i_reg <- mkCsrReg(0);
-    Reg#(Bit#(4)) scause_code_reg <- mkCsrReg(0);
-    // sbadaddr
-    Reg#(Data) sbadaddr_reg <- mkCsrReg(0);
-    // sip
-    // sptbr
-    Reg#(Bit#(52)) sptbr_reg <- mkCsrReg(0);
-    // sasid
-    Reg#(Asid) sasid_reg <- mkCsrReg(0);
+    rule incCycleCounter;
+        cycle_counter <= cycle_counter + 1;
+    endrule
 
-    // Machine level CSRs
-    // mstatus
-    Reg#(Bit#(5)) vm_reg    <- mkCsrReg(0);
-    Reg#(Bit#(1)) mprv_reg  <- mkCsrReg(0);
-    Ehr#(2,Bit#(2)) xs_ehr    <- isa.x ? mkEhr(0) : replicateM(mkReadOnlyReg(0));
-    Ehr#(2,Bit#(2)) fs_ehr    <- (isa.f || isa.d) ? mkEhr(0) : replicateM(mkReadOnlyReg(0));
-    Reg#(Bit#(1)) sd_reg    =  readOnlyReg( ((xs_ehr[0] == 2'b11) || (fs_ehr[0] == 2'b11)) ? 1 : 0 );
-    Reg#(Bit#(2)) prv3_reg  <- isa.h ? mkCsrReg(0) : mkReadOnlyReg(0);
-    Reg#(Bit#(1)) ie3_reg   <- isa.h ? mkCsrReg(0) : mkReadOnlyReg(0);
-    Reg#(Bit#(2)) prv2_reg  <- mkCsrReg(0);
-    Reg#(Bit#(1)) ie2_reg   <- mkCsrReg(0);
-    Reg#(Bit#(2)) prv1_reg  <- mkCsrReg(0);
-    Reg#(Bit#(1)) ie1_reg   <- mkCsrReg(0);
-    Ehr#(2,Bit#(2)) prv_ehr   <- mkEhr(3);
-    Reg#(Bit#(1)) ie_reg    <- mkCsrReg(0);
-    // sstatus (supervisor view of sstatus
-    Reg#(Bit#(1)) ps_reg    = truncateReg(prv1_reg);
-    Reg#(Bit#(1)) pie_reg   = ie1_reg;
-    // mtvec
-    Reg#(Bit#(62)) mtvec_reg <- mkCsrReg(62'h40); // bottom two bits will be hardwired to 0
-    // mtdeleg
-    Reg#(Data) mtdeleg_reg <- mkCsrReg(0);
-    // mip
-    Ehr#(2, Bit#(1)) mtip_ehr <- mkEhr(0);
-    Reg#(Bit#(1)) htip_reg =  readOnlyReg(0);
-    Reg#(Bit#(1)) stip_reg <- mkCsrReg(0);
-    Reg#(Bit#(1)) msip_reg <- mkCsrReg(0);
-    Reg#(Bit#(1)) hsip_reg =  readOnlyReg(0);
-    Reg#(Bit#(1)) ssip_reg <- mkCsrReg(0);
-    // mie
-    Reg#(Bit#(1)) mtie_reg <- mkCsrReg(0);
-    Reg#(Bit#(1)) htie_reg =  readOnlyReg(0);
-    Reg#(Bit#(1)) stie_reg <- mkCsrReg(0);
-    Reg#(Bit#(1)) msie_reg <- mkCsrReg(0);
-    Reg#(Bit#(1)) hsie_reg =  readOnlyReg(0);
-    Reg#(Bit#(1)) ssie_reg <- mkCsrReg(0);
-    // mtimecmp
-    Reg#(Bit#(32)) mtimecmp_reg <- mkCsrReg(0);
-    // mtime
-    // mscratch
-    Reg#(Data)    mscratch_reg <- mkCsrReg(0);
-    // mepc
-    Reg#(Data)    mepc_reg <- mkCsrReg(0); // Bottom two bits are always 0 on systems where instructions are 32-bit aligned
-    // mcause
-    Reg#(Bit#(1)) mcause_i_reg <- mkCsrReg(0);
-    Reg#(Bit#(4)) mcause_code_reg <- mkCsrReg(0);
-    // mbadaddr
-    Reg#(Data)    mbadaddr_reg <- mkCsrReg(0);
-    // mbase
-    Reg#(Data)    mbase_reg <- mkCsrReg(0);
-    // mbound
-    Reg#(Data)    mbound_reg <- mkCsrReg(0);
-    // mibase
-    Reg#(Data)    mibase_reg <- mkCsrReg(0);
-    // mibound
-    Reg#(Data)    mibound_reg <- mkCsrReg(0);
-    // mdbase
-    Reg#(Data)    mdbase_reg <- mkCsrReg(0);
-    // mdbound
-    Reg#(Data)    mdbound_reg <- mkCsrReg(0);
-    // tohost/fromhost
-    // Reg#(Data)    mtohost_reg <- mkCsrReg(0);
-    // Reg#(Data)    mfromhost_reg <- mkCsrReg(0);
-    // Reg#(Data)    mtohost_reg <- mkConfigReg(0);
-    MToHost       mtohost_module <- mkMToHost;
-    Reg#(Data)    mtohost_reg = mtohost_module.reg_ifc;
-    Reg#(Data)    mfromhost_reg <- mkConfigReg(0);
-    // This should be read only (I think)
-    Reg#(Data)    miobase_reg <- mkConfigReg(0);
+    // Counter enables
+    Reg#(Bit#(1)) u_ir_field <- mkReg(0);
+    Reg#(Bit#(1)) u_tm_field <- mkReg(0);
+    Reg#(Bit#(1)) u_cy_field <- mkReg(0);
+    Reg#(Bit#(1)) s_ir_field <- mkReg(0);
+    Reg#(Bit#(1)) s_tm_field <- mkReg(0);
+    Reg#(Bit#(1)) s_cy_field <- mkReg(0);
 
+    // FPU Fields
+    Reg#(Bit#(5)) fflags_field  <- mkReg(0);
+    Reg#(Bit#(3)) frm_field     <- mkReg(0);
 
-    // Write and Read methods that make up CSRs
-    //------------------------------------------
-    // User level CSRs
+    // vm fields
+    Reg#(Bit#(26)) asid_field      <- mkReg(0);
+    Reg#(Bit#(38)) sptbr_ppn_field <- mkReg(0);
 
-    // not this simple -- these need to dirty the fs_ehr
-    Reg#(Data) fflags_csr   = addWriteSideEffect(zeroExtendReg(fflags_reg),                           fs_ehr[0]._write(2'b11));
-    Reg#(Data) frm_csr      = addWriteSideEffect(zeroExtendReg(frm_ehr[0]),                              fs_ehr[0]._write(2'b11));
-    Reg#(Data) fcsr_csr     = addWriteSideEffect(concatReg3(readOnlyReg(56'h0), frm_ehr[0], fflags_reg), fs_ehr[0]._write(2'b11));
+    // trap delegation fields
+    Reg#(Bit#(12)) sedeleg_field <- mkReg(0);
+    Reg#(Bit#(12)) sideleg_field <- mkReg(0);
+    Reg#(Bit#(12)) medeleg_field <- mkReg(0);
+    Reg#(Bit#(12)) mideleg_field <- mkReg(0);
 
-    Reg#(Data) stats_csr    = stats_reg;
+    // trap vector fields (same as CSR without bottom 2 bits
+    Reg#(Bit#(62)) mtvec_field <- mkReg(default_mtvec[63:2]);
+    Reg#(Bit#(62)) stvec_field <- mkReg(default_stvec[63:2]);
 
-    Reg#(Data) cycle_csr    = readOnlyReg(cycle_reg);
-    Reg#(Data) time_csr     = readOnlyReg(time_reg);
-    Reg#(Data) instret_csr  = readOnlyReg(instret_reg);
+    // mstatus fields
+    Reg#(Bit#(5)) vm_field   <- mkReg(0); // WARL
+    Reg#(Bit#(1)) mxr_field  <- mkReg(0);
+    Reg#(Bit#(1)) pum_field  <- mkReg(0);
+    Reg#(Bit#(1)) mprv_field <- mkReg(0);
+    Reg#(Bit#(2)) xs_field   <- mkReg(0);
+    Reg#(Bit#(2)) fs_field   <- mkReg(0);
+    Reg#(Bit#(2)) mpp_field  <- mkReg(0);
+    Reg#(Bit#(2)) hpp_field  <- mkReg(0);
+    Reg#(Bit#(1)) spp_field  <- mkReg(0);
+    Reg#(Bit#(1)) mpie_field <- mkReg(0);
+    Reg#(Bit#(1)) hpie_field <- mkReg(0);
+    Reg#(Bit#(1)) spie_field <- mkReg(0);
+    Reg#(Bit#(1)) upie_field <- mkReg(0);
+    Reg#(Bit#(1)) mie_field  <- mkReg(0);
+    Reg#(Bit#(1)) hie_field  <- mkReg(0);
+    Reg#(Bit#(1)) sie_field  <- mkReg(0);
+    Reg#(Bit#(1)) uie_field  <- mkReg(0);
+    Reg#(Bit#(1)) sd_field   =  readOnlyReg(pack((xs_field == 2'b11) || (fs_field == 2'b11)));
 
-    // Supervisor level CSRs
-    Reg#(Data) stvec_csr    = concatReg2(stvec_reg, readOnlyReg(2'h0));
-    Reg#(Data) sstatus_csr  = concatReg10(sd_reg, readOnlyReg(46'h0), mprv_reg, xs_ehr[0], fs_ehr[0], readOnlyReg(7'h0), ps_reg, pie_reg, readOnlyReg(2'h0), ie_reg);
-    Reg#(Data) sip_csr      = concatReg5(readOnlyReg(58'h0), stip_reg, readOnlyReg(3'h0), ssip_reg, readOnlyReg(1'h0));
-    Reg#(Data) sie_csr      = concatReg5(readOnlyReg(58'h0), stie_reg, readOnlyReg(3'h0), ssie_reg, readOnlyReg(1'h0));
-    Reg#(Data) stime_csr    = time_reg;
-    Reg#(Data) stimecmp_csr = addWriteSideEffect(zeroExtendReg(stimecmp_reg), stip_reg._write(0));
-    Reg#(Data) sscratch_csr = sscratch_reg;
-    Reg#(Data) sepc_csr     = sepc_reg;
-    Reg#(Data) scause_csr   = concatReg3(scause_i_reg, readOnlyReg(59'h0), scause_code_reg);
-    Reg#(Data) sbadaddr_csr = sbadaddr_reg;
-    Reg#(Data) sptbr_csr    = concatReg2(sptbr_reg, readOnlyReg(12'h0));
-    Reg#(Data) sasid_csr    = zeroExtendReg(sasid_reg);
-    Reg#(Data) cyclew_csr   = cycle_reg;
-    Reg#(Data) timew_csr    = time_reg;
-    Reg#(Data) instretw_csr = instret_reg;
+    // mie fields
+    Reg#(Bit#(1)) meie_field <- mkReg(0);
+    Reg#(Bit#(1)) heie_field <- mkReg(0);
+    Reg#(Bit#(1)) seie_field <- mkReg(0);
+    Reg#(Bit#(1)) ueie_field <- mkReg(0);
+    Reg#(Bit#(1)) mtie_field <- mkReg(0);
+    Reg#(Bit#(1)) htie_field <- mkReg(0);
+    Reg#(Bit#(1)) stie_field <- mkReg(0);
+    Reg#(Bit#(1)) utie_field <- mkReg(0);
+    Reg#(Bit#(1)) msie_field <- mkReg(0);
+    Reg#(Bit#(1)) hsie_field <- mkReg(0);
+    Reg#(Bit#(1)) ssie_field <- mkReg(0);
+    Reg#(Bit#(1)) usie_field <- mkReg(0);
 
-    // Machine level CSRs
-    Reg#(Data) mcpuid_csr   = readOnlyReg(getMCPUID(isa));
-    Reg#(Data) mimpid_csr   = readOnlyReg(mimpid);
-    Reg#(Data) mhartid_csr  = readOnlyReg(hartid);
-    Reg#(Data) mstatus_csr  = concatReg14(sd_reg, readOnlyReg(41'h0), vm_reg, mprv_reg, xs_ehr[0], fs_ehr[0], prv3_reg, ie3_reg, prv2_reg, ie2_reg, prv1_reg, ie1_reg, prv_ehr[0], ie_reg);
-    Reg#(Data) mtvec_csr    = concatReg2(mtvec_reg, readOnlyReg(2'h0));
-    Reg#(Data) mtdeleg_csr  = mtdeleg_reg;
-    Reg#(Data) mip_csr      = concatReg9(readOnlyReg(56'h0), mtip_ehr[0], htip_reg, stip_reg, readOnlyReg(1'h0), msip_reg, hsip_reg, ssip_reg, readOnlyReg(1'h0));
-    Reg#(Data) mie_csr      = concatReg9(readOnlyReg(56'h0), mtie_reg, htie_reg, stie_reg, readOnlyReg(1'h0), msie_reg, hsie_reg, ssie_reg, readOnlyReg(1'h0));
-    Reg#(Data) mtime_csr    = time_reg;
-    Reg#(Data) mtimecmp_csr = addWriteSideEffect(zeroExtendReg(mtimecmp_reg), mtip_ehr[0]._write(0));
-    Reg#(Data) mscratch_csr = mscratch_reg;
-    Reg#(Data) mepc_csr     = mepc_reg;
-    Reg#(Data) mcause_csr   = concatReg3(mcause_i_reg, readOnlyReg(59'h0), mcause_code_reg);
-    Reg#(Data) mbadaddr_csr = mbadaddr_reg;
-    Reg#(Data) mbase_csr    = mbase_reg;
-    Reg#(Data) mbound_csr   = mbound_reg;
-    Reg#(Data) mibase_csr   = mibase_reg;
-    Reg#(Data) mibound_csr  = mibound_reg;
-    Reg#(Data) mdbase_csr   = mdbase_reg;
-    Reg#(Data) mdbound_csr  = mdbound_reg;
+    // mip fields
+    Reg#(Bit#(1)) meip_field =  readOnlyReg(pack(meip));
+    Reg#(Bit#(1)) heip_field <- mkReg(0);
+    Reg#(Bit#(1)) seip_field <- mkReg(0);
+    Reg#(Bit#(1)) ueip_field <- mkReg(0);
+    Reg#(Bit#(1)) mtip_field =  readOnlyReg(pack(mtip));
+    Reg#(Bit#(1)) htip_field <- mkReg(0);
+    Reg#(Bit#(1)) stip_field <- mkReg(0);
+    Reg#(Bit#(1)) utip_field <- mkReg(0);
+    Reg#(Bit#(1)) msip_field =  readOnlyReg(pack(msip));
+    Reg#(Bit#(1)) hsip_field <- mkReg(0);
+    Reg#(Bit#(1)) ssip_field <- mkReg(0);
+    Reg#(Bit#(1)) usip_field <- mkReg(0);
 
-    // Non-standard CSRs
-    Reg#(Data) mtohost_csr  = mtohost_reg;
-    Reg#(Data) mfromhost_csr= mfromhost_reg;
-    Reg#(Data) miobase_csr  = readOnlyReg(miobase_reg);
+    // Priv 1.9 CSRs
 
-    // Function for getting a csr given an index
-    function Reg#(Data) get_csr(CSR csr);
+    // Machine Timers and Counters
+    Reg#(Data) mcycle_csr   = readOnlyReg(cycle_counter);
+    Reg#(Data) mtime_csr    = readOnlyReg(mtime);
+    Reg#(Data) minstret_csr = readOnlyReg(instret_counter);
+
+    // Machine Counter-Delta Registers
+    Reg#(Data) mucycle_delta_csr   <- mkReg(0);
+    Reg#(Data) mutime_delta_csr    <- mkReg(0);
+    Reg#(Data) muinstret_delta_csr <- mkReg(0);
+    Reg#(Data) mscycle_delta_csr   <- mkReg(0);
+    Reg#(Data) mstime_delta_csr    <- mkReg(0);
+    Reg#(Data) msinstret_delta_csr <- mkReg(0);
+
+    // User FPU
+    Reg#(Data) fflags_csr = addWriteSideEffect(zeroExtendReg(fflags_field), fs_field._write(2'b11));
+    Reg#(Data) frm_csr    = addWriteSideEffect(zeroExtendReg(frm_field), fs_field._write(2'b11));
+    Reg#(Data) fcsr_csr   = addWriteSideEffect(zeroExtendReg(concatReg2(frm_field, fflags_field)), fs_field._write(2'b11));
+
+    // User Timers and Counters
+    Reg#(Data) cycle_csr   = readOnlyReg(mcycle_csr + mucycle_delta_csr);
+    Reg#(Data) time_csr    = readOnlyReg(mtime_csr + mutime_delta_csr);
+    Reg#(Data) instret_csr = readOnlyReg(minstret_csr + muinstret_delta_csr);
+
+    // Supervisor
+    Reg#(Data) sstatus_csr =  concatReg20(
+            sd_field,
+            readOnlyReg(0),
+            vm_field,
+            readOnlyReg(4'b0),
+            readOnlyReg(1'b0), pum_field, readOnlyReg(1'b0), // memory privilege
+            xs_field, fs_field, // coprocessor states
+            readOnlyReg(2'b0), readOnlyReg(2'b0), spp_field, // previous privileges
+            readOnlyReg(1'b0), readOnlyReg(1'b0), spie_field, upie_field, // previous interrupt enables
+            readOnlyReg(1'b0), readOnlyReg(1'b0), sie_field, uie_field); // interrupt enables
+    Reg#(Data) sedeleg_csr  =  concatReg2(readOnlyReg(0), sedeleg_field); // WARL - 12 legal exceptions
+    Reg#(Data) sideleg_csr  =  concatReg2(readOnlyReg(0), sideleg_field); // WARL - 12 legal interrupts
+    Reg#(Data) sie_csr      =  concatReg13(
+            readOnlyReg(0),
+            readOnlyReg(1'b0), readOnlyReg(1'b0), seie_field, ueie_field,
+            readOnlyReg(1'b0), readOnlyReg(1'b0), stie_field, utie_field,
+            readOnlyReg(1'b0), readOnlyReg(1'b0), ssie_field, usie_field);
+    Reg#(Data) stvec_csr    =  concatReg2(stvec_field, readOnlyReg(2'd0));
+    Reg#(Data) sscratch_csr <- mkReg(0);
+    Reg#(Data) sepc_csr     <- mkReg(0);
+    Reg#(Data) scause_csr   <- mkReg(0);
+    Reg#(Data) sbadaddr_csr <- mkReg(0);
+    Reg#(Data) sip_csr      =  concatReg13(
+            readOnlyReg(0),
+            readOnlyReg(1'b0), readOnlyReg(1'b0), readOnlyReg(seip_field), readOnlyReg(ueip_field),
+            readOnlyReg(1'b0), readOnlyReg(1'b0), readOnlyReg(stip_field), readOnlyReg(utip_field),
+            readOnlyReg(1'b0), readOnlyReg(1'b0), ssip_field, usip_field);
+
+    Reg#(Data) sptbr_csr    = concatReg2(asid_field, sptbr_ppn_field);
+
+    Reg#(Data) scycle_csr   = readOnlyReg(mcycle_csr + mscycle_delta_csr);
+    Reg#(Data) stime_csr    = readOnlyReg(mtime_csr + mstime_delta_csr);
+    Reg#(Data) sinstret_csr = readOnlyReg(minstret_csr + msinstret_delta_csr);
+
+    // Machine Information Registers
+    Reg#(Data) misa_csr      = readOnlyReg(getMISA(isa));
+    Reg#(Data) mvendorid_csr = readOnlyReg(mvendorid);
+    Reg#(Data) marchid_csr   = readOnlyReg(marchid);
+    Reg#(Data) mimpid_csr    = readOnlyReg(mimpid);
+    Reg#(Data) mhartid_csr   = readOnlyReg(hartid);
+
+    // Machine Trap Setup
+    Reg#(Data) mstatus_csr =  concatReg20(
+            sd_field,
+            readOnlyReg(0),
+            vm_field,
+            readOnlyReg(4'b0),
+            mxr_field, pum_field, mprv_field, // memory privilege
+            xs_field, fs_field, // coprocessor states
+            mpp_field, hpp_field, spp_field, // previous privileges
+            mpie_field, hpie_field, spie_field, upie_field, // previous interrupt enables
+            mie_field, hie_field, sie_field, uie_field); // interrupt enables
+    Reg#(Data) medeleg_csr =  concatReg2(readOnlyReg(0), medeleg_field); // WARL - 12 legal exceptions
+    Reg#(Data) mideleg_csr =  concatReg2(readOnlyReg(0), mideleg_field); // WARL - 12 legal interrupts
+    Reg#(Data) mie_csr     =  concatReg13(
+            readOnlyReg(0),
+            meie_field, heie_field, seie_field, ueie_field,
+            mtie_field, htie_field, stie_field, utie_field,
+            msie_field, hsie_field, ssie_field, usie_field);
+    Reg#(Data) mtvec_csr   =  concatReg2(mtvec_field, readOnlyReg(2'd0));
+
+    // Machine Trap Handling
+    Reg#(Data) mscratch_csr <- mkReg(0);
+    Reg#(Data) mepc_csr     <- mkReg(0);
+    Reg#(Data) mcause_csr   <- mkReg(0);
+    Reg#(Data) mbadaddr_csr <- mkReg(0);
+    Reg#(Data) mip_csr      =  concatReg13(
+            readOnlyReg(0),
+            readOnlyReg(meip_field), readOnlyReg(heip_field), readOnlyReg(seip_field), readOnlyReg(ueip_field),
+            readOnlyReg(mtip_field), htip_field, stip_field, utip_field,
+            readOnlyReg(msip_field), hsip_field, ssip_field, usip_field);
+
+    // Machine Protection and Translation
+    Reg#(Data) mbase_csr   <- mkReg(0);
+    Reg#(Data) mbound_csr  <- mkReg(0);
+    Reg#(Data) mibase_csr  <- mkReg(0);
+    Reg#(Data) mibound_csr <- mkReg(0);
+    Reg#(Data) mdbase_csr  <- mkReg(0);
+    Reg#(Data) mdbound_csr <- mkReg(0);
+
+    // Machine Counter Setup
+    Reg#(Data) mucounteren_csr = concatReg4(readOnlyReg(0), u_ir_field, u_tm_field, u_cy_field);
+    Reg#(Data) mscounteren_csr = concatReg4(readOnlyReg(0), s_ir_field, s_tm_field, s_cy_field);
+
+    function Reg#(Data) getCSR(CSR csr);
         return (case (csr)
-                // User Floating-Point CSRs
-                CSRfflags:    fflags_csr;
-                CSRfrm:       frm_csr;
-                CSRfcsr:      fcsr_csr;
-                // User stats
-                CSRstats:     stats_csr;
-                // User Counter/Timers
-                CSRcycle:     cycle_csr;
-                CSRtime:      time_csr;
-                CSRinstret:   instret_csr;
-
-                // Supervisor Trap Setup
-                CSRsstatus:   sstatus_csr;
-                CSRstvec:     stvec_csr;
-                CSRsie:       sie_csr;
-                CSRstimecmp:  stimecmp_csr;
-                // Supervisor Timer
-                CSRstime:     stime_csr;
-                // Supervisor Trap Handling
-                CSRsscratch:  sscratch_csr;
-                CSRsepc:      sepc_csr;
-                CSRscause:    scause_csr;
-                CSRsbadaddr:  sbadaddr_csr;
-                CSRsip:       sip_csr;
-                // Supervisor Protection and Translation
-                CSRsptbr:     sptbr_csr;
-                CSRsasid:     sasid_csr;
-                // Supervisor Read/Write Shadow of User Read-Only registers
-                CSRcyclew:    cyclew_csr;
-                CSRtimew:     timew_csr;
-                CSRinstretw:  instretw_csr;
-
-                // Machine Information Registers
-                CSRmcpuid:    mcpuid_csr;
-                CSRmimpid:    mimpid_csr;
-                CSRmhartid:   mhartid_csr;
-                // Machine Trap Setup
-                CSRmstatus:   mstatus_csr;
-                CSRmtvec:     mtvec_csr;
-                CSRmtdeleg:   mtdeleg_csr;
-                CSRmie:       mie_csr;
-                CSRmtimecmp:  mtimecmp_csr;
-                // Machine Timers and Counters
-                CSRmtime:     mtime_csr;
-                // Machine Trap Handling
-                CSRmscratch:  mscratch_csr;
-                CSRmepc:      mepc_csr;
-                CSRmcause:    mcause_csr;
-                CSRmbadaddr:  mbadaddr_csr;
-                CSRmip:       mip_csr;
-                // Machine Protection and Translation
-                CSRmbase:     mbase_csr;
-                CSRmbound:    mbound_csr;
-                CSRmibase:    mibase_csr;
-                CSRmibound:   mibound_csr;
-                CSRmdbase:    mdbase_csr;
-                CSRmdbound:   mdbound_csr;
-                // Machine Read/Write Shadow of Hypervisor Read-Only Registers
-                // TODO: implement
-                // Machine Host-Target Interface (Non-Standard Berkeley Extension)
-                CSRmtohost:   mtohost_csr;
-                CSRmfromhost: mfromhost_csr;
-                CSRmiobase:   miobase_csr;
-
-                default:      (readOnlyReg(64'h0));
+                CSRfflags:              fflags_csr;
+                CSRfrm:                 frm_csr;
+                CSRfcsr:                fcsr_csr;
+                CSRcycle:               cycle_csr;
+                CSRtime:                time_csr;
+                CSRinstret:             instret_csr;
+                CSRsstatus:             sstatus_csr;
+                CSRsedeleg:             sedeleg_csr;
+                CSRsideleg:             sideleg_csr;
+                CSRsie:                 sie_csr;
+                CSRstvec:               stvec_csr;
+                CSRsscratch:            sscratch_csr;
+                CSRsepc:                sepc_csr;
+                CSRscause:              scause_csr;
+                CSRsbadaddr:            sbadaddr_csr;
+                CSRsip:                 sip_csr;
+                CSRsptbr:               sptbr_csr;
+                CSRscycle:              scycle_csr;
+                CSRstime:               stime_csr;
+                CSRsinstret:            sinstret_csr;
+                CSRmisa:                misa_csr;
+                CSRmvendorid:           mvendorid_csr;
+                CSRmarchid:             marchid_csr;
+                CSRmimpid:              mimpid_csr;
+                CSRmhartid:             mhartid_csr;
+                CSRmstatus:             mstatus_csr;
+                CSRmedeleg:             medeleg_csr;
+                CSRmideleg:             mideleg_csr;
+                CSRmie:                 mie_csr;
+                CSRmtvec:               mtvec_csr;
+                CSRmscratch:            mscratch_csr;
+                CSRmepc:                mepc_csr;
+                CSRmcause:              mcause_csr;
+                CSRmbadaddr:            mbadaddr_csr;
+                CSRmip:                 mip_csr;
+                CSRmbase:               mbase_csr;
+                CSRmbound:              mbound_csr;
+                CSRmibase:              mibase_csr;
+                CSRmibound:             mibound_csr;
+                CSRmdbase:              mdbase_csr;
+                CSRmdbound:             mdbound_csr;
+                CSRmcycle:              mcycle_csr;
+                CSRmtime:               mtime_csr;
+                CSRminstret:            minstret_csr;
+                CSRmucounteren:         mucounteren_csr;
+                CSRmscounteren:         mscounteren_csr;
+                CSRmucycle_delta:       mucycle_delta_csr;
+                CSRmutime_delta:        mutime_delta_csr;
+                CSRmuinstret_delta:     muinstret_delta_csr;
+                CSRmscycle_delta:       mscycle_delta_csr;
+                CSRmstime_delta:        mstime_delta_csr;
+                CSRmsinstret_delta:     msinstret_delta_csr;
+                default:                (readOnlyReg(64'h0));
             endcase);
     endfunction
 
-    Maybe#(Interrupt) pendingInterrupt = (begin
-            Maybe#(Interrupt) ret = tagged Invalid;
-            Bool ie = ie_reg == 1;
-            if (prv_ehr[0] < prvM || ((prv_ehr[0] == prvM) && ie)) begin
-                if ((msie_reg & msip_reg) == 1) begin
-                    ret = tagged Valid SoftwareInterrupt;
-                end else if ((mtie_reg & mtip_ehr[0]) == 1) begin
-                    ret = tagged Valid TimerInterrupt;
-                end else if (mfromhost_reg != 0) begin
-                    ret = tagged Valid HostInterrupt;
-                end
-            end
-            if (!isValid(ret) && (prv_ehr[0] < prvS || ((prv_ehr[0] == prvS) && ie))) begin
-                if ((ssie_reg & ssip_reg) == 1) begin
-                    ret = tagged Valid SoftwareInterrupt;
-                end else if ((stie_reg & stip_reg) == 1) begin
-                    ret = tagged Valid TimerInterrupt;
-                end
-            end
-            ret;
-        end);
-
-
-    ActionValue#(Addr) sret = (actionvalue
-            // pop stack
-            prv_ehr[0] <= prv1_reg;
-            ie_reg <= ie1_reg;
-            prv1_reg <= prv2_reg;
-            ie1_reg <= ie2_reg;
-            if (isa.h) begin
-                prv2_reg <= prv3_reg;
-                ie2_reg <= ie3_reg;
-                prv3_reg <= prvU;
-                ie3_reg <= 1;
-            end else begin
-                prv2_reg <= prvU;
-                ie2_reg <= 1;
-            end
-
-            let next_pc = 0;
-            if (prv_ehr[0] == prvS) begin
-                next_pc = sepc_csr;
-            end else if (prv_ehr[0] == prvM) begin
-                next_pc = mepc_csr;
-            end else begin
-                $fdisplay(stderr, "[ERROR] CsrFile: sret called when processor wasn't in S or M mode");
-                $finish;
-            end
-            return next_pc;
-        endactionvalue);
-
-    ActionValue#(Addr) mrts = (actionvalue
-            prv_ehr[0] <= prvS;
-            sbadaddr_reg <= mbadaddr_reg;
-            scause_i_reg <= mcause_i_reg;
-            scause_code_reg <= mcause_code_reg;
-            sepc_reg <= mepc_reg;
-            return stvec_csr;
-        endactionvalue);
-    
-    function ActionValue#(Addr) trap(Trap t, Addr pc, Addr addr);
-        return (actionvalue
-                // Check mtdeleg
-                Bit#(1) deleg_bit = (case (t) matches
-                        tagged Exception .x: mtdeleg_csr[pack(x)];
-                        tagged Interrupt .x: mtdeleg_csr[pack(x) << 4];
-                    endcase);
-                // Disable mprv
-                mprv_reg <= 0;
-                // push stack
-                prv3_reg <= prv2_reg; // no action if H-mode isn't supported
-                ie3_reg <= ie2_reg;     // no action if H-mode isn't supported
-                prv2_reg <= prv1_reg;
-                ie2_reg <= ie1_reg;
-                prv1_reg <= prv_ehr[0];
-                ie1_reg <= ie_reg;
-                Addr next_pc = 0;
-                if (deleg_bit == 1) begin
-                    // trap to S-mode
-                    prv_ehr[0] <= prvS;
-                    ie_reg <= 0;
-                    sepc_reg <= pc;
-                    case (t) matches
-                        tagged Exception .x:
-                            begin
-                                scause_i_reg <= 0;
-                                scause_code_reg <= pack(x);
-                                case (x)
-                                    InstAddrMisaligned:
-                                        sbadaddr_reg <= addr;
-                                    InstAccessFault:
-                                        sbadaddr_reg <= pc;
-                                    LoadAddrMisaligned, LoadAccessFault, StoreAddrMisaligned, StoreAccessFault:
-                                        sbadaddr_reg <= addr;
-                                endcase
-                            end
-                        tagged Interrupt .x:
-                            begin
-                                scause_i_reg <= 1;
-                                scause_code_reg <= pack(x);
-                            end
-                    endcase
-                    next_pc = stvec_csr + (zeroExtend(prv_ehr[0]) << 6);
-                end else begin
-                    // trap to M-mode
-                    prv_ehr[0] <= prvM;
-                    ie_reg <= 0;
-                    mepc_reg <= pc;
-                    case (t) matches
-                        tagged Exception .x:
-                            begin
-                                mcause_i_reg <= 0;
-                                mcause_code_reg <= pack(x);
-                                case (x)
-                                    InstAddrMisaligned:
-                                        mbadaddr_reg <= addr;
-                                    InstAccessFault:
-                                        mbadaddr_reg <= pc;
-                                    LoadAddrMisaligned, LoadAccessFault, StoreAddrMisaligned, StoreAccessFault:
-                                        mbadaddr_reg <= addr;
-                                endcase
-                            end
-                        tagged Interrupt .x:
-                            begin
-                                mcause_i_reg <= 1;
-                                mcause_code_reg <= pack(x);
-                            end
-                    endcase
-                    next_pc = mtvec_csr + (zeroExtend(prv_ehr[0]) << 6);
-                end
-                // FIXME: yield load reservation
-                return next_pc;
-            endactionvalue);
-    endfunction
-
-    function Action wrDirect(CSR csr, Data data);
-        return (action
-                // increment instret
-                instret_ehr[1] <= instret_ehr[1] + 1;
-                get_csr(csr)._write(data);
-            endaction);
-    endfunction
-
-    function Action wrIndirect(Bit#(5) fflags, Bool fpuDirty, Bool xDirty);
-        return (action
-                // increment instret
-                instret_ehr[1] <= instret_ehr[1] + 1;
-
-                // update fflags, fs, and xs
-                if ((fflags & fflags_reg) != fflags) begin
-                    fflags_reg <= fflags_reg | fflags;
-                    fs_ehr[0] <= 2'b11;
-                end else if (fpuDirty) begin
-                    fs_ehr[0] <= 2'b11;
-                end
-                if (xDirty) begin
-                    xs_ehr[0] <= 2'b11;
-                end
-            endaction);
+    function Bool isLegalCSR(CSR csr);
+        return (case (csr)
+                CSRfflags:              (fs_field != 0);
+                CSRfrm:                 (fs_field != 0);
+                CSRfcsr:                (fs_field != 0);
+                CSRcycle:               (u_cy_field == 1);
+                CSRtime:                (u_tm_field == 1);
+                CSRinstret:             (u_ir_field == 1);
+                CSRsstatus:             True;
+                CSRsedeleg:             True;
+                CSRsideleg:             True;
+                CSRsie:                 True;
+                CSRstvec:               True;
+                CSRsscratch:            True;
+                CSRsepc:                True;
+                CSRscause:              True;
+                CSRsbadaddr:            True;
+                CSRsip:                 True;
+                CSRsptbr:               True;
+                CSRscycle:              (s_cy_field == 1);
+                CSRstime:               (s_tm_field == 1);
+                CSRsinstret:            (s_ir_field == 1);
+                CSRmisa:                True;
+                CSRmvendorid:           True;
+                CSRmarchid:             True;
+                CSRmimpid:              True;
+                CSRmhartid:             True;
+                CSRmstatus:             True;
+                CSRmedeleg:             True;
+                CSRmideleg:             True;
+                CSRmie:                 True;
+                CSRmtvec:               True;
+                CSRmscratch:            True;
+                CSRmepc:                True;
+                CSRmcause:              True;
+                CSRmbadaddr:            True;
+                CSRmip:                 True;
+                CSRmbase:               True;
+                CSRmbound:              True;
+                CSRmibase:              True;
+                CSRmibound:             True;
+                CSRmdbase:              True;
+                CSRmdbound:             True;
+                CSRmcycle:              True;
+                CSRmtime:               True;
+                CSRminstret:            True;
+                CSRmucounteren:         True;
+                CSRmscounteren:         True;
+                CSRmucycle_delta:       True;
+                CSRmutime_delta:        True;
+                CSRmuinstret_delta:     True;
+                CSRmscycle_delta:       True;
+                CSRmstime_delta:        True;
+                CSRmsinstret_delta:     True;
+                default:                False;
+            endcase);
     endfunction
 
     // RULES
     ////////////////////////////////////////////////////////
 
-    rule updateMTIP((mtip_ehr[1] == 0) && (truncate(time_csr) >= mtimecmp_reg));
-        mtip_ehr[1] <= 1;
+    rule incrementCycle;
+        cycle_counter <= cycle_counter + 1;
     endrule
 
-`ifndef DISABLE_STIP
-    rule updateSTIP(truncate(stime_csr) >= stimecmp_reg);
-        stip_reg <= 1;
-    endrule
-`endif
-
-    rule incrementTimeAndCycle;
-        time_ehr[1] <= time_ehr[1] + 1;
-        cycle_ehr[1] <= cycle_ehr[1] + 1;
-    endrule
+    // METHODS
+    ////////////////////////////////////////////////////////
 
     method VMInfo vmI;
-        Bit#(2) prv = prv_ehr[0];
-        Asid asid = sasid_reg;
-        Bit#(5) vm = (prv == prvM) ? vmMbare : vm_reg;
-        Addr base = 0;
-        Addr bound = 0;
-        case (vm)
-            vmMbare:
-                begin
-                    base = 0;
-                    bound = -1;
-                end
-            vmMbb:
-                begin
-                    base = mbase_csr;
-                    bound = mbound_csr;
-                end
-            vmMbbid:
-                begin
-                    base = mibase_csr;
-                    bound = mibound_csr;
-                end
-            vmSv32, vmSv39, vmSv48, vmSv57, vmSv64:
-                begin
-                    base = sptbr_csr;
-                    bound = -1;
-                end
-        endcase
-        return VMInfo{ prv: prv, asid: asid, vm: vm, base: base, bound: bound };
+        Bit#(5) vm = (prv == prvM) ? vmMbare : vm_field;
+        Addr base = (case (vm)
+                        vmMbare: 0;
+                        vmMbb: mbase_csr;
+                        vmMbbid: mibase_csr;
+                        // all paged virtual memory modes
+                        default: {0, sptbr_ppn_field, 12'd0};
+                    endcase);
+        Addr bound = (case (vm)
+                        vmMbb: mbound_csr;
+                        vmMbbid: mibound_csr;
+                        default: -1;
+                    endcase);
+        return VMInfo{ prv: prv, asid: asid_field, vm: vm, mxr: unpack(mxr_field), pum: unpack(pum_field), base: base, bound: bound };
     endmethod
 
     method VMInfo vmD;
-        Bit#(2) prv = (mprv_reg == 1) ? prv1_reg : prv_ehr[0];
-        Asid asid = sasid_reg;
-        Bit#(5) vm = (prv == prvM) ? vmMbare : vm_reg;
-        Addr base = 0;
-        Addr bound = 0;
-        case (vm)
-            vmMbare:
-                begin
-                    base = 0;
-                    bound = -1;
-                end
-            vmMbb:
-                begin
-                    base = mbase_csr;
-                    bound = mbound_csr;
-                end
-            vmMbbid:
-                begin
-                    base = mdbase_csr;
-                    bound = mdbound_csr;
-                end
-            vmSv32, vmSv39, vmSv48, vmSv57, vmSv64:
-                begin
-                    base = sptbr_csr;
-                    bound = -1;
-                end
-        endcase
-        return VMInfo{ prv: prv, asid: asid, vm: vm, base: base, bound: bound };
+        Bit#(2) vm_prv = (mprv_field == 1) ? mpp_field : prv;
+        Bit#(5) vm = (vm_prv == prvM) ? vmMbare : vm_field;
+        Addr base = (case (vm)
+                        vmMbare: 0;
+                        vmMbb: mbase_csr;
+                        vmMbbid: mdbase_csr;
+                        // all paged virtual memory modes
+                        default: {0, sptbr_ppn_field, 12'd0};
+                    endcase);
+        Addr bound = (case (vm)
+                        vmMbb: mbound_csr;
+                        vmMbbid: mdbound_csr;
+                        default: -1;
+                    endcase);
+        return VMInfo{ prv: vm_prv, asid: asid_field, vm: vm, mxr: unpack(mxr_field), pum: unpack(pum_field), base: base, bound: bound };
     endmethod
 
-    method CsrState csrState = CsrState {prv: prv_ehr[1], frm: frm_ehr[1], f_enabled: (fs_ehr[1] != 0), x_enabled: (xs_ehr[1] != 0)};
+    method CsrState csrState = CsrState {prv: prv, frm: frm_field, f_enabled: (fs_field != 0), x_enabled: (xs_field != 0)};
 
-    // Updating CSRs
-
-    // NEW METHODS
-    // method Action wr(CSR addr, Data data);
-    // method Action indirectWr(Maybe#(Exception) e, Addr pc, Addr addr, Bit#(5) fflags, Bool fpuDirty, Bool xDirty);
-
-    // combined wr and indirectWr
-    method ActionValue#(Tuple3#(Maybe#(Trap), Maybe#(Data), Maybe#(Addr)))
-            wr( Maybe#(SystemInst) sysInst,
-                CSR csr,
-                Data data, // zimm or rval
-                Maybe#(ExceptionCause) e,
-                Bool allowInterrupt,
-                Addr pc,
-                Bool checkInstAlignment, // if true, addr == nextPc
-                Addr addr,
-                Bit#(5) fflags,
-                Bool fpuDirty,
-                Bool xDirty);
-        // This method does a lot:
-        // -----------------------
-        // Checks for misaligned instruction address exception
-        // Checks for interrupts
-        // If valid exception or interrupt,
-        //   change the CSR state and return valid address of exception handler
-        // otherwise,
-        //   Perform system instruction (maybe return pc of next instruction)
-        //   Perform indirect updates
-
-        // Collect all possible sources of pending exceptions
-        // 1) external to CSRF (e.g. All memory access faults, IllegalInst from decoding, Load/store address mimsaligned)
-        Maybe#(ExceptionCause) pendingException = e;
-        // 2) instruction address misaligned
-        if (!isValid(pendingException) && checkInstAlignment && (addr[1:0] != 0)) begin // TODO: when we support 'C', this should be addr[0] != 0
-            pendingException = tagged Valid InstAddrMisaligned;
+    method Maybe#(InterruptCause) readyInterrupt;
+        Bit#(12) ready_interrupts = truncate(mip_csr) & truncate(mie_csr);
+        // machine mode
+        let ready_machine_interrupts = ready_interrupts & ~truncate(mideleg_csr);
+        Bool machine_interrupts_enabled = (mie_field == 1) || (prv < prvM);
+        // supervisor mode
+        let ready_supervisor_interrupts = ready_interrupts & truncate(mideleg_csr) & ~truncate(sideleg_csr);
+        Bool supervisor_interrupts_enabled = ((sie_field == 1) && (prv == prvS)) || (prv < prvS);
+        // user mode
+        let ready_user_interrupts = ready_interrupts & truncate(mideleg_csr) & truncate(sideleg_csr);
+        let user_interrupts_enabled = (uie_field == 1) && (prv == prvU);
+        // combined
+        ready_interrupts = (machine_interrupts_enabled ? ready_machine_interrupts : 0)
+                            | (supervisor_interrupts_enabled ? ready_supervisor_interrupts : 0)
+                            | (user_interrupts_enabled ? ready_user_interrupts : 0);
+        // format pendingInterrupt value to return
+        Maybe#(InterruptCause) ret = tagged Invalid;
+        if (ready_interrupts != 0) begin
+            // pack/unpack type conversion:
+            // UInt#(TLog#(TAdd#(12,1))) == UInt#(4) -> Bit#(4) -> InterruptCause
+            ret = tagged Valid unpack(pack(countZerosLSB(ready_interrupts)));
         end
-        // 3) exceptions from system instructions (ecall, ebreak, illegal CSRRW's)
-        if (!isValid(pendingException) &&& sysInst matches tagged Valid .validSysInst) begin
+        return ret;
+    endmethod
+
+    method ActionValue#(CsrReturn) wr(
+            Addr pc, // pc of current exception
+            Maybe#(SystemInst) sysInst,
+            CSR csr,
+            Data data, // zimm or rval
+            Addr addr, // badaddr
+            Maybe#(TrapCause) trap, // exception or interrupt
+            // indirect updates
+            Bit#(5) fflags,
+            Bool fpuDirty,
+            Bool xDirty);
+
+        Maybe#(TrapCause) trapToTake = trap;
+        if (!isValid(trapToTake) &&& sysInst matches tagged Valid .validSysInst) begin
             case (validSysInst)
-                ECall:      pendingException = tagged Valid (case (prv_ehr[0])
-                                                                prvU: EnvCallU;
-                                                                prvS: EnvCallS;
-                                                                prvM: EnvCallM;
-                                                            endcase);
-                EBreak:     pendingException = tagged Valid Breakpoint;
-                ERet:       noAction;   // All these 'noActions' will be handled later in this method
-                WFI:        noAction;
-                MRTS:       noAction;
+                ECall:  trapToTake = tagged Valid (case (prv)
+                                                    prvU: (tagged Exception EnvCallU);
+                                                    prvS: (tagged Exception EnvCallS);
+                                                    prvH: (tagged Exception EnvCallH);
+                                                    prvM: (tagged Exception EnvCallM);
+                                                endcase);
+                // URet and HRet are not supported
+                URet: trapToTake = tagged Valid (tagged Exception IllegalInst);
+                SRet:
+                    begin
+                        if (prv < prvS) begin
+                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                        end
+                    end
+                HRet: trapToTake = tagged Valid (tagged Exception IllegalInst);
+                MRet:
+                    begin
+                        if (prv < prvM) begin
+                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                        end
+                    end
+                EBreak: trapToTake = tagged Valid (tagged Exception Breakpoint);
                 CSRRW, CSRRS, CSRRC, CSRR, CSRW:
-                            begin
-                                Bool read = (validSysInst != CSRW);
-                                Bool write = (validSysInst != CSRR);
-                                if (!isValidCSR(csr, (fs_ehr[0] != 0)) || !hasCSRPermission(csr, prv_ehr[0], write)) begin
-                                    pendingException = tagged Valid IllegalInst;
-                                end
-                            end
-                default:    pendingException = tagged Valid IllegalInst;
+                    begin
+                        Bool read = (validSysInst != CSRW);
+                        Bool write = (validSysInst != CSRR);
+                        if (!isLegalCSR(csr) || !hasCSRPermission(csr, prv, write)) begin
+                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                        end
+                    end
             endcase
         end
 
-        // figure out if we need to handle an interrupt or an exception
-        Maybe#(Trap) currTrap;
-        if (allowInterrupt) begin
-            currTrap = pendingInterrupt matches tagged Valid .validInt ? tagged Valid tagged Interrupt validInt :
-                      (pendingException matches tagged Valid .validExc ? tagged Valid tagged Exception validExc :
-                                                                         tagged Invalid);
-        end else begin
-            currTrap = pendingException matches tagged Valid .validExc ? tagged Valid tagged Exception validExc :
-                                                                         tagged Invalid;
-        end
-
-        if (currTrap matches tagged Valid .validTrap) begin
-            // Need to handle a trap
-            let newPc <- trap(validTrap, pc, addr);
-            // This returns currTrap for verification purposes
-            // newPc is the address of the trap handler
-            return tuple3(currTrap, tagged Invalid, tagged Valid newPc);
-        end else if (sysInst matches tagged Valid .validSysInst) begin
-            // lets do a system instruction
-            if (validSysInst == ERet) begin
-                let newPc <- sret;
-                wrIndirect(0, False, False); // This is used to increment instret // TODO: clean this up
-                return tuple3(tagged Invalid, tagged Invalid, tagged Valid newPc);
-            end else if (validSysInst == MRTS) begin
-                let newPc <- mrts;
-                wrIndirect(0, False, False); // This is used to increment instret // TODO: clean this up
-                return tuple3(tagged Invalid, tagged Invalid, tagged Valid newPc);
-            end else if (validSysInst == CSRRW || validSysInst == CSRRS || validSysInst == CSRRC) begin
-                // CSR read/write operation
-                let oldVal = get_csr(csr)._read;
-                let newVal = (case(validSysInst)
-                        CSRRW: data;
-                        CSRRS: (oldVal | data);
-                        CSRRC: (oldVal & (~data));
-                    endcase);
-                wrDirect(csr, newVal); // This increments instret // TODO: clean this up
-                // return oldVal
-                if (verbose) $fdisplay(fout, "[RVCSRF] ", fshow(validSysInst), " :: ", fshow(csr), " - ", fshow(oldVal), " -> ", fshow(newVal));
-                return tuple3(tagged Invalid, tagged Valid oldVal, tagged Invalid);
-            end else if (validSysInst == CSRR) begin
-                // CSR read operation
-                let oldVal = get_csr(csr)._read;
-                // return oldVal
-                if (verbose) $fdisplay(fout, "[RVCSRF] ", fshow(validSysInst), " :: ", fshow(csr), " = ", fshow(oldVal));
-                wrIndirect(0, False, False); // This is used to increment instret // TODO: clean this up
-                return tuple3(tagged Invalid, tagged Valid oldVal, tagged Invalid);
-            end else if (validSysInst == CSRW) begin
-                // CSR write operation
-                wrDirect(csr, data); // This increments instret // TODO: clean this up
-                // return oldVal
-                if (verbose) $fdisplay(fout, "[RVCSRF] ", fshow(validSysInst), " :: ", fshow(csr), " - ? -> ", fshow(data));
-                return tuple3(tagged Invalid, tagged Invalid, tagged Invalid);
+        // Three case from this point onward:
+        // 1) Trap (exception or interrupt)
+        // 2) Non-trapping system instruction
+        //      increment instret
+        // 3) Normal instruction
+        //      increment instret
+        //      update fs and fflags if necessary
+        if (trapToTake matches tagged Valid .validTrap) begin
+            // Traps
+            // delegate to S if the prv <= S and the corresponding deleg bit is set
+            Bool delegToS = prv <= prvS && (case (validTrap) matches
+                    tagged Exception .exceptionCause: (((medeleg_csr >> pack(exceptionCause)) & 1) != 0);
+                    tagged Interrupt .interruptCause: (((mideleg_csr >> pack(interruptCause)) & 1) != 0);
+                endcase);
+            Addr newPC = delegToS ? stvec_csr : mtvec_csr;
+            if (delegToS) begin
+                // trap to prvS
+                sepc_csr <= pc;
+                scause_csr <= toCauseCSR(validTrap);
+                case (validTrap)
+                    tagged Exception InstAddrMisaligned,
+                    tagged Exception InstAccessFault,
+                    tagged Exception LoadAddrMisaligned,
+                    tagged Exception LoadAccessFault,
+                    tagged Exception StoreAddrMisaligned,
+                    tagged Exception StoreAccessFault:
+                        sbadaddr_csr <= addr;
+                endcase
+                // update mstatus fields
+                spp_field <= (prv == prvU) ? 0 : 1;
+                spie_field <= (prv == prvU) ? uie_field : sie_field;
+                sie_field <= 0;
+                // update privilege
+                prv <= prvS;
             end else begin
-                // all other system instructions are NOP's
-                wrIndirect(fflags, fpuDirty, xDirty);
-                return tuple3(tagged Invalid, tagged Invalid, tagged Invalid);
+                // trap to prvM
+                mepc_csr <= pc;
+                mcause_csr <= toCauseCSR(validTrap);
+                case (validTrap)
+                    tagged Exception InstAddrMisaligned,
+                    tagged Exception InstAccessFault,
+                    tagged Exception LoadAddrMisaligned,
+                    tagged Exception LoadAccessFault,
+                    tagged Exception StoreAddrMisaligned,
+                    tagged Exception StoreAccessFault:
+                        mbadaddr_csr <= addr;
+                endcase
+                // update mstatus fields
+                mpp_field <= prv;
+                mpie_field <= (case (prv)
+                                prvU: uie_field;
+                                prvS: sie_field;
+                                prvH: hie_field;
+                                prvM: mie_field;
+                            endcase);
+                mie_field <= 0;
+                // update privilege
+                prv <= prvS;
             end
+            return tagged Exception {exception: validTrap, trapHandlerPC: newPC};
+        end else if (sysInst matches tagged Valid .validSysInst) begin
+            // Non-trapping system instructions
+            instret_counter <= instret_counter + 1;
+            case (validSysInst)
+                SRet:
+                    begin
+                        let next_prv = spp_field == 1 ? prvS : prvU;
+                        case (next_prv)
+                            prvU: uie_field <= spie_field;
+                            prvS: sie_field <= spie_field;
+                        endcase
+                        spie_field <= 0;
+                        spp_field <= 0;
+                        prv <= next_prv;
+                        Addr newPC = sepc_csr;
+                        return tagged RedirectPC newPC;
+                    end
+                MRet:
+                    begin
+                        let next_prv = mpp_field;
+                        case (next_prv)
+                            prvU: uie_field <= mpie_field;
+                            prvS: sie_field <= mpie_field;
+                            prvM: mie_field <= mpie_field;
+                        endcase
+                        mpie_field <= 0;
+                        mpp_field <= prvU;
+                        prv <= next_prv;
+                        Addr newPC = mepc_csr;
+                        return tagged RedirectPC newPC;
+                    end
+                CSRRW, CSRRS, CSRRC, CSRR, CSRW:
+                    begin
+                        // Not used at the moment, just a place holder in case
+                        // any read side-effects are needed in the CSRs.
+                        Bool read = (validSysInst != CSRW);
+                        Bool write = (validSysInst != CSRR);
+                        // CSR read/write operation
+                        let oldVal = getCSR(csr)._read;
+                        let newVal = (case(validSysInst)
+                                CSRW, CSRR, CSRRW: data;
+                                CSRRS: (oldVal | data);
+                                CSRRC: (oldVal & (~data));
+                            endcase);
+                        if (write) begin
+                            getCSR(csr)._write(newVal);
+                        end
+                        return tagged CsrData oldVal;
+                    end
+                default:
+                    begin
+                        return tagged None;
+                    end
+            endcase
         end else begin
-            wrIndirect(fflags, fpuDirty, xDirty);
-            return tuple3(tagged Invalid, tagged Invalid, tagged Invalid);
+            // Normal instruction
+            // update fflags, fs, and xs if necessary
+            if ((fflags | fflags_field) != fflags_field) begin
+                fflags_field <= fflags_field | fflags;
+                fpuDirty = True;
+            end
+            if (fpuDirty) begin
+                if (fs_field == 0) begin
+                    // fs_field shouldn't be 00
+                    $fdisplay(stderr, "[ERROR] CSRFile: fpuDirty is true, but fs_field is set to 0");
+                end
+                fs_field <= 2'b11;
+            end
+            if (xDirty) begin
+                xs_field <= 2'b11;
+            end
+            instret_counter <= instret_counter + 1;
+            return tagged None;
         end
     endmethod
-
-    // tohost/fromhost
-    method Action hostToCsrf(Data val) if (mfromhost_reg == 0);
-        mfromhost_reg <= val;
-    endmethod
-    method ActionValue#(Data) csrfToHost;
-        mtohost_module.fifo_ifc.deq;
-        return mtohost_module.fifo_ifc.first;
-    endmethod
-    method Bool toHostEmpty;
-        return !mtohost_module.fifo_ifc.notEmpty;
-    endmethod
-    method Bool fromHostZero;
-        return mfromhost_reg == 0;
-    endmethod
-
-    // externally configured CSRs
-    method Action configure(Data miobase);
-        miobase_reg <= miobase;
-    endmethod
-
-    // Interrupts
-    method Action triggerExternalInterrupt;
-        // XXX: make this do something
-        noAction;
-    endmethod
-
-    // performance stats
-    method Bool doPerfStats;
-        return stats_reg != 0;
-    endmethod
 endmodule
 
-// this is single core version
-module mkRVCsrFile(RVCsrFile);
-    let m <- mkRVCsrFileWithId(0);
-    return m;
-endmodule

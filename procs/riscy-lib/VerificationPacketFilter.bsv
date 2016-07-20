@@ -56,7 +56,7 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
         if ((packet.instruction[6:0] == 7'b1110011) && (packet.instruction[14:12] != 0)) begin
             CSR csr = unpack(packet.instruction[31:20]);
             case (csr)
-                CSRmtime, CSRstime, CSRstimew, CSRtime, CSRtimew, CSRcycle, CSRcyclew, CSRinstret, CSRinstretw, CSRmip, CSRmfromhost:
+                CSRmtime, CSRstime, CSRtime, CSRcycle, CSRinstret, CSRmip:
                     isSynchronizationPacket = True;
             endcase
         end

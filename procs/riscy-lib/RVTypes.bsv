@@ -57,7 +57,7 @@ typedef Bit#(ByteAddrSz) ByteAddr;
 typedef TSub#(AddrSz, TLog#(TDiv#(WordSz,8))) WordAddrSz;
 typedef Bit#(WordAddrSz) WordAddr;
 
-typedef 8 AsidSz;
+typedef 26 AsidSz;
 typedef Bit#(AsidSz) Asid;
 
 // WARNING: Don't try updating fields when using this type.
@@ -341,16 +341,17 @@ instance DefaultValue#(RiscVISASubset);
     function RiscVISASubset defaultValue = RiscVISASubset{ rv64: `rv64 , h: False, s: True, u: True, m: `m , a: `a , f: `f , d: `d , x: False };
 endinstance
 
-function Data getMCPUID(RiscVISASubset isa);
-    Data mcpuid = 0;
-    if (isa.rv64) mcpuid = mcpuid | {2'b10, 0, 26'b00000000000000000000000000};
+function Data getMISA(RiscVISASubset isa);
+    Data misa = 0;
+    if (isa.rv64) misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
     // include S and I by default
-    mcpuid = mcpuid | {2'b00, 0, 26'b00000001000000000100000000};
-    if (isa.m) mcpuid = mcpuid | {2'b00, 0, 26'b00000000000001000000000000};
-    if (isa.a) mcpuid = mcpuid | {2'b00, 0, 26'b00000000000000000000000001};
-    if (isa.f) mcpuid = mcpuid | {2'b00, 0, 26'b00000000000000000000100000};
-    if (isa.d) mcpuid = mcpuid | {2'b00, 0, 26'b00000000000000000000001000};
-    return mcpuid;
+    misa = misa | {2'b00, 0, 26'b00000001000000000100000000};
+    if (isa.m) misa = misa | {2'b00, 0, 26'b00000000000001000000000000};
+    if (isa.a) misa = misa | {2'b00, 0, 26'b00000000000000000000000001};
+    if (isa.f) misa = misa | {2'b00, 0, 26'b00000000000000000000100000};
+    if (isa.d) misa = misa | {2'b00, 0, 26'b00000000000000000000001000};
+    // TODO: Add 'U' and 'S'
+    return misa;
 endfunction
 
 typedef Bit#(5) RegIndex;
@@ -412,180 +413,108 @@ typedef enum {
 } Opcode deriving (Bits, Eq, FShow);
 
 typedef enum {
-    CSRfflags    = 12'h001,
-    CSRfrm       = 12'h002,
-    CSRfcsr      = 12'h003,
-    CSRstoreaddr = 12'h008,
-    CSRstore8    = 12'h009,
-    CSRstore16   = 12'h00a,
-    CSRstore32   = 12'h00b,
-    CSRload8     = 12'h00d,
-    CSRload16    = 12'h00e,
-    CSRload32    = 12'h00f,
-    CSRstats     = 12'h0c0,
-    CSRsstatus   = 12'h100,
-    CSRstvec     = 12'h101,
-    CSRsie       = 12'h104,
-    CSRstimecmp  = 12'h121,
-    CSRsscratch  = 12'h140,
-    CSRsepc      = 12'h141,
-    CSRsip       = 12'h144,
-    CSRsptbr     = 12'h180,
-    CSRsasid     = 12'h181,
-    CSRhstatus   = 12'h200,
-    CSRhtvec     = 12'h201,
-    CSRhepc      = 12'h241,
-    CSRmstatus   = 12'h300,
-    CSRmtvec     = 12'h301,
-    CSRmtdeleg   = 12'h302,
-    CSRmie       = 12'h304,
-    CSRmtimecmp  = 12'h321,
-    CSRmscratch  = 12'h340,
-    CSRmepc      = 12'h341,
-    CSRmcause    = 12'h342,
-    CSRmbadaddr  = 12'h343,
-    CSRmip       = 12'h344,
-    CSRmbase     = 12'h380,
-    CSRmbound    = 12'h381,
-    CSRmibase    = 12'h382,
-    CSRmibound   = 12'h383,
-    CSRmdbase    = 12'h384,
-    CSRmdbound   = 12'h385,
-    CSRsup0      = 12'h500,
-    CSRsup1      = 12'h501,
-    CSRepc       = 12'h502,
-    CSRbadvaddr  = 12'h503,
-    CSRptbr      = 12'h504,
-    CSRasid      = 12'h505,
-    CSRcount     = 12'h506,
-    CSRcompare   = 12'h507,
-    CSRevec      = 12'h508,
-    CSRcause     = 12'h509,
-    CSRstatus    = 12'h50a,
-    CSRhartid    = 12'h50b,
-    CSRimpl      = 12'h50c,
-    CSRfatc      = 12'h50d,
-    CSRsendipi   = 12'h50e,
-    CSRclearipi  = 12'h50f,
-    CSRtohost    = 12'h51e,
-    CSRfromhost  = 12'h51f,
-    CSRmtime     = 12'h701,
-    CSRmtimeh    = 12'h741,
-    CSRmtohost   = 12'h780,
-    CSRmfromhost = 12'h781,
-    CSRmreset    = 12'h782,
-    CSRmipi      = 12'h783,
-    CSRmiobase   = 12'h784,
-    CSRcyclew    = 12'h900,
-    CSRtimew     = 12'h901,
-    CSRinstretw  = 12'h902,
-    CSRcyclehw   = 12'h980,
-    CSRtimehw    = 12'h981,
-    CSRinstrethw = 12'h982,
-    CSRstimew    = 12'ha01,
-    CSRstimehw   = 12'ha81,
-    CSRcycle     = 12'hc00,
-    CSRtime      = 12'hc01,
-    CSRinstret   = 12'hc02,
-    CSRcycleh    = 12'hc80,
-    CSRtimeh     = 12'hc81,
-    CSRinstreth  = 12'hc82,
-    CSRuarch0    = 12'hcc0,
-    CSRuarch1    = 12'hcc1,
-    CSRuarch2    = 12'hcc2,
-    CSRuarch3    = 12'hcc3,
-    CSRuarch4    = 12'hcc4,
-    CSRuarch5    = 12'hcc5,
-    CSRuarch6    = 12'hcc6,
-    CSRuarch7    = 12'hcc7,
-    CSRuarch8    = 12'hcc8,
-    CSRuarch9    = 12'hcc9,
-    CSRuarch10   = 12'hcca,
-    CSRuarch11   = 12'hccb,
-    CSRuarch12   = 12'hccc,
-    CSRuarch13   = 12'hccd,
-    CSRuarch14   = 12'hcce,
-    CSRuarch15   = 12'hccf,
-    CSRstime     = 12'hd01,
-    CSRscause    = 12'hd42,
-    CSRsbadaddr  = 12'hd43,
-    CSRstimeh    = 12'hd81,
-    CSRmcpuid    = 12'hf00,
-    CSRmimpid    = 12'hf01,
-    CSRmhartid   = 12'hf10
+    CSRustatus          = 12'h000,
+    CSRuie              = 12'h004,
+    CSRutvec            = 12'h005,
+    CSRuscratch         = 12'h040,
+    CSRuepc             = 12'h041,
+    CSRucause           = 12'h042,
+    CSRubadaddr         = 12'h043,
+    CSRuip              = 12'h044,
+    CSRfflags           = 12'h001,
+    CSRfrm              = 12'h002,
+    CSRfcsr             = 12'h003,
+    CSRcycle            = 12'hc00,
+    CSRtime             = 12'hc01,
+    CSRinstret          = 12'hc02,
+    CSRcycleh           = 12'hc80,
+    CSRtimeh            = 12'hc81,
+    CSRinstreth         = 12'hc82,
+    CSRsstatus          = 12'h100,
+    CSRsedeleg          = 12'h102,
+    CSRsideleg          = 12'h103,
+    CSRsie              = 12'h104,
+    CSRstvec            = 12'h105,
+    CSRsscratch         = 12'h140,
+    CSRsepc             = 12'h141,
+    CSRscause           = 12'h142,
+    CSRsbadaddr         = 12'h143,
+    CSRsip              = 12'h144,
+    CSRsptbr            = 12'h180,
+    CSRscycle           = 12'hd00,
+    CSRstime            = 12'hd01,
+    CSRsinstret         = 12'hd02,
+    CSRscycleh          = 12'hd80,
+    CSRstimeh           = 12'hd81,
+    CSRsinstreth        = 12'hd82,
+    CSRhstatus          = 12'h200,
+    CSRhedeleg          = 12'h202,
+    CSRhideleg          = 12'h203,
+    CSRhie              = 12'h204,
+    CSRhtvec            = 12'h205,
+    CSRhscratch         = 12'h240,
+    CSRhepc             = 12'h241,
+    CSRhcause           = 12'h242,
+    CSRhbadaddr         = 12'h243,
+    CSRhcycle           = 12'he00,
+    CSRhtime            = 12'he01,
+    CSRhinstret         = 12'he02,
+    CSRhcycleh          = 12'he80,
+    CSRhtimeh           = 12'he81,
+    CSRhinstreth        = 12'he82,
+    CSRmisa             = 12'hf10,
+    CSRmvendorid        = 12'hf11,
+    CSRmarchid          = 12'hf12,
+    CSRmimpid           = 12'hf13,
+    CSRmhartid          = 12'hf14,
+    CSRmstatus          = 12'h300,
+    CSRmedeleg          = 12'h302,
+    CSRmideleg          = 12'h303,
+    CSRmie              = 12'h304,
+    CSRmtvec            = 12'h305,
+    CSRmscratch         = 12'h340,
+    CSRmepc             = 12'h341,
+    CSRmcause           = 12'h342,
+    CSRmbadaddr         = 12'h343,
+    CSRmip              = 12'h344,
+    CSRmbase            = 12'h380,
+    CSRmbound           = 12'h381,
+    CSRmibase           = 12'h382,
+    CSRmibound          = 12'h383,
+    CSRmdbase           = 12'h384,
+    CSRmdbound          = 12'h385,
+    CSRmcycle           = 12'hf00,
+    CSRmtime            = 12'hf01,
+    CSRminstret         = 12'hf02,
+    CSRmcycleh          = 12'hf80,
+    CSRmtimeh           = 12'hf81,
+    CSRminstreth        = 12'hf82,
+    CSRmucounteren      = 12'h310,
+    CSRmscounteren      = 12'h311,
+    CSRmhcounteren      = 12'h312,
+    CSRmucycle_delta    = 12'h700,
+    CSRmutime_delta     = 12'h701,
+    CSRmuinstret_delta  = 12'h702,
+    CSRmscycle_delta    = 12'h704,
+    CSRmstime_delta     = 12'h705,
+    CSRmsinstret_delta  = 12'h706,
+    CSRmhcycle_delta    = 12'h708,
+    CSRmhtime_delta     = 12'h709,
+    CSRmhinstret_delta  = 12'h70a,
+    CSRmucycle_deltah   = 12'h780,
+    CSRmutime_deltah    = 12'h781,
+    CSRmuinstret_deltah = 12'h782,
+    CSRmscycle_deltah   = 12'h784,
+    CSRmstime_deltah    = 12'h785,
+    CSRmsinstret_deltah = 12'h786,
+    CSRmhcycle_deltah   = 12'h788,
+    CSRmhtime_deltah    = 12'h789,
+    CSRmhinstret_deltah = 12'h78a
 } CSR deriving (Bits, Eq, FShow);
 
 function Bool hasCSRPermission(CSR csr, Bit#(2) prv, Bool write);
     Bit#(12) csr_index = pack(csr);
     return ((prv >= csr_index[9:8]) && (!write || (csr_index[11:10] != 2'b11)));
-endfunction
-
-function Bool isValidCSR(CSR csr, Bool fpuEn);
-    return (case (csr)
-            // User Floating-Point CSRs
-            CSRfflags:    fpuEn;
-            CSRfrm:       fpuEn;
-            CSRfcsr:      fpuEn;
-            // User stats
-            CSRstats:     False; // This isn't supported for now
-            // User Counter/Timers
-            CSRcycle:     True;
-            CSRtime:      True;
-            CSRinstret:   True;
-
-            // Supervisor Trap Setup
-            CSRsstatus:   True;
-            CSRstvec:     True;
-            CSRsie:       True;
-            CSRstimecmp:  True;
-            // Supervisor Timer
-            CSRstime:     True;
-            // Supervisor Trap Handling
-            CSRsscratch:  True;
-            CSRsepc:      True;
-            CSRscause:    True;
-            CSRsbadaddr:  True;
-            CSRsip:       True;
-            // Supervisor Protection and Translation
-            CSRsptbr:     True;
-            CSRsasid:     True;
-            // Supervisor Read/Write Shadow of User Read-Only registers
-            CSRcyclew:    True;
-            CSRtimew:     True;
-            CSRinstretw:  True;
-
-            // Machine Information Registers
-            CSRmcpuid:    True;
-            CSRmimpid:    True;
-            CSRmhartid:   True;
-            // Machine Trap Setup
-            CSRmstatus:   True;
-            CSRmtvec:     True;
-            CSRmtdeleg:   True;
-            CSRmie:       True;
-            CSRmtimecmp:  True;
-            // Machine Timers and Counters
-            CSRmtime:     True;
-            // Machine Trap Handling
-            CSRmscratch:  True;
-            CSRmepc:      True;
-            CSRmcause:    True;
-            CSRmbadaddr:  True;
-            CSRmip:       True;
-            // Machine Protection and Translation
-            CSRmbase:     True;
-            CSRmbound:    True;
-            CSRmibase:    True;
-            CSRmibound:   True;
-            CSRmdbase:    True;
-            CSRmdbound:   True;
-            // Machine Host-Target Interface (Non-Standard Berkeley Extension)
-            CSRmtohost:   True;
-            CSRmfromhost: True;
-            CSRmiobase:   True;
-
-            default:      False;
-        endcase);
 endfunction
 
 // These enumeration values match the bit values for funct3
@@ -684,11 +613,11 @@ typedef union tagged {
 typedef enum {
     ECall,
     EBreak,
-    ERet,
+    URet,
+    SRet,
+    HRet,
+    MRet,
     WFI,
-    MRTH,
-    MRTS,
-    HRTS,
     CSRRW,
     CSRRS,
     CSRRC,
@@ -754,17 +683,37 @@ typedef enum {
 } ExceptionCause deriving (Bits, Eq, FShow);
 
 typedef enum {
-    SoftwareInterrupt   = 4'd0,
-    TimerInterrupt      = 4'd1,
-    HostInterrupt       = 4'd2,
+    USoftwareInterrupt  = 4'd0,
+    SSoftwareInterrupt  = 4'd1,
+    HSoftwareInterrupt  = 4'd2,
+    MSoftwareInterrupt  = 4'd3,
+    UTimerInterrupt     = 4'd4,
+    STimerInterrupt     = 4'd5,
+    HTimerInterrupt     = 4'd6,
+    MTimerInterrupt     = 4'd7,
+    UExternalInterrupt  = 4'd8,
+    SExternalInterrupt  = 4'd9,
+    HExternalInterrupt  = 4'd10,
+    MExternalInterrupt  = 4'd11,
     IllegalInterrupt    = 4'd15 // to get 4-bit implementation
-} Interrupt deriving (Bits, Eq, FShow);
+} InterruptCause deriving (Bits, Eq, FShow);
 
 // Traps are either an exception or an interrupt
 typedef union tagged {
     ExceptionCause Exception;
-    Interrupt      Interrupt;
-} Trap deriving (Bits, Eq, FShow);
+    InterruptCause Interrupt;
+} TrapCause deriving (Bits, Eq, FShow);
+
+function Data toCauseCSR(TrapCause x);
+    case (x) matches
+        tagged Exception .cause:
+            return {0, pack(cause)};
+        tagged Interrupt .cause:
+            return {1'b1, 0, pack(cause)};
+        default:
+            return 0;
+    endcase
+endfunction
 
 typedef struct {
     Bit#(2) prv;
@@ -842,11 +791,13 @@ typedef struct {
     Bit#(2) prv;
     Asid    asid;
     Bit#(5) vm;
+    Bool    mxr;
+    Bool    pum;
     Addr    base;
     Addr    bound;
 } VMInfo deriving (Bits, Eq, FShow);
 instance DefaultValue#(VMInfo);
-    function VMInfo defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, base: 0, bound: 0};
+    function VMInfo defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: 0};
 endinstance
 
 typedef 4 NumSpecTags;
@@ -883,78 +834,19 @@ typedef struct {
     Bit#(20) ppn2;
     Bit#(9) ppn1;
     Bit#(9) ppn0;
-    Bit#(3) reserved_sw;
+    Bit#(2) reserved_sw;
     Bool d;
+    Bool a;
+    Bool g;
+    Bool u;
+    Bool x;
+    Bool w;
     Bool r;
-    PTE_Type pte_type;
     Bool valid;
 } PTE_Sv39 deriving (Eq, FShow); // Has custom Bits implementation
-typedef struct {
-    Bool global;
-    Bool s_r;
-    Bool s_w;
-    Bool s_x;
-    Bool u_r;
-    Bool u_w;
-    Bool u_x;
-} PTE_Type deriving (Eq, FShow);
-function Bool is_leaf_pte_type(PTE_Type pte_type) = pte_type.s_r;
-instance Bits#(PTE_Type, 4);
-    function Bit#(4) pack(PTE_Type x);
-        Bit#(7) bitvec = {pack(x.global), pack(x.s_r), pack(x.s_w), pack(x.s_x), pack(x.u_r), pack(x.u_w), pack(x.u_x)};
-        return (case (bitvec)
-                7'b0000000: 0;
-                7'b1000000: 1;
-                7'b0100101: 2;
-                7'b0110111: 3;
-                7'b0100100: 4;
-                7'b0110110: 5;
-                7'b0101101: 6;
-                7'b0111111: 7;
-                7'b0100000: 8;
-                7'b0110000: 9;
-                7'b0101000: 10;
-                7'b0111000: 11;
-                7'b1100000: 12;
-                7'b1110000: 13;
-                7'b1101000: 14;
-                7'b1111000: 15;
-                default:    ?;
-            endcase);
-    endfunction
-    function PTE_Type unpack(Bit#(4) x);
-        Bit#(7) bitvec = (case (x)
-                0:  7'b0000000;
-                1:  7'b1000000;
-                2:  7'b0100101;
-                3:  7'b0110111;
-                4:  7'b0100100;
-                5:  7'b0110110;
-                6:  7'b0101101;
-                7:  7'b0111111;
-                8:  7'b0100000;
-                9:  7'b0110000;
-                10: 7'b0101000;
-                11: 7'b0111000;
-                12: 7'b1100000;
-                13: 7'b1110000;
-                14: 7'b1101000;
-                15: 7'b1111000;
-            endcase);
-        return (PTE_Type {
-                global: unpack(bitvec[6]),
-                s_r:    unpack(bitvec[5]),
-                s_w:    unpack(bitvec[4]),
-                s_x:    unpack(bitvec[3]),
-                u_r:    unpack(bitvec[2]),
-                u_w:    unpack(bitvec[1]),
-                u_x:    unpack(bitvec[0])
-            });
-    endfunction
-endinstance
 instance Bits#(PTE_Sv39, 64);
     function Bit#(64) pack(PTE_Sv39 x);
-        return {x.reserved, x.ppn2, x.ppn1, x.ppn0, x.reserved_sw, pack(x.d), pack(x.r), pack(x.pte_type), pack(x.valid)};
+        return {x.reserved, x.ppn2, x.ppn1, x.ppn0, x.reserved_sw, pack(x.d), pack(x.a), pack(x.g), pack(x.u), pack(x.x), pack(x.w), pack(x.r), pack(x.valid)};
     endfunction
     function PTE_Sv39 unpack(Bit#(64) x);
         return (PTE_Sv39 {
@@ -962,10 +854,14 @@ instance Bits#(PTE_Sv39, 64);
                 ppn2:         x[47:28],
                 ppn1:         x[27:19],
                 ppn0:         x[18:10],
-                reserved_sw:  x[9:7],
-                d:            unpack(x[6]),
-                r:            unpack(x[5]),
-                pte_type:     unpack(x[4:1]),
+                reserved_sw:  x[9:8],
+                d:            unpack(x[7]),
+                a:            unpack(x[6]),
+                g:            unpack(x[5]),
+                u:            unpack(x[4]),
+                x:            unpack(x[3]),
+                w:            unpack(x[2]),
+                r:            unpack(x[1]),
                 valid:        unpack(x[0])
             });
     endfunction
