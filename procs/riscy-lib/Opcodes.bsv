@@ -38,7 +38,6 @@ function InstType toInstType(Instruction inst);
     Maybe#(RegType) f = tagged Valid Fpu;
     Maybe#(RegType) n = tagged Invalid;
     InstType ret = (case (inst) matches
-            `MRTS:          InstType{rs1: n, rs2: n, rs3: n, dst: n, imm: None};
             `LUI:           InstType{rs1: n, rs2: n, rs3: n, dst: i, imm: U   };
             `AUIPC:         InstType{rs1: n, rs2: n, rs3: n, dst: i, imm: U   };
             `JAL:           InstType{rs1: n, rs2: n, rs3: n, dst: i, imm: UJ  };
