@@ -37,11 +37,9 @@ import RVExec::*;
 import RVTypes::*;
 import ServerUtil::*;
 
-module mkBasicMemorySystem(SingleCoreMemorySystem#(DataSz));
+module mkBasicMemorySystem#(function PMA getPMA(Addr addr))(SingleCoreMemorySystem#(DataSz));
     Bool verbose = False;
     File tracefile = verbose ? stdout : tagged InvalidFile;
-
-    Reg#(Addr) mmiobase <- mkReg(0);
 
     // cached memory port -- works on cache lines
     FIFO#(MainMemReq) mainMemReqFIFO <- mkFIFO;
@@ -58,19 +56,18 @@ module mkBasicMemorySystem(SingleCoreMemorySystem#(DataSz));
     // splits cached memory port for itlb, imem, dtlb, and dmem
     Vector#(4, Server#(MainMemReq, MainMemResp)) mainMemorySplitServer <- mkFixedPriorityServerSplitter(constFn(True), 4, mainMemoryServer);
 
-    let itlb <- mkDummyRVIMMU(fprintTrace(tracefile, "IMMU-Arbiter", mainMemorySplitServer[3]));
+    let itlb <- mkDummyRVIMMU(getPMA, fprintTrace(tracefile, "IMMU-Arbiter", mainMemorySplitServer[3]));
     let icache <- mkDummyRVICache(fprintTrace(tracefile, "ICache-Arbiter", mainMemorySplitServer[2]));
-    let dtlb <- mkDummyRVDMMU(False, fprintTrace(tracefile, "DMMU-Arbiter", mainMemorySplitServer[1]));
+    let dtlb <- mkDummyRVDMMU(False, getPMA, fprintTrace(tracefile, "DMMU-Arbiter", mainMemorySplitServer[1]));
     // two different paths for dmem request to take: cached and uncached
     let dcache <- mkDummyRVDCache(fprintTrace(tracefile, "DCache-Arbiter", mainMemorySplitServer[0]));
     let duncached <- mkUncachedConverter(fprintTrace(tracefile, "DUncached-Bridge", uncachedMemServer));
     // join cached and uncached paths to make a unified dmem interface
     function Bit#(1) whichServer(RVDMemReq r);
-        if (r.addr >= mmiobase) begin
-            return 1; // uncached
-        end else begin
-            return 0; // cached
-        end
+        return (case (getPMA(r.addr))
+                    MainMemory, IORom: 0; // cached
+                    default: 1; // uncached
+                endcase);
     endfunction
     function Bool getsResponse(RVDMemReq r);
         return (case (r.op) matches
@@ -112,11 +109,8 @@ module mkBasicMemorySystem(SingleCoreMemorySystem#(DataSz));
             endmethod
         endinterface);
     interface Vector core = onecore;
-    interface Client mainMemory = mainMemoryClient;
+    interface Client cachedMemory = mainMemoryClient;
     interface Client uncachedMemory = uncachedMemClient;
-    method Action configure (Addr miobase);
-        mmiobase <= miobase;
-    endmethod
 endmodule
 
 module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq, RVDMemResp));
@@ -261,12 +255,13 @@ interface RVIMMU;
 endinterface
 
 // This does not support any paged virtual memory modes
+// TODO: add support for getPMA
 module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU);
     FIFOF#(RVDMMUReq) procMMUReq <- mkFIFOF;
     FIFOF#(RVDMMUResp) procMMUResp <- mkFIFOF;
 
     // TODO: This should be defaultValue
-    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, base:0, bound:'1});
+    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
 
     rule doTranslate;
         // TODO: add misaligned address exceptions
@@ -291,7 +286,7 @@ module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RV
             case (vmInfo.vm)
                 vmMbare:        paddr = vaddr;
                 vmMbb, vmMbbid: begin
-                                    if (vaddr > vmInfo.bound) begin
+                                    if (vaddr >= vmInfo.bound) begin
                                         exception = accessFault;
                                     end else begin
                                         paddr = vaddr + vmInfo.base;
@@ -339,18 +334,18 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
     endmethod
 endmodule
 
-module mkDummyRVIMMU#(GenericMemServer#(DataSz) mainMemory)(RVIMMU);
-    let _dMMU <- mkDummyRVDMMU(True, mainMemory);
+module mkDummyRVIMMU#(function PMA getPMA(Addr addr), GenericMemServer#(DataSz) mainMemory)(RVIMMU);
+    let _dMMU <- mkDummyRVDMMU(True, getPMA, mainMemory);
     let _iMMU <- mkRVIMMUWrapper(_dMMU);
     return _iMMU;
 endmodule
 
-module mkDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU);
+module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemServer#(DataSz) mainMemory)(RVDMMU);
     FIFOF#(RVDMMUReq) procMMUReq <- mkFIFOF;
     FIFOF#(RVDMMUResp) procMMUResp <- mkFIFOF;
 
     // TODO: This should be defaultValue
-    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, base:0, bound:'1});
+    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
 
     // Registers for hardware pagetable walk
     Reg#(Bool) walking <- mkReg(False);
@@ -381,17 +376,55 @@ module mkDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU)
             // invalid page, access fault
             procMMUResp.enq(RVDMMUResp{addr: 0, exception: accessFault});
             walking <= False;
-        end else if (is_leaf_pte_type(pte.pte_type)) begin
+        end else if (((!pte.x) || (!pte.w) || (!pte.r)) && !(pte.w && !pte.r) ) begin // XXX: isLeafPTE
             // valid leaf page
+
+            // translated physical address
+            Addr paddr = '1;
+            if (i == 0) begin
+                paddr = {0, pte.ppn2, pte.ppn1, pte.ppn0, pageoffset};
+            end else if (i == 1) begin
+                paddr = {0, pte.ppn2, pte.ppn1, vpn[0], pageoffset};
+            end else if (i == 2) begin
+                paddr = {0, pte.ppn2, vpn[1], vpn[0], pageoffset};
+            end
 
             // check page permissions
             Bool hasPermission = False;
             if (isInst) begin
-                hasPermission = supervisor ? pte.pte_type.s_x : pte.pte_type.u_x;
+                hasPermission = pte.x;
             end else if (store) begin
-                hasPermission = supervisor ? pte.pte_type.s_w : pte.pte_type.u_w;
+                hasPermission = pte.w;
             end else begin
-                hasPermission = supervisor ? pte.pte_type.s_r : pte.pte_type.u_r;
+                hasPermission = pte.r || (vmInfo.mxr && pte.x);
+            end
+            // supervisor can't access user pages if pum is set
+            if (supervisor && vmInfo.pum && pte.u) begin
+                hasPermission = False;
+            end
+            // user needs pte.u bit set
+            if (!supervisor && !pte.u) begin
+                hasPermission = False;
+            end
+
+            // check PMA permissions
+            PMA pma = getPMA(paddr);
+            if (pma == IORom) begin
+                // no W permission
+                if (store) begin
+                    hasPermission = False;
+                end
+            end else if (pma == IODevice) begin
+                // no AMO permission
+                // TODO: change type of MMU request to include sufficient AMO
+                // information (AMO Class) and check permission accordingly
+                // no X permission
+                if (isInst) begin
+                    hasPermission = False;
+                end
+            end else if (pma == IOEmpty) begin
+                // no R, W, or X permission
+                hasPermission = False;
             end
 
             if (!hasPermission) begin
@@ -400,20 +433,12 @@ module mkDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU)
                 walking <= False;
             end else begin
                 // legal, return translation
-                Addr paddr = '1;
-                if (i == 0) begin
-                    paddr = {0, pte.ppn2, pte.ppn1, pte.ppn0, pageoffset};
-                end else if (i == 1) begin
-                    paddr = {0, pte.ppn2, pte.ppn1, vpn[0], pageoffset};
-                end else if (i == 2) begin
-                    paddr = {0, pte.ppn2, vpn[1], vpn[0], pageoffset};
-                end
                 procMMUResp.enq(RVDMMUResp{addr: paddr, exception: tagged Invalid});
                 walking <= False;
-                if (!pte.r || (store && !pte.d)) begin
+                if (!pte.a || (store && !pte.d)) begin
                     // write back necessary
                     // update pte
-                    pte.r = True;
+                    pte.a = True;
                     if (store) begin
                         pte.d = True;
                     end
@@ -468,7 +493,7 @@ module mkDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU)
             case (vmInfo.vm)
                 vmMbare:        paddr = vaddr;
                 vmMbb, vmMbbid: begin
-                                    if (vaddr > vmInfo.bound) begin
+                                    if (vaddr >= vmInfo.bound) begin
                                         exception = accessFault;
                                     end else begin
                                         paddr = vaddr + vmInfo.base;

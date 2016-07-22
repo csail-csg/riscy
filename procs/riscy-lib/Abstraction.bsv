@@ -188,7 +188,7 @@ endinterface
 interface MulticoreMemorySystem#(numeric type numCores, numeric type mainMemWidth);
     interface Vector#(numCores, MemorySystem) core;
     // To main memory and devices
-    interface GenericMemClient#(mainMemWidth) mainMemory;
+    interface GenericMemClient#(mainMemWidth) cachedMemory;
     interface UncachedMemClient uncachedMemory;
     method Action configure(Data miobase);
 endinterface
@@ -204,14 +204,11 @@ interface Proc#(numeric type mainMemoryWidth);
     // Verification
     method ActionValue#(VerificationPacket) getVerificationPacket;
 
-    // HTIF
-    method Action fromHost(Bit#(64) v);
-    method ActionValue#(Bit#(64)) toHost;
-
-    // Main Memory Connection
-    interface GenericMemClient#(mainMemoryWidth) mainMemory;
-    // Uncached Connection
-    interface UncachedMemClient uncachedMemory;
+    // Cached Connections
+    interface GenericMemClient#(mainMemoryWidth) ram;
+    interface GenericMemClient#(mainMemoryWidth) rom;
+    // Uncached Connections
+    interface UncachedMemClient mmio;
     // Interrupts
     method Action triggerExternalInterrupt;
 endinterface

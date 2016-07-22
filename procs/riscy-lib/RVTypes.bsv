@@ -800,6 +800,22 @@ instance DefaultValue#(VMInfo);
     function VMInfo defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: 0};
 endinstance
 
+// Instead of making PMAs generic (like a massive struct), we are adding named
+// PMAs as needed. Currently these PMAs are defined by device
+typedef enum {
+    MainMemory, // Cacheable, R, W, and X, all AMO supported
+    IORom,      // Cacheable, R and X only, no AMO
+    IODevice,   // R and W, but no AMO
+    IOEmpty     // no R, W, or X
+} PMA deriving (Bits, Eq, FShow);
+
+function Bool isCacheable(PMA pma);
+    return (case (pma)
+                MainMemory, IORom: True;
+                default: False;
+            endcase);
+endfunction
+
 typedef 4 NumSpecTags;
 typedef Bit#(TLog#(NumSpecTags)) SpecTag;
 typedef Bit#(NumSpecTags) SpecBits;

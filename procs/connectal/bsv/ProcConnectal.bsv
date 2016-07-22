@@ -48,17 +48,10 @@ interface ProcControlRequest;
     method Action reset;
     method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
     method Action stop;
-    method Action configure(Bit#(32) sharedMemRefPointer, Bit#(32) romRefPointer, Bit#(64) romBaseAddr, Bit#(64) externalMMIOBaseAddr);
+    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
 endinterface
 interface ProcControlIndication;
     method Action resetDone;
-endinterface
-// HostInterface
-interface HostInterfaceRequest;
-    method Action fromHost(Bit#(64) v);
-endinterface
-interface HostInterfaceIndication;
-    method Action toHost(Bit#(64) v);
 endinterface
 // Verification
 interface VerificationIndication;
@@ -78,7 +71,6 @@ endinterface
 // parameters to the mkProcConnectal module.
 interface ProcConnectal;
     interface ProcControlRequest procControlRequest;
-    interface HostInterfaceRequest hostInterfaceRequest;
     interface PerfMonitorRequest perfMonitorRequest;
     interface ExternalMMIOResponse externalMMIOResponse;
     interface Vector#(1, MemReadClient#(64)) dmaReadClient;
@@ -87,7 +79,6 @@ interface ProcConnectal;
 endinterface
 
 module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
-                                 HostInterfaceIndication hostInterfaceIndication,
                                  VerificationIndication verificationIndication,
                                  PerfMonitorIndication perfMonitorIndication,
                                  ExternalMMIORequest externalMMIORequest)
@@ -99,20 +90,25 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 
     Proc#(MainMemoryWidth) proc <- mkProc(reset_by procReset.new_rst);
 
-    SharedMemoryBridge#(MainMemoryWidth) sharedMemoryBridge <- mkSharedMemoryBridge;
-    let memToSharedMem <- mkConnection(proc.mainMemory, sharedMemoryBridge.to_proc);
+    // Address space: 0 - romSz
+    SharedMemoryBridge#(MainMemoryWidth) romSharedMemoryBridge <- mkSharedMemoryBridge;
+    let romToSharedMem <- mkConnection(proc.rom, romSharedMemoryBridge.to_proc);
 
+    // Address space: 0 - ramSz
+    SharedMemoryBridge#(MainMemoryWidth) ramSharedMemoryBridge <- mkSharedMemoryBridge;
+    let ramToSharedMem <- mkConnection(proc.ram, ramSharedMemoryBridge.to_proc);
+
+    // Address space: ?
     UncachedBridge uncachedBridge <- mkUncachedBridge;
-    let memToUncachedMem <- mkConnection(proc.uncachedMemory, uncachedBridge.toProc);
+    let memToUncachedMem <- mkConnection(proc.mmio, uncachedBridge.toProc);
+
+
 
     // rules for connecting indications
-    rule finishReset(resetSent && (sharedMemoryBridge.numberFlyingOperations == 0));
+    rule finishReset(resetSent && (ramSharedMemoryBridge.numberFlyingOperations == 0)
+                               && (romSharedMemoryBridge.numberFlyingOperations == 0));
         resetSent <= False;
         procControlIndication.resetDone;
-    endrule
-    rule connectHostInterfaceIndication;
-        let msg <- proc.toHost;
-        hostInterfaceIndication.toHost(msg);
     endrule
     rule connectVerificationIndication;
         let msg <- proc.getVerificationPacket;
@@ -129,12 +125,14 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         externalMMIORequest.request(msg.write, length, msg.addr, msg.data);
     endrule
 
+    // request interfaces
     interface ProcControlRequest procControlRequest;
         method Action reset() if (!resetSent);
             // resets the processor
             procReset.assertReset();
             // flushes the pending memory requests
-            sharedMemoryBridge.flushRespReqMem;
+            ramSharedMemoryBridge.flushRespReqMem;
+            romSharedMemoryBridge.flushRespReqMem;
             resetSent <= True;
         endmethod
         method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
@@ -143,18 +141,11 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         method Action stop();
             proc.stop;
         endmethod
-        method Action configure(Bit#(32) sharedMemRefPointer, Bit#(32) romRefPointer, Bit#(64) romBaseAddr, Bit#(64) externalMMIOBaseAddr);
-            // set miobase
-            proc.configure(romBaseAddr);
+        method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
             // configure shared memory
-            sharedMemoryBridge.initSharedMem(sharedMemRefPointer, romBaseAddr);
+            ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
             // configure ROM
-            uncachedBridge.initUncachedMem(romRefPointer, romBaseAddr, externalMMIOBaseAddr);
-        endmethod
-    endinterface
-    interface HostInterfaceRequest hostInterfaceRequest;
-        method Action fromHost(Bit#(64) v);
-            proc.fromHost(v);
+            romSharedMemoryBridge.initSharedMem(romSharedMemRefPointer, romSize);
         endmethod
     endinterface
     interface PerfMonitorRequest perfMonitorRequest;
@@ -177,7 +168,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         endmethod
     endinterface
 
-    interface MemReadClient dmaReadClient = vec(sharedMemoryBridge.to_host_read);
-    interface MemWriteClient dmaWriteClient = vec(sharedMemoryBridge.to_host_write);
-    interface MemReadClient romReadClient = vec(uncachedBridge.rom);
+    // dma interfaces
+    interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);
+    interface MemWriteClient dmaWriteClient = vec(ramSharedMemoryBridge.to_host_write);
+    interface MemReadClient romReadClient = vec(romSharedMemoryBridge.to_host_read);
 endmodule

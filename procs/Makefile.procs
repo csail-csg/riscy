@@ -46,24 +46,19 @@ BSVFILES = \
 CPPFILES = \
 	$(RISCY_HOME)/procs/connectal/cpp/testproc.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ProcControl.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/HostInterface.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/Verification.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/HTIF.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/DeviceTree.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 
 S2H_INTERFACES = \
 	ProcControlRequest:ProcConnectal.procControlRequest \
-	HostInterfaceRequest:ProcConnectal.hostInterfaceRequest \
 	PerfMonitorRequest:ProcConnectal.perfMonitorRequest \
 	ExternalMMIOResponse:ProcConnectal.externalMMIOResponse \
 
 H2S_INTERFACES = \
 	ProcConnectal:ProcControlIndication \
-	ProcConnectal:HostInterfaceIndication \
 	ProcConnectal:VerificationIndication \
 	ProcConnectal:PerfMonitorIndication \
 	ProcConnectal:ExternalMMIORequest \

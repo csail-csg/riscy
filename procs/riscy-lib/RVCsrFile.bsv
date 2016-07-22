@@ -565,7 +565,7 @@ module mkRVCsrFile#(
                             endcase);
                 mie_field <= 0;
                 // update privilege
-                prv <= prvS;
+                prv <= prvM;
             end
             return tagged Exception {exception: validTrap, trapHandlerPC: newPC};
         end else if (sysInst matches tagged Valid .validSysInst) begin

@@ -48,15 +48,11 @@ interface Core;
     method Action start(Addr startPc);
     method Action stop;
 
-    method Action configure(Data miobase);
     method ActionValue#(VerificationPacket) getVerificationPacket;
     method ActionValue#(VMInfo) updateVMInfoI;
     method ActionValue#(VMInfo) updateVMInfoD;
 
-    method Action triggerExternalInterrupt;
-
     interface Client#(FenceReq, FenceResp) fence;
-    interface Client#(Data, Data) htif;
 endinterface
 
 instance Connectable#(Core, MemorySystem);
@@ -84,17 +80,22 @@ module mkMulticycleCore#(
         Server#(RVIMMUReq, RVIMMUResp) ivat,
         Server#(RVIMemReq, RVIMemResp) ifetch,
         Server#(RVDMMUReq, RVDMMUResp) dvat,
-        Server#(RVDMemReq, RVDMemResp) dmem)
+        Server#(RVDMemReq, RVDMemResp) dmem,
+        Bool ipi,
+        Bool timerInterrupt,
+        Data timer,
+        Bool externalInterrupt,
+        Data hartID
+    )
         (Core);
     let verbose = False;
     File fout = stdout;
 
     ArchRFile rf <- mkArchRFile;
-    RVCsrFile csrf <- mkRVCsrFile;
+    RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
     MulDivExec mulDiv <- mkBoothRoughMulDivExec;
     FpuExec fpu <- mkFpuExecPipeline;
 
-    Reg#(Bool) htifStall <- mkReg(False);
     Reg#(Bool) running <- mkReg(False);
     Reg#(ProcState) state <- mkReg(Wait);
 
@@ -164,7 +165,7 @@ module mkMulticycleCore#(
         state <= isValid(decInst) ? RegRead : Trap;
     endrule
 
-    rule doRegRead(!htifStall && state == RegRead);
+    rule doRegRead(state == RegRead);
         rVal1 <= rf.rd1(toFullRegIndex(dInst.rs1, getInstFields(inst).rs1));
         rVal2 <= rf.rd2(toFullRegIndex(dInst.rs2, getInstFields(inst).rs2));
         rVal3 <= rf.rd3(toFullRegIndex(dInst.rs3, getInstFields(inst).rs3));
@@ -259,25 +260,52 @@ module mkMulticycleCore#(
                 end
         endcase
 
-        // TODO: add comment
+        Maybe#(TrapCause) trap = tagged Invalid;
+        if (exceptionWB matches tagged Valid .validException) begin
+            trap = tagged Valid (tagged Exception validException);
+        end
+
+        if (dInst.execFunc matches tagged Mem .*) begin
+            // don't bother checking for interrupts since you just did a memory operation
+        end else begin
+            // check for interrupts (this overwrites current exceptions)
+            if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
+                trap = tagged Valid (tagged Interrupt validInterrupt);
+            end
+        end
         Bool checkForInterrupts = dInst.execFunc matches tagged Mem .* ? False : True;
         Bool extensionDirty = False;
         Bool fpuDirty = (dInst.dst == tagged Valid Fpu);
-        let {maybeTrap, maybeData, maybeNextPc} <- csrf.wr(
+        let csrfResult <- csrf.wr(
+                pc,
                 // performing system instructions
                 dInst.execFunc matches tagged System .sysInst ? tagged Valid sysInst : tagged Invalid,
                 getInstFields(inst).csr,
-                dataWb,  // either rf[rs1] or zimm, computed in basicExec
+                dataWb, // either rf[rs1] or zimm, computed in basicExec
+                addrWb,
                 // handling exceptions
-                exceptionWB,    // exception cause
-                checkForInterrupts,
-                pc,             // for writing to mepc/sepc
-                dInst.execFunc matches tagged Br .* ? True : False, // check inst allignment if Br Func
-                dInst.execFunc matches tagged Br .* ? nextPcWb : addrWb, // either data address or next PC, used to detect misaligned instruction addresses
+                trap,
                 // indirect writes
                 fflagsWb,
                 fpuDirty,
                 extensionDirty);
+
+        Maybe#(Addr) maybeNextPc = tagged Invalid;
+        Maybe#(Data) maybeData = tagged Invalid;
+        Maybe#(TrapCause) maybeTrap = tagged Invalid;
+        case (csrfResult) matches
+            tagged Exception .exc:
+                begin
+                    maybeNextPc = tagged Valid exc.trapHandlerPC;
+                    maybeTrap = tagged Valid exc.exception;
+                end
+            tagged RedirectPC .newPc:
+                maybeNextPc = tagged Valid newPc;
+            tagged CsrData .data:
+                maybeData = tagged Valid data;
+            tagged None:
+                noAction;
+        endcase
 
         // send verification packet
         verificationPackets.enq( VerificationPacket {
@@ -312,18 +340,34 @@ module mkMulticycleCore#(
 
     rule doTrap(state == Trap);
         // TODO: move this to WB
-        let {maybeTrap, maybeData, maybeNextPc} <- csrf.wr(
+        let csrfResult <- csrf.wr(
+                pc,
                 tagged Invalid,
                 getInstFields(inst).csr,
                 0, // data
-                exception, // exception cause
-                True,
-                pc, // pc
-                False, 
-                addr, // vaddr
+                addr,
+                (exception matches tagged Valid .e ? tagged Valid (tagged Exception e) : tagged Invalid), // exception cause
                 0,
                 False,
                 False);
+
+        Maybe#(Addr) maybeNextPc = tagged Invalid;
+        Maybe#(Data) maybeData = tagged Invalid;
+        Maybe#(TrapCause) maybeTrap = tagged Invalid;
+        case (csrfResult) matches
+            tagged Exception .exc:
+                begin
+                    maybeNextPc = tagged Valid exc.trapHandlerPC;
+                    maybeTrap = tagged Valid exc.exception;
+                end
+            tagged RedirectPC .newPc:
+                maybeNextPc = tagged Valid newPc;
+            tagged CsrData .data:
+                maybeData = tagged Valid data;
+            tagged None:
+                noAction;
+        endcase
+
 
         // send verification packet
         verificationPackets.enq( VerificationPacket {
@@ -352,21 +396,6 @@ module mkMulticycleCore#(
         state <= IMMU;
     endrule
 
-    rule htifToHost;
-        let msg <- csrf.csrfToHost;
-        if (truncateLSB(msg) != 16'h0100) begin
-            htifStall <= True;
-        end
-        toHost.enq(msg);
-    endrule
-
-    rule htifFromHost;
-        htifStall <= False;
-        let msg = fromHost.first;
-        fromHost.deq;
-        csrf.hostToCsrf(msg);
-    endrule
-
     method Action start(Addr startPc);
         running <= True;
         pc <= startPc;
@@ -379,11 +408,6 @@ module mkMulticycleCore#(
         state <= Wait;
     endmethod
 
-    interface Client htif = toGPClient(toHost, fromHost);
-
-    method Action configure(Data miobase);
-        csrf.configure(miobase);
-    endmethod
     method ActionValue#(VerificationPacket) getVerificationPacket;
         let verificationPacket = verificationPackets.first;
         verificationPackets.deq;
@@ -397,7 +421,4 @@ module mkMulticycleCore#(
         return csrf.vmD;
     endmethod
 
-    method Action triggerExternalInterrupt;
-        csrf.triggerExternalInterrupt;
-    endmethod
 endmodule
