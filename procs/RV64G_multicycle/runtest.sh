@@ -24,11 +24,19 @@
 
 if [ "$#" -eq 0 ] ; then
     echo "Please select a set of tests:"
+    echo "    sanity checks:"
     echo "1) rv64ui-p-add"
+    echo ""
+    echo "    imafd tests:"
     echo "2) rv64ui-p-*"
-    echo "3) rv64uf-p-*"
-    echo "4) rv64mi-p-*"
-    echo "5) rv64si-p-*"
+    echo "3) rv64um-p-*"
+    echo "4) rv64ua-p-*"
+    echo "5) rv64uf-p-*"
+    echo "6) rv64ud-p-*"
+    echo ""
+    echo "    privilege tests:"
+    echo "7) rv64mi-p-*"
+    echo "8) rv64si-p-*"
     read OPTION
 else
     OPTION=$1
@@ -45,11 +53,17 @@ case "$OPTION" in
        ;;
     2) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-* -type f ! -name "*.*"`
        ;;
-    3) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64uf-p-* -type f ! -name "*.*"`
+    3) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64um-p-* -type f ! -name "*.*"`
        ;;
-    4) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64mi-p-* -type f ! -name "*.*"`
+    4) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ua-p-* -type f ! -name "*.*"`
        ;;
-    5) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64si-p-* -type f ! -name "*.*"`
+    5) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64uf-p-* -type f ! -name "*.*"`
+       ;;
+    6) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ud-p-* -type f ! -name "*.*"`
+       ;;
+    7) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64mi-p-* -type f ! -name "*.*"`
+       ;;
+    8) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64si-p-* -type f ! -name "*.*"`
        ;;
     *) echo "Invalid Test Code"
        exit
