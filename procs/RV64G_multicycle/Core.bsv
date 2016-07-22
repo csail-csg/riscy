@@ -263,6 +263,8 @@ module mkMulticycleCore#(
         Maybe#(TrapCause) trap = tagged Invalid;
         if (exceptionWB matches tagged Valid .validException) begin
             trap = tagged Valid (tagged Exception validException);
+        end else if ((nextPcWb & 'b011) != 0) begin
+            trap = tagged Valid (tagged Exception InstAddrMisaligned);
         end
 
         if (dInst.execFunc matches tagged Mem .*) begin
