@@ -376,7 +376,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
             // invalid page, access fault
             procMMUResp.enq(RVDMMUResp{addr: 0, exception: accessFault});
             walking <= False;
-        end else if (((!pte.x) || (!pte.w) || (!pte.r)) && !(pte.w && !pte.r) ) begin // XXX: isLeafPTE
+        end else if ((pte.x || pte.w || pte.r) && !(pte.w && !pte.r) ) begin // XXX: isLeafPTE
             // valid leaf page
 
             // translated physical address

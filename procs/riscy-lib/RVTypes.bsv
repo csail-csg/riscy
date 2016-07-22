@@ -344,8 +344,8 @@ endinstance
 function Data getMISA(RiscVISASubset isa);
     Data misa = 0;
     if (isa.rv64) misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
-    // include S and I by default
-    misa = misa | {2'b00, 0, 26'b00000001000000000100000000};
+    // include U, S, and I by default
+    misa = misa | {2'b00, 0, 26'b00000101000000000100000000};
     if (isa.m) misa = misa | {2'b00, 0, 26'b00000000000001000000000000};
     if (isa.a) misa = misa | {2'b00, 0, 26'b00000000000000000000000001};
     if (isa.f) misa = misa | {2'b00, 0, 26'b00000000000000000000100000};
