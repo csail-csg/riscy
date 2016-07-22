@@ -190,7 +190,6 @@ interface MulticoreMemorySystem#(numeric type numCores, numeric type mainMemWidt
     // To main memory and devices
     interface GenericMemClient#(mainMemWidth) cachedMemory;
     interface UncachedMemClient uncachedMemory;
-    method Action configure(Data miobase);
 endinterface
 
 typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric type mainMemWidth);
@@ -199,7 +198,6 @@ interface Proc#(numeric type mainMemoryWidth);
     // Processor Control
     method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
     method Action stop();
-    method Action configure(Bit#(64) miobase);
 
     // Verification
     method ActionValue#(VerificationPacket) getVerificationPacket;

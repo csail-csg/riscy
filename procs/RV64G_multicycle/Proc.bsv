@@ -169,10 +169,6 @@ module mkProc(Proc#(DataSz));
     method Action stop();
         core.stop;
     endmethod
-    method Action configure(Data miobase);
-        core.configure(miobase);
-        memorySystem.configure(miobase);
-    endmethod
 
     // Verification
     method ActionValue#(VerificationPacket) getVerificationPacket;
