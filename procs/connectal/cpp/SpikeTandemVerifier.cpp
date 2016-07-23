@@ -25,11 +25,12 @@
 #include <iostream>
 #include <sstream>
 #include "spike/encoding.h"
-#include "spike/htif.h"
+#include "spike/mmu.h"
+#include "spike/trap.h"
 #include "SpikeTandemVerifier.hpp"
 
 SpikeTandemVerifier::SpikeTandemVerifier(std::vector<std::string> htifArgsIn, size_t memSzIn)
-        : TandemVerifier(), htifArgs(htifArgsIn), memSz(memSzIn), sim(NULL), disassembler(new disassembler_t()), packets(0), instructions(0), abort(false), outBuffer(40) {
+        : TandemVerifier(), htifArgs(htifArgsIn), memSz(memSzIn), sim(NULL), disassembler(new disassembler_t(64)), packets(0), instructions(0), abort(false), outBuffer(40) {
     pthread_mutex_init(&mutex, 0);
 }
 
@@ -47,7 +48,6 @@ bool SpikeTandemVerifier::checkVerificationPacket(VerificationPacket packet) {
     // init simulator if necessary
     if (sim == NULL) {
         initSim();
-        sim->get_htif()->tick();
     }
 
     // fast forward to make up for skipped packets
@@ -70,16 +70,7 @@ bool SpikeTandemVerifier::checkVerificationPacket(VerificationPacket packet) {
         if (packet.trapType == 0x82) {
             forceTrap = true;
             forceTrapCause = (1ULL << 63) | 2;
-            // make sure spike's HTIF sees the host interrupt
-            unsigned int tickcount = 0;
-            while(sim->get_core(0)->get_state()->fromhost == 0) {
-                sim->get_htif()->tick();
-                tickcount++;
-                if (tickcount % 10000 == 0) {
-                    std::cerr << std::endl;
-                    std::cerr << "[WARNING] hit " << tickcount << " HTIF ticks before host interrupt synchronization" << std::endl;
-                }
-            }
+            // TODO: make sure spike's HTIF sees the host interrupt
         }
     }
 
@@ -133,68 +124,14 @@ bool SpikeTandemVerifier::shouldAbort() {
 }
 
 void SpikeTandemVerifier::synchronize(VerificationPacket packet) {
-    bool isCSRRead = ((packet.instruction & 0x7f) == 0x73) && (((packet.instruction >> 12) & 0x3) != 0);
-    // If reading from a non-deterministic CSR, hack into the processor state
-    // and make it deterministic. using processor_t::set_csr() is not
-    // sufficient because it doesn't allow for writing to mtime.
-
-    if (isCSRRead) {
-        int csr = (packet.instruction >> 20) & 0xFFF;
-        processor_t *p = sim->get_core(0);
-        switch (csr) {
-            case CSR_MTIME:
-            case CSR_STIME:
-            case CSR_STIMEW:
-                sim->set_rtc(packet.data);
-                break;
-            case CSR_TIME:
-            case CSR_TIMEW:
-                sim->set_rtc(packet.data);
-                p->get_state()->sutime_delta = 0;
-                break;
-            case CSR_CYCLE:
-            case CSR_CYCLEW:
-            case CSR_INSTRET:
-            case CSR_INSTRETW:
-                p->get_state()->minstret = packet.data;
-                p->get_state()->suinstret_delta = 0;
-                break;
-            case CSR_MIP:
-                p->get_state()->mip = packet.data;
-                break;
-            case CSR_MFROMHOST:
-                if (packet.data != 0) {
-                    // TODO: do something with HTIF
-                    // while (!p->fromhost_fifo.empty()) {
-                    //     p->fromhost_fifo.pop();
-                    // }
-                    unsigned int tickcount = 0;
-                    while(p->get_state()->fromhost != packet.data) {
-                        sim->get_htif()->tick();
-                        tickcount++;
-                        if (tickcount % 10000 == 0) {
-                            std::cerr << std::endl;
-                            std::cerr << "[WARNING] hit " << tickcount << " HTIF ticks before synchronization" << std::endl;
-                            std::cerr << "    packet.data = " << packet.data << std::endl;
-                            std::cerr << "    p->get_state()->fromhost = " << p->get_state()->fromhost << std::endl;
-                        }
-                    }
-                    p->get_state()->fromhost = packet.data;
-                } else {
-                    p->get_state()->fromhost = 0;
-                }
-                break;
-        }
-    }
+    // TODO: implement this for priv spec v1.9
 }
 
 void SpikeTandemVerifier::initSim() {
-    sim = new sim_t("RV64IMAFD", 1, memSz >> 20, htifArgs);
-    sim->get_core(0)->reset(true);
-    sim->get_core(0)->reset(false);
-    // spike_htif->disable_stdout();
-    // // [sizhuo] register signal handler, override handler in sim
-    // signal(SIGINT, &handle_signal);
+    sim = new sim_t("RV64IMAFD", 1 /* cores */, memSz >> 20, true /* halted */, htifArgs);
+    // sim->start() calls htif_t's start implementation.
+    // this loads the program and resets the processor.
+    sim->start();
 }
 
 VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket packet) {
@@ -205,8 +142,8 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
         spikePacket.pc = sim->get_core(0)->get_state()->pc;
     } else {
         // if no instructions have been retired yet, assume spike starts at
-        // address 0x200
-        spikePacket.pc = 0x200;
+        // address 0x1000
+        spikePacket.pc = 0x1000;
     }
     try {
         spikePacket.instruction = sim->get_core(0)->get_mmu()->load_uint32(spikePacket.pc);
@@ -230,6 +167,7 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
         // this instruction caused a trap
         spikePacket.trap = true;
         // get trap type in compressed format used in verification packets
+        // TODO: figure out which cause register has the cause (maybe scause)
         reg_t cause = sim->get_core(0)->get_state()->mcause;
         if (cause & 0x8000000000000000ULL) {
             spikePacket.trapType = 0x80 | (cause & 0x7F);

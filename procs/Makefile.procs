@@ -49,6 +49,7 @@ CPPFILES = \
 	$(RISCY_HOME)/procs/connectal/cpp/Verification.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/HTIF.cpp \
+	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 

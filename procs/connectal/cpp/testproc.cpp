@@ -46,6 +46,7 @@
 #include "DeviceTree.hpp"
 
 #include "NullTandemVerifier.hpp"
+#include "SpikeTandemVerifier.hpp"
 
 #include "GeneratedTypes.h"
 
@@ -145,8 +146,8 @@ int main(int argc, char * const *argv) {
         verification = new Verification(IfcNames_VerificationIndicationH2S, new NullTandemVerifier());
     } else {
         // ERROR
-        fprintf(stderr, "ERROR: Spike-based tandem verification is not supported for priv spec v1.9 yet\n");
-        verification = new Verification(IfcNames_VerificationIndicationH2S, new NullTandemVerifier());
+        fprintf(stderr, "WARNING: Spike-based tandem verification is not fully tested for priv spec v1.9 yet\n");
+        verification = new Verification(IfcNames_VerificationIndicationH2S, new SpikeTandemVerifier(htif_args, ramSz));
     }
     perfMonitor = new PerfMonitor(IfcNames_PerfMonitorIndicationH2S, IfcNames_PerfMonitorRequestS2H);
     externalMMIO = new ExternalMMIO(IfcNames_ExternalMMIORequestH2S, IfcNames_ExternalMMIOResponseS2H);
