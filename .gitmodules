@@ -12,7 +12,7 @@
 	url = https://github.com/csail-csg/riscv-tools.git
 [submodule "codegen/riscv-meta"]
 	path = codegen/riscv-meta
-	url = https://github.com/michaeljclark/riscv-meta.git
+	url = https://github.com/csail-csg/riscv-meta.git
 [submodule "recycle-bsv-lib"]
 	path = recycle-bsv-lib
 	url = https://github.com/csail-csg/recycle-bsv-lib.git
