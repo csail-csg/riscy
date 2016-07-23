@@ -77,7 +77,7 @@ for hexfile in $files ; do
     errorcode=$?
     if [ $errorcode -ne 0 ] ; then
         grep ERROR out/${basehexfile}.out > /dev/null
-        if [ $errorcode -ne 0 ] ; then
+        if [ $? -eq 0 ] ; then
             echo "$basehexfile FAILED $errorcode" # with divergence
         else
             echo "$basehexfile FAILED $errorcode (without divergence)"
@@ -85,7 +85,7 @@ for hexfile in $files ; do
         # exit 1
     else
         grep ERROR out/${basehexfile}.out > /dev/null
-        if [ $errorcode -ne 0 ] ; then
+        if [ $? -eq 0 ] ; then
             echo "$basehexfile PASSED (with divergence)"
         else
             echo "$basehexfile OK"
