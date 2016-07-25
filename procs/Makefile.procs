@@ -108,16 +108,15 @@ else
 CONNECTALFLAGS += --cxxflags=" -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS "
 CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/riscv/insns
 CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/riscv
+CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/
 CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/hwacha
 CONNECTALFLAGS += -I$(RISCY_TOOLS)/include/spike
 CONNECTALFLAGS += --stl=c++_static --cxxflags=" -UNDEBUG -std=gnu++11 -fexceptions" -D PREFIX="\"/mnt/sdcard\""
 
 FESVR_SRC_DIR = $(RISCY_HOME)/riscv-tools/riscv-fesvr/fesvr
-FESVR_SRC_FILES = $(addprefix $(FESVR_SRC_DIR)/, context.cc htif.cc htif_pthread.cc device.cc memif.cc packet.cc rfb.cc syscall.cc elfloader.cc term.cc)
+FESVR_SRC_FILES = $(addprefix $(FESVR_SRC_DIR)/, context.cc htif.cc htif_pthread.cc device.cc memif.cc rfb.cc syscall.cc elfloader.cc term.cc)
 SPIKE_SRC_DIR = $(RISCY_HOME)/riscv-tools/riscv-isa-sim
-# not sure about this:
-RISCY_FILES = \
-	htif.cc \
+SPIKE_RISCV_SRC_FILES = \
 	processor.cc \
 	execute.cc \
 	sim.cc \
@@ -130,8 +129,11 @@ RISCY_FILES = \
 	rocc.cc \
 	regnames.cc \
 	devices.cc \
+	rom.cc \
+	rtc.cc \
+	debug_module.cc \
 
-SPIKE_SRC_FILES = $(addprefix $(SPIKE_SRC_DIR)/, spike_main/disasm.cc $(addprefix riscv/, $(RISCY_FILES))) \
+SPIKE_SRC_FILES = $(addprefix $(SPIKE_SRC_DIR)/, spike_main/disasm.cc $(addprefix riscv/, $(SPIKE_RISCV_SRC_FILES))) \
 	$(wildcard $(SPIKE_SRC_DIR)/softfloat/*.c) \
 	$(wildcard $(SPIKE_SRC_DIR)/build/*.cc)
 CPPFILES += $(FESVR_SRC_FILES) $(SPIKE_SRC_FILES)
