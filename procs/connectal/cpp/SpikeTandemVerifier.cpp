@@ -167,8 +167,12 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
         // this instruction caused a trap
         spikePacket.trap = true;
         // get trap type in compressed format used in verification packets
-        // TODO: figure out which cause register has the cause (maybe scause)
-        reg_t cause = sim->get_core(0)->get_state()->mcause;
+        reg_t cause = 0;
+        if (sim->get_core(0)->get_state()->prv == PRV_S) {
+            cause = sim->get_core(0)->get_state()->scause;
+        } else {
+            cause = sim->get_core(0)->get_state()->mcause;
+        }
         if (cause & 0x8000000000000000ULL) {
             spikePacket.trapType = 0x80 | (cause & 0x7F);
         } else {
