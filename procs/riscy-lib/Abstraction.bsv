@@ -165,12 +165,8 @@ interface BackEnd#(type epochType);
     interface Client#(FenceReq, FenceResp) fence;
     method ActionValue#(VMInfo) updateVMInfoI;
     method ActionValue#(VMInfo) updateVMInfoD;
-    // Iinterrupts
-    method Action triggerExternalInterrupt;
     // Debugging Interface
-    interface Client#(Data, Data) htif;
     method ActionValue#(VerificationPacket) getVerificationPacket;
-    method Action configure(Data miobase);
 endinterface
 
 interface MemorySystem;

@@ -52,12 +52,16 @@ typedef enum {
 
 module mkMulticycleBackEnd#(
         Server#(RVDMMUReq, RVDMMUResp) dvat,
-        Server#(RVDMemReq, RVDMemResp) dmem)
+        Server#(RVDMemReq, RVDMemResp) dmem,
+        Bool ipi,
+        Bool timerInterrupt,
+        Data timer,
+        Bool externalInterrupt,
+        Data hartID
+    )
         (BackEnd#(void));
     let verbose = False;
     File fout = stdout;
-
-    Reg#(Bool) htifStall <- mkReg(False);
 
     Reg#(Addr) pc <- mkReg(0);
     Reg#(Instruction) inst <- mkReg(0);
@@ -72,19 +76,16 @@ module mkMulticycleBackEnd#(
     Reg#(Data) nextPc <- mkReg(0);
 
     ArchRFile rf <- mkArchRFile;
-    RVCsrFile csrf <- mkRVCsrFile;
+    RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
     MulDivExec mulDiv <- mkBoothRoughMulDivExec;
     FpuExec fpu <- mkFpuExecPipeline;
 
     FIFO#(FrontEndToBackEnd#(void)) toBackEnd <- mkFIFO;
     FIFO#(Redirect#(void)) redirect <- mkFIFO;
 
-    FIFO#(Data)         toHost <- mkFIFO;
-    FIFO#(Data)         fromHost <- mkFIFO;
-
     FIFO#(VerificationPacket) verificationPackets <- mkFIFO;
 
-    rule doRegRead(!htifStall && state == RegRead);
+    rule doRegRead(state == RegRead);
         if (verbose) $display("RegRead");
         rVal1 <= rf.rd1(toFullRegIndex(dInst.rs1, getInstFields(inst).rs1));
         rVal2 <= rf.rd2(toFullRegIndex(dInst.rs2, getInstFields(inst).rs2));
@@ -183,25 +184,53 @@ module mkMulticycleBackEnd#(
                 end
         endcase
 
-        // TODO: add comment
-        Bool checkForInterrupts = dInst.execFunc matches tagged Mem .* ? False : True;
+        Maybe#(TrapCause) trap = tagged Invalid;
+        if (exceptionWB matches tagged Valid .validException) begin
+            trap = tagged Valid (tagged Exception validException);
+        end else if ((nextPcWb & 'b011) != 0) begin
+            trap = tagged Valid (tagged Exception InstAddrMisaligned);
+        end
+
+        if (dInst.execFunc matches tagged Mem .*) begin
+            // don't bother checking for interrupts since you just did a memory operation
+        end else begin
+            // check for interrupts (this overwrites current exceptions)
+            if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
+                trap = tagged Valid (tagged Interrupt validInterrupt);
+            end
+        end
         Bool extensionDirty = False;
         Bool fpuDirty = (dInst.dst == tagged Valid Fpu);
-        let {maybeTrap, maybeData, maybeNextPc} <- csrf.wr(
+        let csrfResult <- csrf.wr(
+                pc,
                 // performing system instructions
                 dInst.execFunc matches tagged System .sysInst ? tagged Valid sysInst : tagged Invalid,
                 getInstFields(inst).csr,
                 dataWb,  // either rf[rs1] or zimm, computed in basicExec
+                addrWb,
                 // handling exceptions
-                exceptionWB,    // exception cause
-                checkForInterrupts,
-                pc,             // for writing to mepc/sepc
-                dInst.execFunc matches tagged Br .* ? True : False, // check inst allignment if Br Func
-                dInst.execFunc matches tagged Br .* ? nextPcWb : addrWb, // either data address or next PC, used to detect misaligned instruction addresses
+                trap,
                 // indirect writes
                 fflagsWb,
                 fpuDirty,
                 extensionDirty);
+
+        Maybe#(Addr) maybeNextPc = tagged Invalid;
+        Maybe#(Data) maybeData = tagged Invalid;
+        Maybe#(TrapCause) maybeTrap = tagged Invalid;
+        case (csrfResult) matches
+            tagged Exception .exc:
+                begin
+                    maybeNextPc = tagged Valid exc.trapHandlerPC;
+                    maybeTrap = tagged Valid exc.exception;
+                end
+            tagged RedirectPC .newPc:
+                maybeNextPc = tagged Valid newPc;
+            tagged CsrData .data:
+                maybeData = tagged Valid data;
+            tagged None:
+                noAction;
+        endcase
 
         // send verification packet
         verificationPackets.enq( VerificationPacket {
@@ -240,18 +269,33 @@ module mkMulticycleBackEnd#(
     rule doTrap(state == Trap);
         if (verbose) $display("Trap");
         // TODO: move this to WB
-        let {maybeTrap, maybeData, maybeNextPc} <- csrf.wr(
+        let csrfResult <- csrf.wr(
+                pc,
                 tagged Invalid,
                 getInstFields(inst).csr,
                 0, // data
-                exception, // exception cause
-                True,
-                pc, // pc
-                False, 
-                addr, // vaddr
+                addr,
+                (exception matches tagged Valid .e ? tagged Valid (tagged Exception e) : tagged Invalid), // exception cause
                 0,
                 False,
                 False);
+
+        Maybe#(Addr) maybeNextPc = tagged Invalid;
+        Maybe#(Data) maybeData = tagged Invalid;
+        Maybe#(TrapCause) maybeTrap = tagged Invalid;
+        case (csrfResult) matches
+            tagged Exception .exc:
+                begin
+                    maybeNextPc = tagged Valid exc.trapHandlerPC;
+                    maybeTrap = tagged Valid exc.exception;
+                end
+            tagged RedirectPC .newPc:
+                maybeNextPc = tagged Valid newPc;
+            tagged CsrData .data:
+                maybeData = tagged Valid data;
+            tagged None:
+                noAction;
+        endcase
 
         // send verification packet
         verificationPackets.enq( VerificationPacket {
@@ -286,23 +330,6 @@ module mkMulticycleBackEnd#(
         state <= Wait;
     endrule
 
-    rule htifToHost;
-        if (verbose) $display("htifToHost");
-        let msg <- csrf.csrfToHost;
-        if (truncateLSB(msg) != 16'h0100) begin
-            htifStall <= True;
-        end
-        toHost.enq(msg);
-    endrule
-
-    rule htifFromHost;
-        if (verbose) $display("Htif from host");
-        htifStall <= False;
-        let msg = fromHost.first;
-        fromHost.deq;
-        csrf.hostToCsrf(msg);
-    endrule
-
     method Action instFromFrontEnd(FrontEndToBackEnd#(void) x) if (state == Wait);
         if (verbose) $fdisplay(fout, "[backend] receiving instruction for pc: 0x%08x - intruction: 0x%08x - dInst: ", x.pc, x.inst, fshow(x.dInst));
         pc <= x.pc;
@@ -320,12 +347,6 @@ module mkMulticycleBackEnd#(
         return ?;
     endmethod
 
-    interface Client htif = toGPClient(toHost, fromHost);
-
-    method Action configure(Data miobase);
-        if (verbose) $display("configure");
-        csrf.configure(miobase);
-    endmethod
     method ActionValue#(VerificationPacket) getVerificationPacket;
         if (verbose) $display("getverificationPacket");
         let verificationPacket = verificationPackets.first;
@@ -340,9 +361,5 @@ module mkMulticycleBackEnd#(
     method ActionValue#(VMInfo) updateVMInfoD;
         if (verbose) $display("update VMD");
         return csrf.vmD;
-    endmethod
-    method Action triggerExternalInterrupt;
-        if (verbose) $display("TriggerExternalInterrupt");
-        csrf.triggerExternalInterrupt;
     endmethod
 endmodule
