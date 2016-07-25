@@ -112,9 +112,6 @@ module mkMulticycleCore#(
     Reg#(Data) addr <- mkReg(0);
     Reg#(Data) nextPc <- mkReg(0);
 
-    FIFO#(Data)         toHost <- mkFIFO1;
-    FIFO#(Data)         fromHost <- mkFIFO1;
-
     FIFO#(VerificationPacket) verificationPackets <- mkFIFO1;
 
     rule doInstMMU(running && state == IMMU);
@@ -275,7 +272,6 @@ module mkMulticycleCore#(
                 trap = tagged Valid (tagged Interrupt validInterrupt);
             end
         end
-        Bool checkForInterrupts = dInst.execFunc matches tagged Mem .* ? False : True;
         Bool extensionDirty = False;
         Bool fpuDirty = (dInst.dst == tagged Valid Fpu);
         let csrfResult <- csrf.wr(
@@ -369,7 +365,6 @@ module mkMulticycleCore#(
             tagged None:
                 noAction;
         endcase
-
 
         // send verification packet
         verificationPackets.enq( VerificationPacket {
