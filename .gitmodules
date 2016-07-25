@@ -16,3 +16,6 @@
 [submodule "recycle-bsv-lib"]
 	path = recycle-bsv-lib
 	url = https://github.com/csail-csg/recycle-bsv-lib.git
+[submodule "fpgamake"]
+	path = fpgamake
+	url = https://github.com/cambridgehackers/fpgamake.git
