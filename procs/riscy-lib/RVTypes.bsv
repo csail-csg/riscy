@@ -882,4 +882,9 @@ instance Bits#(PTE_Sv39, 64);
             });
     endfunction
 endinstance
-
+function Bool isLegalPTE(PTE_Sv39 pte);
+    return pte.valid && !(pte.w && !(pte.r));
+endfunction
+function Bool isLeafPTE(PTE_Sv39 pte);
+    return pte.valid && (pte.r || pte.w || pte.x);
+endfunction
