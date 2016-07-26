@@ -47,12 +47,16 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
         // synchronization packet if it is a timer or host interrupt, or if it
         // reads a non-deterministic CSR
         Bool isSynchronizationPacket = False;
-        if (packet.trap) begin
-            if (packet.trapType == 8'h81 || packet.trapType == 8'h82) begin
-                // timer or host interrupt
+        if (packet.interrupt) begin
+            if (packet.cause == 3) begin
+                // machine inter-processor interrupt
+                isSynchronizationPacket = True;
+            end else if (packet.cause == 7) begin
+                // machine timer interrupt
                 isSynchronizationPacket = True;
             end
         end
+
         if ((packet.instruction[6:0] == 7'b1110011) && (packet.instruction[14:12] != 0)) begin
             CSR csr = unpack(packet.instruction[31:20]);
             case (csr)

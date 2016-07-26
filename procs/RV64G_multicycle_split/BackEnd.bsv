@@ -233,6 +233,21 @@ module mkMulticycleBackEnd#(
         endcase
 
         // send verification packet
+        Bool isInterrupt = False;
+        Bool isException = False;
+        Bit#(4) trapCause = 0;
+        case (maybeTrap) matches
+            tagged Valid (tagged Interrupt .x):
+                begin
+                    isInterrupt = True;
+                    trapCause = pack(x);
+                end
+            tagged Valid (tagged Exception .x):
+                begin
+                    isException = True;
+                    trapCause = pack(x);
+                end
+        endcase
         verificationPackets.enq( VerificationPacket {
                 skippedPackets: 0,
                 pc: pc,
@@ -241,11 +256,9 @@ module mkMulticycleBackEnd#(
                 addr: addr,
                 instruction: inst,
                 dst: {pack(dInst.dst), getInstFields(inst).rd},
-                trap: isValid(maybeTrap),
-                trapType: (case (fromMaybe(unpack(0), maybeTrap)) matches
-                        tagged Exception .x: (zeroExtend(pack(x)));
-                        tagged Interrupt .x: (zeroExtend(pack(x)) | 8'h80);
-                    endcase) });
+                exception: isException,
+                interrupt: isInterrupt,
+                cause: trapCause } );
 
         if (maybeNextPc matches tagged Valid .replayPc) begin
             // This instruction didn't retire
@@ -298,6 +311,21 @@ module mkMulticycleBackEnd#(
         endcase
 
         // send verification packet
+        Bool isInterrupt = False;
+        Bool isException = False;
+        Bit#(4) trapCause = 0;
+        case (maybeTrap) matches
+            tagged Valid (tagged Interrupt .x):
+                begin
+                    isInterrupt = True;
+                    trapCause = pack(x);
+                end
+            tagged Valid (tagged Exception .x):
+                begin
+                    isException = True;
+                    trapCause = pack(x);
+                end
+        endcase
         verificationPackets.enq( VerificationPacket {
                 skippedPackets: 0,
                 pc: pc,
@@ -306,11 +334,9 @@ module mkMulticycleBackEnd#(
                 addr: addr,
                 instruction: inst,
                 dst: {pack(dInst.dst), getInstFields(inst).rd},
-                trap: isValid(maybeTrap),
-                trapType: (case (fromMaybe(unpack(0), maybeTrap)) matches
-                        tagged Exception .x: (zeroExtend(pack(x)));
-                        tagged Interrupt .x: (zeroExtend(pack(x)) | 8'h80);
-                    endcase) });
+                exception: isException,
+                interrupt: isInterrupt,
+                cause: trapCause } );
 
         // redirection will happpen in trap2
         // by construction maybeNextPc is always valid

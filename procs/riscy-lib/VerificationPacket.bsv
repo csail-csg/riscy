@@ -31,6 +31,7 @@ typedef struct {
     Bit#(64) data;
     Bit#(64) addr;
     Bit#(7)  dst;
-    Bool     trap;
-    Bit#(8)  trapType;
+    Bool     exception;
+    Bool     interrupt;
+    Bit#(4)  cause;
 } VerificationPacket deriving (Bits);

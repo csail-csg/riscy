@@ -60,17 +60,16 @@ bool SpikeTandemVerifier::checkVerificationPacket(VerificationPacket packet) {
 
     bool forceTrap = false;
     uint64_t forceTrapCause = 0;
-    if (packet.trap) {
-        // timer interrupt
-        if (packet.trapType == 0x81) {
+    if (packet.interrupt) {
+        // machine timer interrupt
+        if (packet.cause == 7) {
             forceTrap = true;
-            forceTrapCause = (1ULL << 63) | 1;
+            forceTrapCause = (1ULL << 63) | packet.cause;
         }
-        // host interrupt
-        if (packet.trapType == 0x82) {
+        // machine software interrupt
+        if (packet.cause == 3) {
             forceTrap = true;
-            forceTrapCause = (1ULL << 63) | 2;
-            // TODO: make sure spike's HTIF sees the host interrupt
+            forceTrapCause = (1ULL << 63) | packet.cause;
         }
     }
 
@@ -161,11 +160,11 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
     if (instructionRetired) {
         // this instruction executed successfully and did not result in a trap
         instructions++;
-        spikePacket.trap = false;
-        spikePacket.trapType = 0;
+        spikePacket.exception = false;
+        spikePacket.interrupt = false;
+        spikePacket.cause = 0;
     } else {
         // this instruction caused a trap
-        spikePacket.trap = true;
         // get trap type in compressed format used in verification packets
         reg_t cause = 0;
         if (sim->get_core(0)->get_state()->prv == PRV_S) {
@@ -174,9 +173,13 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
             cause = sim->get_core(0)->get_state()->mcause;
         }
         if (cause & 0x8000000000000000ULL) {
-            spikePacket.trapType = 0x80 | (cause & 0x7F);
+            spikePacket.exception = false;
+            spikePacket.interrupt = true;
+            spikePacket.cause = cause & 0xF;
         } else {
-            spikePacket.trapType = cause & 0x7F;
+            spikePacket.exception = true;
+            spikePacket.interrupt = false;
+            spikePacket.cause = cause & 0xF;
         }
     }
     // -dst and data
@@ -208,9 +211,10 @@ bool SpikeTandemVerifier::comparePackets(VerificationPacket procP, VerificationP
     match = match && (procP.pc == spikeP.pc);
     match = match && (procP.nextPc == spikeP.nextPc);
     match = match && (procP.instruction == spikeP.instruction);
-    match = match && (procP.trap == spikeP.trap);
-    if (procP.trap) {
-        match = match && (procP.trapType == spikeP.trapType);
+    match = match && (procP.exception == spikeP.exception);
+    match = match && (procP.interrupt == spikeP.interrupt);
+    if (procP.exception || procP.interrupt) {
+        match = match && (procP.cause == spikeP.cause);
     } else {
         match = match && (procP.dst == spikeP.dst);
         match = match && (procP.data == spikeP.data);
@@ -228,8 +232,8 @@ std::string SpikeTandemVerifier::verificationPacketToString(VerificationPacket p
     std::string assembly = (disassembler->disassemble(p.instruction));
     buffer << std::left << std::setfill(' ') << std::setw(32) << assembly;
 
-    if (p.trap) {
-        switch (p.trapType) {
+    if (p.exception) {
+        switch (p.cause) {
             case 0x00:
                 buffer << " [Exception: Instruction address misaligned]";
                 break;
@@ -266,17 +270,49 @@ std::string SpikeTandemVerifier::verificationPacketToString(VerificationPacket p
             case 0x0B:
                 buffer << " [Exception: Environment call from M-mode]";
                 break;
-            case 0x80:
-                buffer << " [Interrupt: Software interrupt]";
+            default:
+                buffer << " [Unknown Exception]";
+        }
+    } else if (p.interrupt) {
+        switch (p.cause) {
+            case 0x00:
+                buffer << " [Interrupt: User software interrupt]";
                 break;
-            case 0x81:
-                buffer << " [Interrupt: Timer interrupt]";
+            case 0x01:
+                buffer << " [Interrupt: Supervisor software interrupt]";
                 break;
-            case 0x82:
-                buffer << " [Interrupt: Host interrupt]";
+            case 0x02:
+                buffer << " [Interrupt: Hypervisor software interrupt]";
+                break;
+            case 0x03:
+                buffer << " [Interrupt: Machine software interrupt]";
+                break;
+            case 0x04:
+                buffer << " [Interrupt: User timer interrupt]";
+                break;
+            case 0x05:
+                buffer << " [Interrupt: Supervisor timer interrupt]";
+                break;
+            case 0x06:
+                buffer << " [Interrupt: Hypervisor timer interrupt]";
+                break;
+            case 0x07:
+                buffer << " [Interrupt: Machine timer interrupt]";
+                break;
+            case 0x08:
+                buffer << " [Interrupt: User external interrupt]";
+                break;
+            case 0x09:
+                buffer << " [Interrupt: Supervisor external interrupt]";
+                break;
+            case 0x0A:
+                buffer << " [Interrupt: Hypervisor external interrupt]";
+                break;
+            case 0x0B:
+                buffer << " [Interrupt: Machine external interrupt]";
                 break;
             default:
-                buffer << " [Unknown Trap]";
+                buffer << " [Unknown Interrupt]";
         }
     } else if (p.dst & 0x40) {
         // destination register
