@@ -58,27 +58,29 @@ bool SpikeTandemVerifier::checkVerificationPacket(VerificationPacket packet) {
     // set CSRs if necessary
     synchronize(packet);
 
-    bool forceTrap = false;
-    uint64_t forceTrapCause = 0;
+    bool forcedInterrupt = false;
+    uint64_t forcedInterruptCause = 0;
     if (packet.interrupt) {
         // machine timer interrupt
         if (packet.cause == 7) {
-            forceTrap = true;
-            forceTrapCause = (1ULL << 63) | packet.cause;
+            forcedInterrupt = true;
+            forcedInterruptCause = (1ULL << 63) | packet.cause;
         }
         // machine software interrupt
         if (packet.cause == 3) {
-            forceTrap = true;
-            forceTrapCause = (1ULL << 63) | packet.cause;
+            forcedInterrupt = true;
+            forcedInterruptCause = (1ULL << 63) | packet.cause;
         }
     }
 
     VerificationPacket spikePacket = packet;
-    if (forceTrap) {
-        // verification packet from the processor corresponds to a forced trap
-        sim->get_core(0)->force_trap(forceTrapCause);
-        // TODO: update spikePacket to include some things from the forced trap
+    if (forcedInterrupt) {
+        // verification packet from the processor corresponds to a forced interrupt
+        sim->get_core(0)->force_trap(forcedInterruptCause);
         spikePacket.nextPc = sim->get_core(0)->get_state()->pc;
+        spikePacket.interrupt = true;
+        spikePacket.exception = false;
+        spikePacket.cause = forcedInterruptCause & 0x0F;
     } else {
         spikePacket = synchronizedSimStep(packet);
     }
