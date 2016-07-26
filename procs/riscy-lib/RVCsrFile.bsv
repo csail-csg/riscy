@@ -122,43 +122,43 @@ module mkRVCsrFile#(
     Reg#(Bit#(2)) xs_field   <- mkReg(0);
     Reg#(Bit#(2)) fs_field   <- mkReg(0);
     Reg#(Bit#(2)) mpp_field  <- mkReg(0);
-    Reg#(Bit#(2)) hpp_field  <- mkReg(0);
+    Reg#(Bit#(2)) hpp_field  =  readOnlyReg(0);
     Reg#(Bit#(1)) spp_field  <- mkReg(0);
     Reg#(Bit#(1)) mpie_field <- mkReg(0);
-    Reg#(Bit#(1)) hpie_field <- mkReg(0);
+    Reg#(Bit#(1)) hpie_field =  readOnlyReg(0);
     Reg#(Bit#(1)) spie_field <- mkReg(0);
     Reg#(Bit#(1)) upie_field <- mkReg(0);
     Reg#(Bit#(1)) mie_field  <- mkReg(0);
-    Reg#(Bit#(1)) hie_field  <- mkReg(0);
+    Reg#(Bit#(1)) hie_field  =  readOnlyReg(0);
     Reg#(Bit#(1)) sie_field  <- mkReg(0);
     Reg#(Bit#(1)) uie_field  <- mkReg(0);
     Reg#(Bit#(1)) sd_field   =  readOnlyReg(pack((xs_field == 2'b11) || (fs_field == 2'b11)));
 
     // mie fields
     Reg#(Bit#(1)) meie_field <- mkReg(0);
-    Reg#(Bit#(1)) heie_field <- mkReg(0);
+    Reg#(Bit#(1)) heie_field =  readOnlyReg(0);
     Reg#(Bit#(1)) seie_field <- mkReg(0);
     Reg#(Bit#(1)) ueie_field <- mkReg(0);
     Reg#(Bit#(1)) mtie_field <- mkReg(0);
-    Reg#(Bit#(1)) htie_field <- mkReg(0);
+    Reg#(Bit#(1)) htie_field =  readOnlyReg(0);
     Reg#(Bit#(1)) stie_field <- mkReg(0);
     Reg#(Bit#(1)) utie_field <- mkReg(0);
     Reg#(Bit#(1)) msie_field <- mkReg(0);
-    Reg#(Bit#(1)) hsie_field <- mkReg(0);
+    Reg#(Bit#(1)) hsie_field =  readOnlyReg(0);
     Reg#(Bit#(1)) ssie_field <- mkReg(0);
     Reg#(Bit#(1)) usie_field <- mkReg(0);
 
     // mip fields
     Reg#(Bit#(1)) meip_field =  readOnlyReg(pack(meip));
-    Reg#(Bit#(1)) heip_field <- mkReg(0);
+    Reg#(Bit#(1)) heip_field =  readOnlyReg(0);
     Reg#(Bit#(1)) seip_field <- mkReg(0);
     Reg#(Bit#(1)) ueip_field <- mkReg(0);
     Reg#(Bit#(1)) mtip_field =  readOnlyReg(pack(mtip));
-    Reg#(Bit#(1)) htip_field <- mkReg(0);
+    Reg#(Bit#(1)) htip_field =  readOnlyReg(0);
     Reg#(Bit#(1)) stip_field <- mkReg(0);
     Reg#(Bit#(1)) utip_field <- mkReg(0);
     Reg#(Bit#(1)) msip_field =  readOnlyReg(pack(msip));
-    Reg#(Bit#(1)) hsip_field <- mkReg(0);
+    Reg#(Bit#(1)) hsip_field =  readOnlyReg(0);
     Reg#(Bit#(1)) ssip_field <- mkReg(0);
     Reg#(Bit#(1)) usip_field <- mkReg(0);
 
