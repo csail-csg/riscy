@@ -41,19 +41,20 @@ interface MemoryMappedCSRs#(numeric type cores);
     // 0x2000 = ipi1
     //  ...
     interface UncachedMemServer memifc;
-    method Data timerValue;
+    method Bit#(64) timerValue;
     method Vector#(cores, Bool) timerInterrupt;
     method Vector#(cores, Bool) ipi;
 endinterface
 
+// TODO: needs to support single-word writes to support RV32
 module mkMemoryMappedCSRs#(Addr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT#(cores, 16));
     // this doesn't work for 16 or more cores since it assumes a 16 bit address space
     Reg#(Maybe#(UncachedMemResp)) resp <- mkReg(tagged Invalid);
 
     Reg#(Bit#(10)) subTimer <- mkReg(0);
-    Reg#(Data) timer <- mkReg(0);
-    Ehr#(2, Maybe#(Data)) newTimeEhr <- mkEhr(tagged Invalid);
-    Vector#(cores, Reg#(Data)) timeCmp <- replicateM(mkReg('1));
+    Reg#(Bit#(64)) timer <- mkReg(0);
+    Ehr#(2, Maybe#(Bit#(64))) newTimeEhr <- mkEhr(tagged Invalid);
+    Vector#(cores, Reg#(Bit#(64))) timeCmp <- replicateM(mkReg('1));
     Vector#(cores, Reg#(Bool)) ipiReg <- replicateM(mkReg(False));
 
     rule incrementTimer;
@@ -124,7 +125,7 @@ module mkMemoryMappedCSRs#(Addr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT
             endmethod
         endinterface
     endinterface
-    method Data timerValue = timer;
+    method Bit#(64) timerValue = timer;
     method Vector#(cores, Bool) timerInterrupt = zipWith( \>= , replicate(timer), readVReg(timeCmp));
     method Vector#(cores, Bool) ipi = readVReg(ipiReg);
 endmodule
