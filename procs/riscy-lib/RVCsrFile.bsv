@@ -62,21 +62,21 @@ interface RVCsrFile;
 endinterface
 
 module mkRVCsrFile#(
-            Data hartid,            // Compile-time constant
-            Data mtime, Bool mtip,  // From RTC
-            Bool msip,              // From IPI
-            Bool meip               // From interrupt controller
+            Data hartid,                // Compile-time constant
+            Bit#(64) mtime, Bool mtip,  // From RTC
+            Bool msip,                  // From IPI
+            Bool meip                   // From interrupt controller
         )(RVCsrFile);
 
     let verbose = False;
     File fout = stdout;
 
     RiscVISASubset isa = defaultValue;
-    Data mvendorid     = 64'h0; // non-commercial
-    Data marchid       = 64'h0; // not implemented
-    Data mimpid        = 64'h0; // not implemented
-    Addr default_mtvec = 64'h0000_1000;
-    Addr default_stvec = 64'h0000_8000;
+    Data mvendorid     = 0; // non-commercial
+    Data marchid       = 0; // not implemented
+    Data mimpid        = 0; // not implemented
+    Addr default_mtvec = 'h0000_1000;
+    Addr default_stvec = 'h0000_8000;
 
     Reg#(Bit#(2)) prv <- mkReg(prvM); // resets to machine mode
 
@@ -101,8 +101,12 @@ module mkRVCsrFile#(
     Reg#(Bit#(3)) frm_field     <- mkReg(0);
 
     // vm fields
+    // XLEN = 64
     Reg#(Bit#(26)) asid_field      <- mkReg(0);
     Reg#(Bit#(38)) sptbr_ppn_field <- mkReg(0);
+    // XLEN = 32
+    // XXX: Reg#(Bit#(10)) asid_field      <- mkReg(0);
+    // XXX: Reg#(Bit#(22)) sptbr_ppn_field <- mkReg(0);
 
     // trap delegation fields
     Reg#(Bit#(12)) sedeleg_field <- mkReg(0);
@@ -110,9 +114,9 @@ module mkRVCsrFile#(
     Reg#(Bit#(12)) medeleg_field <- mkReg(0);
     Reg#(Bit#(12)) mideleg_field <- mkReg(0);
 
-    // trap vector fields (same as CSR without bottom 2 bits
-    Reg#(Bit#(62)) mtvec_field <- mkReg(default_mtvec[63:2]);
-    Reg#(Bit#(62)) stvec_field <- mkReg(default_stvec[63:2]);
+    // trap vector fields (same as CSR without bottom 2 bits)
+    Reg#(Bit#(TSub#(XLEN,2))) mtvec_field <- mkReg(truncateLSB(default_mtvec));
+    Reg#(Bit#(TSub#(XLEN,2))) stvec_field <- mkReg(truncateLSB(default_stvec));
 
     // mstatus fields
     Reg#(Bit#(5)) vm_field   <- mkReg(0); // WARL
@@ -165,11 +169,13 @@ module mkRVCsrFile#(
     // Priv 1.9 CSRs
 
     // Machine Timers and Counters
-    Reg#(Data) mcycle_csr   = readOnlyReg(cycle_counter);
-    Reg#(Data) mtime_csr    = readOnlyReg(mtime);
-    Reg#(Data) minstret_csr = readOnlyReg(instret_counter);
+    // TODO: support 32-bit ISA
+    Reg#(Data) mcycle_csr   = readOnlyReg(truncate(cycle_counter));
+    Reg#(Data) mtime_csr    = readOnlyReg(truncate(mtime));
+    Reg#(Data) minstret_csr = readOnlyReg(truncate(instret_counter));
 
     // Machine Counter-Delta Registers
+    // TODO: support 32-bit ISA
     Reg#(Data) mucycle_delta_csr   <- mkReg(0);
     Reg#(Data) mutime_delta_csr    <- mkReg(0);
     Reg#(Data) muinstret_delta_csr <- mkReg(0);
@@ -183,6 +189,7 @@ module mkRVCsrFile#(
     Reg#(Data) fcsr_csr   = addWriteSideEffect(zeroExtendReg(concatReg2(frm_field, fflags_field)), fs_field._write(2'b11));
 
     // User Timers and Counters
+    // TODO: support 32-bit ISA
     Reg#(Data) cycle_csr   = readOnlyReg(mcycle_csr + mucycle_delta_csr);
     Reg#(Data) time_csr    = readOnlyReg(mtime_csr + mutime_delta_csr);
     Reg#(Data) instret_csr = readOnlyReg(minstret_csr + muinstret_delta_csr);
@@ -190,7 +197,7 @@ module mkRVCsrFile#(
     // Supervisor
     Reg#(Data) sstatus_csr =  concatReg20(
             sd_field,
-            readOnlyReg(0),
+            readOnlyReg(0), // flexible width to support XLEN = 32 or 64
             vm_field,
             readOnlyReg(4'b0),
             readOnlyReg(1'b0), pum_field, readOnlyReg(1'b0), // memory privilege
@@ -218,6 +225,7 @@ module mkRVCsrFile#(
 
     Reg#(Data) sptbr_csr    = concatReg2(asid_field, sptbr_ppn_field);
 
+    // TODO: Support 32-bit ISA
     Reg#(Data) scycle_csr   = readOnlyReg(mcycle_csr + mscycle_delta_csr);
     Reg#(Data) stime_csr    = readOnlyReg(mtime_csr + mstime_delta_csr);
     Reg#(Data) sinstret_csr = readOnlyReg(minstret_csr + msinstret_delta_csr);
