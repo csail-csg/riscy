@@ -746,12 +746,6 @@ typedef struct {
 // } DecodedInst deriving (Bits, Eq, FShow);
 
 typedef struct {
-    Data        data;
-    Addr        addr;
-    ControlFlow controlFlow;
-} ExecResult deriving (Bits, Eq, FShow);
-
-typedef struct {
     Data                    data;
     Bit#(5)                 fflags;
     Addr                    vaddr;
@@ -763,14 +757,6 @@ typedef struct {
 typeclass FullResultSubset#(type t);
     function FullResult updateFullResult(t x, FullResult full_result);
 endtypeclass
-instance FullResultSubset#(ExecResult);
-    function FullResult updateFullResult(ExecResult x, FullResult full_result);
-        full_result.data = x.data;
-        full_result.vaddr = x.addr;
-        full_result.controlFlow = x.controlFlow;
-        return full_result;
-    endfunction
-endinstance
 instance DefaultValue#(ControlFlow);
     function ControlFlow defaultValue = ControlFlow{pc: 0,
                                                     nextPc: 0,
