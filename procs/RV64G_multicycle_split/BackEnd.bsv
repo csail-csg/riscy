@@ -99,39 +99,17 @@ module mkMulticycleBackEnd#(
         let addrEx = 0;
         let nextPcEx = pc + 4;
 
-        Maybe#(Data) imm = getImmediate(dInst.imm, dInst.inst);
+        let execResult = basicExec(dInst, rVal1, rVal2, pc);
+
         case (dInst.execFunc) matches
-            tagged Alu    .aluInst:
-                begin
-                    dataEx = execAluInst(aluInst, rVal1, rVal2, imm, pc);
-                end
-            tagged Br     .brFunc:
-                begin
-                    // data for jal
-                    dataEx = pc + 4;
-                    nextPcEx = execControl(brFunc, rVal1, rVal2, imm, pc);
-                end
-            tagged Mem    .memInst:
-                begin
-                    // data for store and AMO
-                    dataEx = rVal2;
-                    addrEx = addrCalc(rVal1, imm);
-                    dvat.request.put(RVDMMUReq {addr: addrEx, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
-                end
+            tagged Mem    .memInst:    dvat.request.put(RVDMMUReq {addr: execResult.addr, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
             tagged MulDiv .mulDivInst: mulDiv.exec(mulDivInst, rVal1, rVal2);
-            tagged Fence  .fenceInst:  noAction;
-            // TODO: Handle dynamic rounding mode
             tagged Fpu    .fpuInst:    fpu.exec(fpuInst, getInstFields(inst).rm, rVal1, rVal2, rVal3);
-            tagged System .systemInst:
-                begin
-                    // data for CSR instructions
-                    dataEx = fromMaybe(rVal1, imm);
-                end
         endcase
 
-        data <= dataEx;
-        addr <= addrEx;
-        nextPc <= nextPcEx;
+        data <= execResult.data;
+        addr <= execResult.addr;
+        nextPc <= execResult.nextPc;
 
         state <= dInst.execFunc matches tagged Mem .* ? Mem : WB;
     endrule
