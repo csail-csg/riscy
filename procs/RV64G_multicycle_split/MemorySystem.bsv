@@ -372,11 +372,19 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
                                                             (store ? StoreAccessFault :
                                                                 LoadAccessFault));
-        if (!pte.valid) begin
-            // invalid page, access fault
+        Bool leafPTE = isLeafPTE(pte);
+        Bool legalPTE = isLegalPTE(pte);
+        if ((i == 0) && !leafPTE) begin
+            // non-leaf PTEs at the lowest level of the page table are treated
+            // as illegal PTEs
+            legalPTE = False;
+        end
+
+        if (!legalPTE) begin
+            // illegal pte, access fault
             procMMUResp.enq(RVDMMUResp{addr: 0, exception: accessFault});
             walking <= False;
-        end else if ((pte.x || pte.w || pte.r) && !(pte.w && !pte.r) ) begin // XXX: isLeafPTE
+        end else if (leafPTE) begin
             // valid leaf page
 
             // translated physical address
@@ -385,7 +393,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
                 paddr = {0, pte.ppn2, pte.ppn1, pte.ppn0, pageoffset};
             end else if (i == 1) begin
                 paddr = {0, pte.ppn2, pte.ppn1, vpn[0], pageoffset};
-            end else if (i == 2) begin
+            end else begin // if (i == 2)
                 paddr = {0, pte.ppn2, vpn[1], vpn[0], pageoffset};
             end
 
@@ -446,16 +454,12 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
                     mainMemory.request.put(GenericMemReq{write: True, byteen: '1, addr: a, data: pack(pte)});
                 end
             end
-        end else if (i != 0) begin
+        end else begin
             // go to next level
-            Addr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} + (zeroExtend(vpn[i-1]) << 3);
+            Addr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
             mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
             a <= newA;
             i <= i - 1;
-        end else begin
-            // non-leaf page at lowest level, access fault
-            procMMUResp.enq(RVDMMUResp{addr: 0, exception: accessFault});
-            walking <= False;
         end
     endrule
 
