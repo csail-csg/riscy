@@ -62,16 +62,17 @@ interface RVCsrFile;
 endinterface
 
 module mkRVCsrFile#(
-            Data hartid,                // Compile-time constant
-            Bit#(64) mtime, Bool mtip,  // From RTC
-            Bool msip,                  // From IPI
-            Bool meip                   // From interrupt controller
+            Data hartid,                      // Compile-time constant
+            Bit#(64) time_counter, Bool mtip, // From RTC
+            Bool msip,                        // From IPI
+            Bool meip                         // From interrupt controller
         )(RVCsrFile);
 
     let verbose = False;
     File fout = stdout;
 
     RiscVISASubset isa = defaultValue;
+    Bool is32bit       = valueOf(XLEN) == 32;
     Data mvendorid     = 0; // non-commercial
     Data marchid       = 0; // not implemented
     Data mimpid        = 0; // not implemented
@@ -169,19 +170,36 @@ module mkRVCsrFile#(
     // Priv 1.9 CSRs
 
     // Machine Timers and Counters
-    // TODO: support 32-bit ISA
     Reg#(Data) mcycle_csr   = readOnlyReg(truncate(cycle_counter));
-    Reg#(Data) mtime_csr    = readOnlyReg(truncate(mtime));
+    Reg#(Data) mtime_csr    = readOnlyReg(truncate(time_counter));
     Reg#(Data) minstret_csr = readOnlyReg(truncate(instret_counter));
 
+    // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
+    // the other cycle/time/instret registers for RV64)
+    Reg#(Data) mcycleh_csr   = readOnlyReg(truncateLSB(cycle_counter));
+    Reg#(Data) mtimeh_csr    = readOnlyReg(truncateLSB(time_counter));
+    Reg#(Data) minstreth_csr = readOnlyReg(truncateLSB(instret_counter));
+
     // Machine Counter-Delta Registers
-    // TODO: support 32-bit ISA
-    Reg#(Data) mucycle_delta_csr   <- mkReg(0);
-    Reg#(Data) mutime_delta_csr    <- mkReg(0);
-    Reg#(Data) muinstret_delta_csr <- mkReg(0);
-    Reg#(Data) mscycle_delta_csr   <- mkReg(0);
-    Reg#(Data) mstime_delta_csr    <- mkReg(0);
-    Reg#(Data) msinstret_delta_csr <- mkReg(0);
+    Reg#(Bit#(64)) mucycle_delta_field   <- mkReg(0);
+    Reg#(Bit#(64)) mutime_delta_field    <- mkReg(0);
+    Reg#(Bit#(64)) muinstret_delta_field <- mkReg(0);
+    Reg#(Bit#(64)) mscycle_delta_field   <- mkReg(0);
+    Reg#(Bit#(64)) mstime_delta_field    <- mkReg(0);
+    Reg#(Bit#(64)) msinstret_delta_field <- mkReg(0);
+
+    Reg#(Data) mucycle_delta_csr    <- truncateReg(mucycle_delta_field);
+    Reg#(Data) mutime_delta_csr     <- truncateReg(mutime_delta_field);
+    Reg#(Data) muinstret_delta_csr  <- truncateReg(muinstret_delta_field);
+    Reg#(Data) mscycle_delta_csr    <- truncateReg(mscycle_delta_field);
+    Reg#(Data) mstime_delta_csr     <- truncateReg(mstime_delta_field);
+    Reg#(Data) msinstret_delta_csr  <- truncateReg(msinstret_delta_field);
+    Reg#(Data) mucycleh_delta_csr   <- truncateRegLSB(mucycle_delta_field);
+    Reg#(Data) mutimeh_delta_csr    <- truncateRegLSB(mutime_delta_field);
+    Reg#(Data) muinstreth_delta_csr <- truncateRegLSB(muinstret_delta_field);
+    Reg#(Data) mscycleh_delta_csr   <- truncateRegLSB(mscycle_delta_field);
+    Reg#(Data) mstimeh_delta_csr    <- truncateRegLSB(mstime_delta_field);
+    Reg#(Data) msinstreth_delta_csr <- truncateRegLSB(msinstret_delta_field);
 
     // User FPU
     Reg#(Data) fflags_csr = addWriteSideEffect(zeroExtendReg(fflags_field), fs_field._write(2'b11));
@@ -189,10 +207,19 @@ module mkRVCsrFile#(
     Reg#(Data) fcsr_csr   = addWriteSideEffect(zeroExtendReg(concatReg2(frm_field, fflags_field)), fs_field._write(2'b11));
 
     // User Timers and Counters
-    // TODO: support 32-bit ISA
-    Reg#(Data) cycle_csr   = readOnlyReg(mcycle_csr + mucycle_delta_csr);
-    Reg#(Data) time_csr    = readOnlyReg(mtime_csr + mutime_delta_csr);
-    Reg#(Data) instret_csr = readOnlyReg(minstret_csr + muinstret_delta_csr);
+    Bit#(64) ucycle_counter   = cycle_counter + mucycle_delta_field;
+    Bit#(64) utime_counter    = time_counter + mutime_delta_field;
+    Bit#(64) uinstret_counter = instret_counter + muinstret_delta_field;
+
+    Reg#(Data) cycle_csr   = readOnlyReg(truncate(ucycle_counter));
+    Reg#(Data) time_csr    = readOnlyReg(truncate(utime_counter));
+    Reg#(Data) instret_csr = readOnlyReg(truncate(uinstret_counter));
+
+    // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
+    // the other cycle/time/instret registers for RV64)
+    Reg#(Data) cycleh_csr   = readOnlyReg(truncateLSB(ucycle_counter));
+    Reg#(Data) timeh_csr    = readOnlyReg(truncateLSB(utime_counter));
+    Reg#(Data) instreth_csr = readOnlyReg(truncateLSB(uinstret_counter));
 
     // Supervisor
     Reg#(Data) sstatus_csr =  concatReg20(
@@ -225,10 +252,19 @@ module mkRVCsrFile#(
 
     Reg#(Data) sptbr_csr    = concatReg2(asid_field, sptbr_ppn_field);
 
-    // TODO: Support 32-bit ISA
-    Reg#(Data) scycle_csr   = readOnlyReg(mcycle_csr + mscycle_delta_csr);
-    Reg#(Data) stime_csr    = readOnlyReg(mtime_csr + mstime_delta_csr);
-    Reg#(Data) sinstret_csr = readOnlyReg(minstret_csr + msinstret_delta_csr);
+    Bit#(64) scycle_counter   = cycle_counter + mscycle_delta_field;
+    Bit#(64) stime_counter    = time_counter + mstime_delta_field;
+    Bit#(64) sinstret_counter = instret_counter + msinstret_delta_field;
+
+    Reg#(Data) scycle_csr   = readOnlyReg(truncate(scycle_counter));
+    Reg#(Data) stime_csr    = readOnlyReg(truncate(stime_counter));
+    Reg#(Data) sinstret_csr = readOnlyReg(truncate(sinstret_counter));
+
+    // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
+    // the other cycle/time/instret registers for RV64)
+    Reg#(Data) scycleh_csr   = readOnlyReg(truncateLSB(scycle_counter));
+    Reg#(Data) stimeh_csr    = readOnlyReg(truncateLSB(stime_counter));
+    Reg#(Data) sinstreth_csr = readOnlyReg(truncateLSB(sinstret_counter));
 
     // Machine Information Registers
     Reg#(Data) misa_csr      = readOnlyReg(getMISA(isa));
@@ -287,6 +323,9 @@ module mkRVCsrFile#(
                 CSRfcsr:                fcsr_csr;
                 CSRcycle:               cycle_csr;
                 CSRtime:                time_csr;
+                CSRinstreth:            instreth_csr;
+                CSRcycleh:              cycleh_csr;
+                CSRtimeh:               timeh_csr;
                 CSRinstret:             instret_csr;
                 CSRsstatus:             sstatus_csr;
                 CSRsedeleg:             sedeleg_csr;
@@ -302,6 +341,9 @@ module mkRVCsrFile#(
                 CSRscycle:              scycle_csr;
                 CSRstime:               stime_csr;
                 CSRsinstret:            sinstret_csr;
+                CSRscycleh:             scycleh_csr;
+                CSRstimeh:              stimeh_csr;
+                CSRsinstreth:           sinstreth_csr;
                 CSRmisa:                misa_csr;
                 CSRmvendorid:           mvendorid_csr;
                 CSRmarchid:             marchid_csr;
@@ -326,6 +368,9 @@ module mkRVCsrFile#(
                 CSRmcycle:              mcycle_csr;
                 CSRmtime:               mtime_csr;
                 CSRminstret:            minstret_csr;
+                CSRmcycleh:             mcycleh_csr;
+                CSRmtimeh:              mtimeh_csr;
+                CSRminstreth:           minstreth_csr;
                 CSRmucounteren:         mucounteren_csr;
                 CSRmscounteren:         mscounteren_csr;
                 CSRmucycle_delta:       mucycle_delta_csr;
@@ -334,6 +379,12 @@ module mkRVCsrFile#(
                 CSRmscycle_delta:       mscycle_delta_csr;
                 CSRmstime_delta:        mstime_delta_csr;
                 CSRmsinstret_delta:     msinstret_delta_csr;
+                CSRmucycleh_delta:      mucycleh_delta_csr;
+                CSRmutimeh_delta:       mutimeh_delta_csr;
+                CSRmuinstreth_delta:    muinstreth_delta_csr;
+                CSRmscycleh_delta:      mscycleh_delta_csr;
+                CSRmstimeh_delta:       mstimeh_delta_csr;
+                CSRmsinstreth_delta:    msinstreth_delta_csr;
                 default:                (readOnlyReg(64'h0));
             endcase);
     endfunction
@@ -346,6 +397,9 @@ module mkRVCsrFile#(
                 CSRcycle:               (u_cy_field == 1);
                 CSRtime:                (u_tm_field == 1);
                 CSRinstret:             (u_ir_field == 1);
+                CSRcycleh:              ((u_cy_field == 1) && is32bit);
+                CSRtimeh:               ((u_tm_field == 1) && is32bit);
+                CSRinstreth:            ((u_ir_field == 1) && is32bit);
                 CSRsstatus:             True;
                 CSRsedeleg:             True;
                 CSRsideleg:             True;
@@ -360,6 +414,9 @@ module mkRVCsrFile#(
                 CSRscycle:              (s_cy_field == 1);
                 CSRstime:               (s_tm_field == 1);
                 CSRsinstret:            (s_ir_field == 1);
+                CSRscycleh:             ((s_cy_field == 1) && is32bit);
+                CSRstimeh:              ((s_tm_field == 1) && is32bit);
+                CSRsinstreth:           ((s_ir_field == 1) && is32bit);
                 CSRmisa:                True;
                 CSRmvendorid:           True;
                 CSRmarchid:             True;
@@ -384,6 +441,9 @@ module mkRVCsrFile#(
                 CSRmcycle:              True;
                 CSRmtime:               True;
                 CSRminstret:            True;
+                CSRmcycleh:             is32bit;
+                CSRmtimeh:              is32bit;
+                CSRminstreth:           is32bit;
                 CSRmucounteren:         True;
                 CSRmscounteren:         True;
                 CSRmucycle_delta:       True;
@@ -392,6 +452,12 @@ module mkRVCsrFile#(
                 CSRmscycle_delta:       True;
                 CSRmstime_delta:        True;
                 CSRmsinstret_delta:     True;
+                CSRmucycleh_delta:      is32bit;
+                CSRmutimeh_delta:       is32bit;
+                CSRmuinstreth_delta:    is32bit;
+                CSRmscycleh_delta:      is32bit;
+                CSRmstimeh_delta:       is32bit;
+                CSRmsinstreth_delta:    is32bit;
                 default:                False;
             endcase);
     endfunction
