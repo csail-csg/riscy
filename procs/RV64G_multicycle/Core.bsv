@@ -170,10 +170,6 @@ module mkMulticycleCore#(
     endrule
 
     rule doExecute(state == Execute);
-        let dataEx = 0;
-        let addrEx = 0;
-        let nextPcEx = pc + 4;
-
         let execResult = basicExec(dInst, rVal1, rVal2, pc);
 
         case (dInst.execFunc) matches
