@@ -35,13 +35,16 @@ function Data execAluInst(AluInst aluInst, Data rVal1, Data rVal2, Maybe#(Data) 
                         default:                rVal2;
                     endcase);
 
-    Data data = alu(aluInst.op, aluInst.w, aluVal1, aluVal2);
+    Data data = alu64(aluInst.op, aluInst.w, aluVal1, aluVal2);
 
     return data;
 endfunction
 
+// RV64 ALU -- no need to use Data or other similar types because this has the
+// "w" field only seen in 64-bit RISC-V, but it doesn't have the necessary
+// inputs for 128-bit RISC-V
 (* noinline *)
-function Data alu(AluFunc func, Bool w, Data a, Data b);
+function Bit#(64) alu64(AluFunc func, Bool w, Bit#(64) a, Bit#(64) b);
     // setup inputs
     if (w) begin
         a = (func == Sra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
@@ -52,7 +55,7 @@ function Data alu(AluFunc func, Bool w, Data a, Data b);
         shamt = {1'b0, shamt[4:0]};
     end
 
-    Data res = (case(func)
+    Bit#(64) res = (case(func)
             Add:        (a + b);
             Sub:        (a - b);
             And:        (a & b);
@@ -71,6 +74,32 @@ function Data alu(AluFunc func, Bool w, Data a, Data b);
     if (w) begin
         res = signExtend(res[31:0]);
     end
+
+    return res;
+endfunction
+
+// RV32 ALU -- no need to use Data or other similar types because this doesn't
+// have the support necessary for larger ISAs
+(* noinline *)
+function Bit#(32) alu32(AluFunc func, Bit#(32) a, Bit#(32) b);
+    // setup inputs
+    Bit#(5) shamt = truncate(b);
+
+    Bit#(32) res = (case(func)
+            Add:        (a + b);
+            Sub:        (a - b);
+            And:        (a & b);
+            Or:         (a | b);
+            Xor:        (a ^ b);
+            Slt:        zeroExtend( pack( signedLT(a, b) ) );
+            Sltu:       zeroExtend( pack( a < b ) );
+            Sll:        (a << shamt);
+            Srl:        (a >> shamt);
+            Sra:        signedShiftRight(a, shamt);
+            Auipc:      (a + b);
+            Lui:        (a + b);
+            default:    0;
+        endcase);
 
     return res;
 endfunction
