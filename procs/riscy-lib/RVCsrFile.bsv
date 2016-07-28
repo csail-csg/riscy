@@ -188,18 +188,18 @@ module mkRVCsrFile#(
     Reg#(Bit#(64)) mstime_delta_field    <- mkReg(0);
     Reg#(Bit#(64)) msinstret_delta_field <- mkReg(0);
 
-    Reg#(Data) mucycle_delta_csr    <- truncateReg(mucycle_delta_field);
-    Reg#(Data) mutime_delta_csr     <- truncateReg(mutime_delta_field);
-    Reg#(Data) muinstret_delta_csr  <- truncateReg(muinstret_delta_field);
-    Reg#(Data) mscycle_delta_csr    <- truncateReg(mscycle_delta_field);
-    Reg#(Data) mstime_delta_csr     <- truncateReg(mstime_delta_field);
-    Reg#(Data) msinstret_delta_csr  <- truncateReg(msinstret_delta_field);
-    Reg#(Data) mucycleh_delta_csr   <- truncateRegLSB(mucycle_delta_field);
-    Reg#(Data) mutimeh_delta_csr    <- truncateRegLSB(mutime_delta_field);
-    Reg#(Data) muinstreth_delta_csr <- truncateRegLSB(muinstret_delta_field);
-    Reg#(Data) mscycleh_delta_csr   <- truncateRegLSB(mscycle_delta_field);
-    Reg#(Data) mstimeh_delta_csr    <- truncateRegLSB(mstime_delta_field);
-    Reg#(Data) msinstreth_delta_csr <- truncateRegLSB(msinstret_delta_field);
+    Reg#(Data) mucycle_delta_csr    = truncateReg(mucycle_delta_field);
+    Reg#(Data) mutime_delta_csr     = truncateReg(mutime_delta_field);
+    Reg#(Data) muinstret_delta_csr  = truncateReg(muinstret_delta_field);
+    Reg#(Data) mscycle_delta_csr    = truncateReg(mscycle_delta_field);
+    Reg#(Data) mstime_delta_csr     = truncateReg(mstime_delta_field);
+    Reg#(Data) msinstret_delta_csr  = truncateReg(msinstret_delta_field);
+    Reg#(Data) mucycle_deltah_csr   = truncateRegLSB(mucycle_delta_field);
+    Reg#(Data) mutime_deltah_csr    = truncateRegLSB(mutime_delta_field);
+    Reg#(Data) muinstret_deltah_csr = truncateRegLSB(muinstret_delta_field);
+    Reg#(Data) mscycle_deltah_csr   = truncateRegLSB(mscycle_delta_field);
+    Reg#(Data) mstime_deltah_csr    = truncateRegLSB(mstime_delta_field);
+    Reg#(Data) msinstret_deltah_csr = truncateRegLSB(msinstret_delta_field);
 
     // User FPU
     Reg#(Data) fflags_csr = addWriteSideEffect(zeroExtendReg(fflags_field), fs_field._write(2'b11));
@@ -379,12 +379,12 @@ module mkRVCsrFile#(
                 CSRmscycle_delta:       mscycle_delta_csr;
                 CSRmstime_delta:        mstime_delta_csr;
                 CSRmsinstret_delta:     msinstret_delta_csr;
-                CSRmucycleh_delta:      mucycleh_delta_csr;
-                CSRmutimeh_delta:       mutimeh_delta_csr;
-                CSRmuinstreth_delta:    muinstreth_delta_csr;
-                CSRmscycleh_delta:      mscycleh_delta_csr;
-                CSRmstimeh_delta:       mstimeh_delta_csr;
-                CSRmsinstreth_delta:    msinstreth_delta_csr;
+                CSRmucycle_deltah:      mucycle_deltah_csr;
+                CSRmutime_deltah:       mutime_deltah_csr;
+                CSRmuinstret_deltah:    muinstret_deltah_csr;
+                CSRmscycle_deltah:      mscycle_deltah_csr;
+                CSRmstime_deltah:       mstime_deltah_csr;
+                CSRmsinstret_deltah:    msinstret_deltah_csr;
                 default:                (readOnlyReg(64'h0));
             endcase);
     endfunction
@@ -452,12 +452,12 @@ module mkRVCsrFile#(
                 CSRmscycle_delta:       True;
                 CSRmstime_delta:        True;
                 CSRmsinstret_delta:     True;
-                CSRmucycleh_delta:      is32bit;
-                CSRmutimeh_delta:       is32bit;
-                CSRmuinstreth_delta:    is32bit;
-                CSRmscycleh_delta:      is32bit;
-                CSRmstimeh_delta:       is32bit;
-                CSRmsinstreth_delta:    is32bit;
+                CSRmucycle_deltah:      is32bit;
+                CSRmutime_deltah:       is32bit;
+                CSRmuinstret_deltah:    is32bit;
+                CSRmscycle_deltah:      is32bit;
+                CSRmstime_deltah:       is32bit;
+                CSRmsinstret_deltah:    is32bit;
                 default:                False;
             endcase);
     endfunction
