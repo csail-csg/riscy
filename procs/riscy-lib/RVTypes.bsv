@@ -28,7 +28,9 @@ import Vector::*;
 
 // TODO: Make AddrSz and DataSz parameters that can be 32 or 64
 
-typedef 64 DataSz;
+typedef 64 XLEN;
+
+typedef XLEN DataSz;
 typedef Bit#(DataSz) Data;
 typedef Bit#(TDiv#(DataSz,8)) DataByteEn;
 typedef Bit#(TLog#(TDiv#(DataSz,8))) DataByteSel; // Type of byte select value for Data
@@ -48,7 +50,7 @@ typedef TLog#(CLineNumBytes) LogCLineNumBytes;
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
 
-typedef 64 AddrSz;
+typedef XLEN AddrSz;
 typedef Bit#(AddrSz) Addr;
 
 typedef AddrSz ByteAddrSz;

@@ -27,6 +27,63 @@ import RVDecode::*;
 import RVTypes::*;
 import Vector::*;
 
+import RVAlu::*;
+import RVControl::*;
+import RVMemory::*;
+
+typedef struct {
+    Data data;
+    Addr addr;
+    Bool taken;
+    Addr nextPc;
+} ExecResult deriving (Bits, Eq, FShow);
+
+// Reference implementation of the exec function
+// This is an inefficient implementation because many of the functions used
+// in the case statement can reuse hardware
+(* noinline *)
+function ExecResult execRef(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc);
+    Data data = 0;
+    Addr addr = 0;
+    Addr pcPlus4 = pc + 4;
+    Bool taken = False;
+    Addr nextPc = pcPlus4;
+
+    Maybe#(Data) imm = getImmediate(dInst.imm, dInst.inst);
+    case (dInst.execFunc) matches
+        tagged Alu    .aluInst:
+            begin
+                data = execAluInst(aluInst, rVal1, rVal2, imm, pc);
+            end
+        tagged Br     .brFunc:
+            begin
+                // data for jal
+                data = pcPlus4;
+                addr = brAddrCalc(brFunc, pc, rVal1, fromMaybe(?,imm));
+                taken = aluBr(brFunc, rVal1, rVal2);
+                nextPc = taken ? addr : pcPlus4;
+            end
+        tagged Mem    .memInst:
+            begin
+                // data for store and AMO
+                data = rVal2;
+                addr = addrCalc(rVal1, imm);
+            end
+        tagged System .systemInst:
+            begin
+                // data for CSR instructions
+                data = fromMaybe(rVal1, imm);
+            end
+    endcase
+    return ExecResult {
+            data: data,
+            addr: addr,
+            taken: taken,
+            nextPc: nextPc
+        };
+endfunction
+
+// functions for execBasic
 (* noinline *)
 function Data alu(AluFunc func, Bool w, Data a, Data b);
     // setup inputs
@@ -86,31 +143,16 @@ function Addr brAddrCalc(BrFunc brFunc, Addr pc, Data val, Data imm);
     return targetAddr;
 endfunction
 
-// (* noinline *)
-// function ControlFlow getControlFlow(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr ppc);
-//     ControlFlow cf = unpack(0);
-// 
-//     Bool taken = dInst.execFunc matches tagged Br .br_f ? aluBr(rVal1, rVal2, br_f) : False;
-//     Addr nextPc = brAddrCalc(pc, rVal1, dInst.iType, validValue(dInst.imm), taken);
-//     Bool mispredict = nextPc != ppc;
-// 
-//     cf.pc = pc;
-//     cf.nextPc = nextPc;
-//     cf.taken = taken;
-//     cf.mispredict = mispredict;
-// 
-//     return cf;
-// endfunction
-
 (* noinline *)
-function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr ppc);
+function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc /*, Addr ppc */);
     // PC+4 is used in a few places
     Addr pcPlus4 = pc + 4;
 
     // just data, addr, and control flow
     Data data = 0;
     Addr addr = 0;
-    ControlFlow cf = ControlFlow{pc: pc, nextPc: pcPlus4, taken: False, mispredict: False};
+    Bool taken = False;
+    Addr nextPc = pcPlus4;
 
     // Immediate Field
     Maybe#(Data) imm = getImmediate(dInst.imm, dInst.inst);
@@ -138,13 +180,12 @@ function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr 
 
     // Branch
     if (dInst.execFunc matches tagged Br .brFunc) begin
-        cf.taken = aluBr(brFunc, rVal1, rVal2);
-        if (cf.taken) begin
+        taken = aluBr(brFunc, rVal1, rVal2);
+        if (taken) begin
             // otherwise, nextPc is already pcPlus4
-            cf.nextPc = brAddrCalc(brFunc, pc, rVal1, fromMaybe(?, imm));
+            nextPc = brAddrCalc(brFunc, pc, rVal1, fromMaybe(?, imm));
         end
     end
-    cf.mispredict = cf.nextPc != ppc;
 
     data = (case (dInst.execFunc) matches
             tagged Alu .*:  aluResult;
@@ -155,13 +196,13 @@ function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr 
         endcase);
 
     addr = (case (dInst.execFunc) matches
-            tagged Alu .*:  cf.nextPc; // I don't think this value is ever used
-            tagged Br .*:   cf.nextPc;
+            tagged Alu .*:  nextPc;
+            tagged Br .*:   nextPc;
             tagged Mem .*:  aluResult;
             default:        ?;
         endcase);
 
-    return ExecResult{data: data, addr: addr, controlFlow: cf};
+    return ExecResult{data: data, addr: addr, taken: taken, nextPc: nextPc};
 endfunction
 
 // function Data gatherLoad(Addr addr, ByteEn byteEn, Bool unsignedLd, Data data);
