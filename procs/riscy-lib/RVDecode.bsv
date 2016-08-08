@@ -322,20 +322,20 @@ function Maybe#(RVDecodedInst) decodeInst(Instruction inst);
             toExecFuncRV32I(inst),
             toExecFuncRV64I(inst),
 `ifdef m
-            toExecFuncRV32M(inst),
-            toExecFuncRV64M(inst),
+            `m ? toExecFuncRV32M(inst) : tagged Invalid,
+            `m ? toExecFuncRV64M(inst) : tagged Invalid,
 `endif
 `ifdef a
-            toExecFuncRV32A(inst),
-            toExecFuncRV64A(inst),
+            `a ? toExecFuncRV32A(inst) : tagged Invalid,
+            `a ? toExecFuncRV64A(inst) : tagged Invalid,
 `endif
 `ifdef f
-            toExecFuncRV32F(inst),
-            toExecFuncRV64F(inst),
+            `f ? toExecFuncRV32F(inst) : tagged Invalid,
+            `f ? toExecFuncRV64F(inst) : tagged Invalid,
 `endif
 `ifdef d
-            toExecFuncRV32D(inst),
-            toExecFuncRV64D(inst),
+            `d ? toExecFuncRV32D(inst) : tagged Invalid,
+            `d ? toExecFuncRV64D(inst) : tagged Invalid,
 `endif
             toExecFuncPriv(inst)
         );
