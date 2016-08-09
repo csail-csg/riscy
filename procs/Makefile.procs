@@ -100,7 +100,7 @@ endif
 ifneq ($(ZYNQ),true)
 
 # For non-zync targets, use shared objects for spike and fesvr
-CONNECTALFLAGS += --cflags=" -std=gnu++11" --clibdir=$(RISCY_TOOLS)/lib --clib=riscv --clib=fesvr
+CONNECTALFLAGS += --cxxflags=" -std=gnu++11" --clibdir=$(RISCY_TOOLS)/lib --clib=riscv --clib=fesvr
 
 else
 
