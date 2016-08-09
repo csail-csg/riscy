@@ -24,6 +24,8 @@
 
 if [ "$#" -eq 0 ] ; then
     echo "Please select a set of tests:"
+    echo "0) full test suite"
+    echo ""
     echo "    sanity checks:"
     echo "1) rv64ui-p-add"
     echo ""
@@ -48,6 +50,14 @@ rm -rf out/
 mkdir -p out
 
 case "$OPTION" in
+    0) files=`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64um-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ua-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64uf-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ud-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64mi-p-* -type f ! -name "*.*"`
+       files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64si-p-* -type f ! -name "*.*"`
+       ;;
     1) $RUNEXE $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add
        files=
        ;;
