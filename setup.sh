@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 # Points to root folder of repository
-export RISCY_HOME=$HOME/riscy
+export RISCY_HOME=$PWD
 # Points to tool chain built tiscv-tools
 export RISCY_TOOLS=$RISCY_HOME/riscv
 # Used by riscv-tools for building tools

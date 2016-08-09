@@ -1,0 +1,53 @@
+language: cpp
+cache:
+  directories:
+before_script:
+- if [ -d Bluespec-2015.09.beta2 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2015.09.beta2.tar.gz | tar -zxf - ; fi
+- mkdir -p lib
+- ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
+- git submodule update --init --recursive
+- source ./setup.sh
+- if [ -d riscv ] ; then echo riscv cached; else cd riscv-tools && ./build.sh ; fi
+env:
+  global:
+    - BLUESPECDIR=$PWD/Bluespec-2015.09.beta2/lib
+    - PATH=$PATH:$PWD/Bluespec-2015.09.beta2/bin
+    - LD_LIBRARY_PATH=$PWD/lib
+  matrix:
+    - TRAVIS_PROC=RV64G_multicycle
+    - TRAVIS_PROC=RV64G_multicycle_split
+script:
+- ls Bluespec-2015.09.beta2
+- ls riscv
+- source ./setup.sh
+- cd $RISCY/procs/$TRAVIS_PROC && make build.verilator && ./runtest.sh 0
+sudo: no
+dist: trusty
+os:
+- linux
+addons:
+  apt:
+    sources:
+    - sourceline: 'ppa:jamey-hicks/connectal'
+    packages:
+    - python-dev
+    - python-ply
+    - libgmp10
+    - libjsoncpp-dev
+    - verilator
+    - autoconf
+    - automake
+    - autotools-dev
+    - curl
+    - libmpc-dev
+    - libmpfr-dev
+    - libgmp-dev
+    - gawk
+    - build-essential
+    - bison
+    - flex
+    - texinfo
+    - gperf
+    - libtool
+    - patchutils
+    - bc
