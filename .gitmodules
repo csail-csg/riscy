@@ -4,9 +4,6 @@
 [submodule "connectal"]
 	path = connectal
 	url = https://github.com/csail-csg/connectal.git
-[submodule "riscv-qemu"]
-	path = riscv-qemu
-	url = git://github.com/cambridgehackers/riscv-qemu
 [submodule "riscv-tools"]
 	path = riscv-tools
 	url = https://github.com/csail-csg/riscv-tools.git
