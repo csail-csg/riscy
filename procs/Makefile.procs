@@ -140,6 +140,9 @@ CPPFILES += $(FESVR_SRC_FILES) $(SPIKE_SRC_FILES)
 
 endif
 
+isatest.%: gen.%
+	$(RISCY_HOME)/procs/scripts/isatest.sh $*/bin/ubuntu.exe
+
 exe.%: gen.%
 	$(MAKE) -C $* --no-print-directory exe
 

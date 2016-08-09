@@ -1,53 +1,63 @@
 language: cpp
 cache:
   directories:
-before_script:
-- if [ -d Bluespec-2015.09.beta2 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2015.09.beta2.tar.gz | tar -zxf - ; fi
-- mkdir -p lib
-- ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
-- git submodule update --init --recursive
-- source ./setup.sh
-- if [ -d riscv ] ; then echo riscv cached; else cd riscv-tools && ./build.sh ; fi
 env:
   global:
+    # Bluespec
     - BLUESPECDIR=$PWD/Bluespec-2015.09.beta2/lib
     - PATH=$PATH:$PWD/Bluespec-2015.09.beta2/bin
     - LD_LIBRARY_PATH=$PWD/lib
+    # Riscy
+    - RISCY_HOME=$PWD
+    - RISCY_TOOLS=$RISCY_HOME/riscv
+    - RISCV=$RISCY_TOOLS
+    - PATH=$RISCY_TOOLS/bin:$PATH
+    - LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RISCY_TOOLS/lib
   matrix:
-    - TRAVIS_PROC=RV64G_multicycle
-    - TRAVIS_PROC=RV64G_multicycle_split
+    - TRAVIS_PROC=RV64G_multicycle       TRAVIS_TARGET=bluesim
+    - TRAVIS_PROC=RV64G_multicycle_split TRAVIS_TARGET=bluesim
+before_script:
+  # get all submodules
+  - git submodule update --init --recursive
+  # build riscv-tools
+  - mkdir -p $RISCV
+  - export CXX=g++-4.8 CC=gcc-4.8
+  - ./build.sh
+  # download and install bluespec
+  - if [ -d Bluespec-2015.09.beta2 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2015.09.beta2.tar.gz | tar -zxf - ; fi
+  - mkdir -p lib
+  - ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
 script:
-- ls Bluespec-2015.09.beta2
-- ls riscv
-- source ./setup.sh
-- cd $RISCY/procs/$TRAVIS_PROC && make build.verilator && ./runtest.sh 0
+  - ls Bluespec-2015.09.beta2
+  - ls riscv
+  - cd $RISCY/procs/$TRAVIS_PROC && make build.$TRAVIS_TARGET && make isatest.$TRAVIS_TARGET
 sudo: no
 dist: trusty
 os:
-- linux
+  - linux
 addons:
   apt:
     sources:
-    - sourceline: 'ppa:jamey-hicks/connectal'
+      - ubuntu-toolchain-r-test
     packages:
-    - python-dev
-    - python-ply
-    - libgmp10
-    - libjsoncpp-dev
-    - verilator
-    - autoconf
-    - automake
-    - autotools-dev
-    - curl
-    - libmpc-dev
-    - libmpfr-dev
-    - libgmp-dev
-    - gawk
-    - build-essential
-    - bison
-    - flex
-    - texinfo
-    - gperf
-    - libtool
-    - patchutils
-    - bc
+      # riscv-tools
+      - gcc-4.8
+      - g++-4.8
+      - gperf
+      - autoconf
+      - automake
+      - autotools-dev
+      - libmpc-dev
+      - libmpfr-dev
+      - libgmp-dev
+      - gawk
+      - build-essential
+      - bison
+      - flex
+      - texinfo
+      # connectal
+      - python-dev
+      - python-ply
+      - libjsoncpp-dev
+      # bsc
+      - libgmp10
