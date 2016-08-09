@@ -32,7 +32,7 @@ before_script:
 script:
   - ls Bluespec-2015.09.beta2
   - ls riscv
-  - cd $RISCY/procs/$TRAVIS_PROC && make build.$TRAVIS_TARGET && make isatest.$TRAVIS_TARGET
+  - cd $RISCY_HOME/procs/$TRAVIS_PROC && make build.$TRAVIS_TARGET && make isatest.$TRAVIS_TARGET
 sudo: no
 dist: trusty
 os:
