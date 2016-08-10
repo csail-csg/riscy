@@ -43,7 +43,7 @@ files="$files "`find $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa/rv64
 
 for hexfile in $files ; do
     basehexfile=$(basename "$hexfile")
-    ./verilator/bin/ubuntu.exe $hexfile &> out/${basehexfile}.out
+    $RUN_EXE $hexfile &> out/${basehexfile}.out
     # check return value
     errorcode=$?
     if [ $errorcode -ne 0 ] ; then
