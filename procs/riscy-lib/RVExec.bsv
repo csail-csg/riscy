@@ -215,7 +215,9 @@ function Data gatherLoad(DataByteSel byteSel, RVMemSize size, Bool isUnsigned, D
             B: extend(data[7:0]);
             H: extend(data[15:0]);
             W: extend(data[31:0]);
+`ifdef rv64
             D: data[63:0];
+`endif
         endcase);
 
     return data;

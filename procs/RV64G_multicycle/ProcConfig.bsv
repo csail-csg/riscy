@@ -21,13 +21,15 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-`define CONNECTAL_MEMORY
-`define IN_ORDER
-`define rv64 True
-`define m True
-`define a True
-`define f True
-`define d True
+`define rv64
+// privilege levels
+`define s
+`define u
+// ISA extensions
+`define m
+`define a
+`define f
+`define d
 
 // Set this define to use the FMA for Add and Mul
 `define REUSE_FMA

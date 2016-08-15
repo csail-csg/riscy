@@ -21,6 +21,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+`include "ProcConfig.bsv"
+
 import RVTypes::*;
 
 (* noinline *)
@@ -35,7 +37,11 @@ function Data execAluInst(AluInst aluInst, Data rVal1, Data rVal2, Maybe#(Data) 
                         default:                rVal2;
                     endcase);
 
+`ifdef rv64
     Data data = alu64(aluInst.op, aluInst.w, aluVal1, aluVal2);
+`else
+    Data data = alu32(aluInst.op, aluVal1, aluVal2);
+`endif
 
     return data;
 endfunction

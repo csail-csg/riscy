@@ -102,12 +102,15 @@ module mkRVCsrFile#(
     Reg#(Bit#(3)) frm_field     <- mkReg(0);
 
     // vm fields
+`ifdef rv64
     // XLEN = 64
     Reg#(Bit#(26)) asid_field      <- mkReg(0);
     Reg#(Bit#(38)) sptbr_ppn_field <- mkReg(0);
+`else
     // XLEN = 32
-    // XXX: Reg#(Bit#(10)) asid_field      <- mkReg(0);
-    // XXX: Reg#(Bit#(22)) sptbr_ppn_field <- mkReg(0);
+    Reg#(Bit#(10)) asid_field      <- mkReg(0);
+    Reg#(Bit#(22)) sptbr_ppn_field <- mkReg(0);
+`endif
 
     // trap delegation fields
     Reg#(Bit#(12)) sedeleg_field <- mkReg(0);
@@ -385,7 +388,7 @@ module mkRVCsrFile#(
                 CSRmscycle_deltah:      mscycle_deltah_csr;
                 CSRmstime_deltah:       mstime_deltah_csr;
                 CSRmsinstret_deltah:    msinstret_deltah_csr;
-                default:                (readOnlyReg(64'h0));
+                default:                (readOnlyReg(0));
             endcase);
     endfunction
 
@@ -479,7 +482,11 @@ module mkRVCsrFile#(
                         vmMbb: mbase_csr;
                         vmMbbid: mibase_csr;
                         // all paged virtual memory modes
+`ifdef rv64
                         default: {0, sptbr_ppn_field, 12'd0};
+`else
+                        default: truncate({sptbr_ppn_field, 12'd0}); // TODO: allow Addr to be Bit#(34) for rv32
+`endif
                     endcase);
         Addr bound = (case (vm)
                         vmMbb: mbound_csr;
@@ -497,7 +504,11 @@ module mkRVCsrFile#(
                         vmMbb: mbase_csr;
                         vmMbbid: mdbase_csr;
                         // all paged virtual memory modes
+`ifdef rv64
                         default: {0, sptbr_ppn_field, 12'd0};
+`else
+                        default: truncate({sptbr_ppn_field, 12'd0}); // TODO: allow Addr to be Bit#(34) for rv32
+`endif
                     endcase);
         Addr bound = (case (vm)
                         vmMbb: mbound_csr;

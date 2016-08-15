@@ -26,9 +26,12 @@ import DefaultValue::*;
 import FShow::*;
 import Vector::*;
 
-// TODO: Make AddrSz and DataSz parameters that can be 32 or 64
-
+`ifdef rv64
 typedef 64 XLEN;
+`endif
+`ifdef rv32
+typedef 32 XLEN;
+`endif
 
 typedef XLEN DataSz;
 typedef Bit#(DataSz) Data;
@@ -59,7 +62,12 @@ typedef Bit#(ByteAddrSz) ByteAddr;
 typedef TSub#(AddrSz, TLog#(TDiv#(WordSz,8))) WordAddrSz;
 typedef Bit#(WordAddrSz) WordAddr;
 
+`ifdef rv64
 typedef 26 AsidSz;
+`endif
+`ifdef rv32
+typedef 10 AsidSz;
+`endif
 typedef Bit#(AsidSz) Asid;
 
 // WARNING: Don't try updating fields when using this type.
@@ -200,6 +208,8 @@ typedef enum {
     W   = 2'b10,
     D   = 2'b11
 } RVMemSize deriving (Bits, Eq, FShow);
+
+`ifdef rv64
 function DataByteEn toDataByteEn(RVMemSize size);
     return unpack(case (size)
             B:       8'b00000001;
@@ -209,6 +219,19 @@ function DataByteEn toDataByteEn(RVMemSize size);
             default: 8'b00000000;
         endcase);
 endfunction
+`else
+// rv32
+function DataByteEn toDataByteEn(RVMemSize size);
+    return unpack(case (size)
+            B:       4'b0001;
+            H:       4'b0011;
+            W:       4'b1111;
+            // D is illegal
+            default: 4'b0000;
+        endcase);
+endfunction
+`endif
+
 function DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
     return toDataByteEn(size) << addrLSB;
 endfunction
@@ -326,33 +349,58 @@ typedef struct {
     Bool x;
 } RiscVISASubset deriving (Bits, Eq, FShow);
 
-`ifndef m
-`define m False
-`endif
-`ifndef a
-`define a False
-`endif
-`ifndef f
-`define f False
-`endif
-`ifndef d
-`define d False
-`endif
-
 instance DefaultValue#(RiscVISASubset);
-    function RiscVISASubset defaultValue = RiscVISASubset{ rv64: `rv64 , h: False, s: True, u: True, m: `m , a: `a , f: `f , d: `d , x: False };
+    function RiscVISASubset defaultValue = RiscVISASubset{
+`ifdef rv64
+            rv64:   True,
+`else
+            rv64:   False,
+`endif
+            h:      False,
+`ifdef s
+            s:      True,
+`else
+            s:      False,
+`endif
+`ifdef u
+            u:      True,
+`else
+            u:      False,
+`endif
+`ifdef m
+            m:      True,
+`else
+            m:      False,
+`endif
+`ifdef a
+            a:      True,
+`else
+            a:      False,
+`endif
+`ifdef f
+            f:      True,
+`else
+            f:      False,
+`endif
+`ifdef d
+            d:      True,
+`else
+            d:      False,
+`endif
+            x:      False
+    };
 endinstance
 
 function Data getMISA(RiscVISASubset isa);
-    Data misa = 0;
+    // include I by default
+    Data misa = {2'b00, 0, 26'b00000000000000000100000000};
     if (isa.rv64) misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
-    // include U, S, and I by default
-    misa = misa | {2'b00, 0, 26'b00000101000000000100000000};
+    if (isa.s) misa = misa | {2'b00, 0, 26'b00000001000000000000000000};
+    if (isa.u) misa = misa | {2'b00, 0, 26'b00000100000000000000000000};
     if (isa.m) misa = misa | {2'b00, 0, 26'b00000000000001000000000000};
     if (isa.a) misa = misa | {2'b00, 0, 26'b00000000000000000000000001};
     if (isa.f) misa = misa | {2'b00, 0, 26'b00000000000000000000100000};
     if (isa.d) misa = misa | {2'b00, 0, 26'b00000000000000000000001000};
-    // TODO: Add 'U' and 'S'
     return misa;
 endfunction
 
