@@ -56,11 +56,9 @@ typedef Bit#(InstSz) Instruction;
 typedef XLEN AddrSz;
 typedef Bit#(AddrSz) Addr;
 
-typedef AddrSz ByteAddrSz;
-typedef Bit#(ByteAddrSz) ByteAddr;
-
-typedef TSub#(AddrSz, TLog#(TDiv#(WordSz,8))) WordAddrSz;
-typedef Bit#(WordAddrSz) WordAddr;
+// Physical address
+typedef 64 PAddrSz;
+typedef Bit#(PAddrSz) PAddr;
 
 `ifdef rv64
 typedef 26 AsidSz;

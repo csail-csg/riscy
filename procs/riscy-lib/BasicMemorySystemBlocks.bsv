@@ -196,7 +196,7 @@ module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RV
         Bool isStore = getsWritePermission(op); // XXX: was isStore(r.op) || isAmo(r.op) || (r.op == tagged Mem PrefetchForSt);
         Bool isSupervisor = vmInfo.prv == prvS;
 
-        Addr paddr = 0;
+        PAddr paddr = 0;
         Maybe#(ExceptionCause) exception = tagged Invalid;
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
                                                             (isStore ? StoreAccessFault :
@@ -256,13 +256,13 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
     endmethod
 endmodule
 
-module mkDummyRVIMMU#(function PMA getPMA(Addr addr), GenericMemServer#(DataSz) mainMemory)(RVIMMU);
+module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), GenericMemServer#(DataSz) mainMemory)(RVIMMU);
     let _dMMU <- mkDummyRVDMMU(True, getPMA, mainMemory);
     let _iMMU <- mkRVIMMUWrapper(_dMMU);
     return _iMMU;
 endmodule
 
-module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemServer#(DataSz) mainMemory)(RVDMMU);
+module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemServer#(DataSz) mainMemory)(RVDMMU);
     FIFOF#(RVDMMUReq) procMMUReq <- mkFIFOF;
     FIFOF#(RVDMMUResp) procMMUResp <- mkFIFOF;
 
@@ -273,7 +273,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
     Reg#(Bool) walking <- mkReg(False);
     Reg#(Bool) store <- mkReg(False);
     Reg#(Bool) supervisor <- mkReg(False);
-    Reg#(Addr) a <- mkReg(0);
+    Reg#(PAddr) a <- mkReg(0);
     Reg#(Bit#(2)) i <- mkReg(0);
     Reg#(Bit#(64)) pte <- mkReg(0);
     Reg#(Vector#(3,Bit#(9))) vpn <- mkReg(replicate(0));
@@ -310,7 +310,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
             // valid leaf page
 
             // translated physical address
-            Addr paddr = '1;
+            PAddr paddr = '1;
             if (i == 0) begin
                 paddr = {0, pte.ppn2, pte.ppn1, pte.ppn0, pageoffset};
             end else if (i == 1) begin
@@ -378,7 +378,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
             end
         end else begin
             // go to next level
-            Addr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
+            PAddr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
             mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
             a <= newA;
             i <= i - 1;
@@ -396,7 +396,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
         Bool isSupervisor = vmInfo.prv == prvS;
         Bool pageTableWalk = False;
 
-        Addr paddr = 0;
+        PAddr paddr = 0;
         Maybe#(ExceptionCause) exception = tagged Invalid;
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
                                                             (isStore ? StoreAccessFault :
@@ -427,9 +427,9 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(Addr addr), GenericMemSer
                                 end
                 vmSv39: begin
                             // start page table walk
-                            // Addr newA = vmInfo.base + (zeroExtend(vpn[2]) << 3);
+                            // PAddr newA = vmInfo.base + (zeroExtend(vpn[2]) << 3);
                             Vector#(3, Bit#(9)) newvpn = unpack(vaddr[38:12]);
-                            Addr newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
+                            PAddr newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
                             mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
                             walking <= True;
                             pageTableWalk = True;

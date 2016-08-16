@@ -74,11 +74,11 @@ typedef struct {
 // front-end memory ports
 typedef Addr RVIMMUReq; // maybe add prv
 typedef struct {
-    Addr                    addr;
+    PAddr                   addr;
     Maybe#(ExceptionCause)  exception;
 } RVIMMUResp deriving (Bits, Eq, FShow);
 
-typedef Addr RVIMemReq;
+typedef PAddr RVIMemReq;
 typedef Instruction RVIMemResp;
 
 // back-end memory ports
@@ -93,7 +93,7 @@ typedef struct {
     RVMemAmoOp      op;
     RVMemSize       size;
     Bool            isUnsigned;
-    Addr            addr;
+    PAddr           addr;
     Data            data;
     // Bool aq; // XXX: I don't think these are necessary
     // Bool rl; // XXX: I don't think these are necessary
@@ -106,7 +106,7 @@ typedef void FenceResp;
 typedef struct {
     Bool                     write;
     Bit#(TDiv#(dataWidth,8)) byteen;
-    Addr                     addr;
+    PAddr                    addr;
     Bit#(dataWidth)          data;
 } GenericMemReq#(numeric type dataWidth) deriving (Bits, Eq, FShow);
 typedef struct {
@@ -131,7 +131,7 @@ typedef MainMemoryClient MainMemClient;
 typedef struct {
     Bool            write;
     RVMemSize       size;
-    Addr            addr;
+    PAddr           addr;
     Data            data;
 } UncachedMemReq deriving (Bits, Eq, FShow);
 typedef struct {
