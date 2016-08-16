@@ -21,6 +21,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+`include "ProcConfig.bsv"
+
 import ClientServer::*;
 import GetPut::*;
 import Vector::*;
@@ -46,8 +48,11 @@ interface MemoryMappedCSRs#(numeric type cores);
     method Vector#(cores, Bool) ipi;
 endinterface
 
-// TODO: needs to support single-word writes to support RV32
-module mkMemoryMappedCSRs#(Addr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT#(cores, 16));
+module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT#(cores, 16));
+`ifdef rv32
+    // TODO: needs to support single-word writes to support RV32
+    warning("mkMemoryMappedCSRs does not support RV32 yet");
+`else
     // this doesn't work for 16 or more cores since it assumes a 16 bit address space
     Reg#(Maybe#(UncachedMemResp)) resp <- mkReg(tagged Invalid);
 
@@ -128,4 +133,5 @@ module mkMemoryMappedCSRs#(Addr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT
     method Bit#(64) timerValue = timer;
     method Vector#(cores, Bool) timerInterrupt = zipWith( \>= , replicate(timer), readVReg(timeCmp));
     method Vector#(cores, Bool) ipi = readVReg(ipiReg);
+`endif
 endmodule

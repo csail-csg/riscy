@@ -86,6 +86,9 @@ endfunction
 // functions for execBasic
 (* noinline *)
 function Data alu(AluFunc func, Bool w, Data a, Data b);
+`ifndef rv64
+    w = True;
+`endif
     // setup inputs
     if (w) begin
         a = (func == Sra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);

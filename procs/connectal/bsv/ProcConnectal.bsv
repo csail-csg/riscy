@@ -27,6 +27,8 @@
 // This is a wrapper to translate the generic Proc interface to an interface
 // that is accepted by connectal.
 
+import ConnectalConfig::*;
+
 // This assumes a Proc.bsv file that contains the mkProc definition
 import Abstraction::*;
 import BuildVector::*;
@@ -73,9 +75,9 @@ interface ProcConnectal;
     interface ProcControlRequest procControlRequest;
     interface PerfMonitorRequest perfMonitorRequest;
     interface ExternalMMIOResponse externalMMIOResponse;
-    interface Vector#(1, MemReadClient#(64)) dmaReadClient;
-    interface Vector#(1, MemWriteClient#(64)) dmaWriteClient;
-    interface Vector#(1, MemReadClient#(64)) romReadClient;
+    interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
+    interface Vector#(1, MemWriteClient#(DataBusWidth)) dmaWriteClient;
+    interface Vector#(1, MemReadClient#(DataBusWidth)) romReadClient;
 endinterface
 
 module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
@@ -122,7 +124,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
                 W: 4;
                 D: 8;
             endcase);
-        externalMMIORequest.request(msg.write, length, msg.addr, msg.data);
+        // zero extend data in case XLEN is not 64
+        externalMMIORequest.request(msg.write, length, msg.addr, zeroExtend(msg.data));
     endrule
 
     // request interfaces
@@ -161,7 +164,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     endinterface
     interface ExternalMMIOResponse externalMMIOResponse;
         method Action response(Bool write, Bit#(64) data);
-            uncachedBridge.externalMMIO.response.put( UncachedMemResp{write: write, data: data} );
+            // truncate data in case XLEN is not 64
+            uncachedBridge.externalMMIO.response.put( UncachedMemResp{write: write, data: truncate(data)} );
         endmethod
         method Action triggerExternalInterrupt;
             proc.triggerExternalInterrupt;

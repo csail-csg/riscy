@@ -392,7 +392,13 @@ endinstance
 function Data getMISA(RiscVISASubset isa);
     // include I by default
     Data misa = {2'b00, 0, 26'b00000000000000000100000000};
-    if (isa.rv64) misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
+    if (isa.rv64) begin
+        // rv64
+        misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
+    end else begin
+        // rv32
+        misa = misa | {2'b01, 0, 26'b00000000000000000000000000};
+    end
     if (isa.s) misa = misa | {2'b00, 0, 26'b00000001000000000000000000};
     if (isa.u) misa = misa | {2'b00, 0, 26'b00000100000000000000000000};
     if (isa.m) misa = misa | {2'b00, 0, 26'b00000000000001000000000000};

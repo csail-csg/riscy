@@ -21,6 +21,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+`include "ProcConfig.bsv"
+
 import Abstraction::*;
 import RVTypes::*;
 import CompareProvisos::*;
@@ -50,7 +52,7 @@ interface SharedMemoryBridge#(numeric type dataSz);
 
     // Initialize the shared memory with the ref pointer and size.
     // If an address is out of range, it will handled (somehow)
-    method Action initSharedMem(Bit#(32) refPointer, Addr memSize);
+    method Action initSharedMem(Bit#(32) refPointer, Bit#(64) memSize);
 
     // Methods for clearing pending requests before reset
     method Action flushRespReqMem;
@@ -82,18 +84,23 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
     FIFO#(Bit#(MemTagSize))                 writeDoneFifo <- fprintTraceM(tracefile, "SharedMemoryBridge::writeDoneFifo", mkFIFO);
 
     Reg#(SGLId)                             refPointerReg <- mkReg(0);
-    Reg#(Addr)                              memSizeReg    <- mkReg(64 << 20); // 64 MB by default
+    Reg#(PAddr)                             memSizeReg    <- mkReg(64 << 20); // 64 MB by default
     Reg#(Bool)                              flushRespReq  <- mkReg(False);
 
     // addr aligned with 8B boundary
-    function Addr getDWordAlignAddr(Addr a);
+    function PAddr getDWordAlignAddr(PAddr a);
+        // FIXME: Clean this up
+`ifdef rv64
         return {truncateLSB(a), 3'b0};
+`else
+        return {truncateLSB(a), 2'b0};
+`endif
     endfunction
 
     // This function adjusts the address to point to a valid location in memory
     // If the memory size is a power of 2, it simply truncates it.
     // Otherwise is uses a weird mask derived form memSizeReg - 1
-    function Addr adjustAddress(Addr a);
+    function PAddr adjustAddress(PAddr a);
         // This works really well if the address is a power of 2, otherwise it has
         // weird behavior (but still functions as desired).
         let memSizeMask = memSizeReg - 1;
@@ -133,7 +140,7 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
                     $fdisplay(stderr, "[ERROR] [SharedMem] request - byteEn != '1");
                 end
 
-                Addr addr = adjustAddress(getDWordAlignAddr(r.addr));
+                PAddr addr = adjustAddress(getDWordAlignAddr(r.addr));
                 if (r.write) begin
                     // $display("[SharedMem] write - addr: 0x%08x, data: 0x%08x", addr, r.data);
                     writeReqFifo.enq(MemRequest{sglId: refPointerReg, offset: truncate(addr), burstLen: fromInteger(valueOf(bytesPerReq)), tag: 0});
@@ -177,10 +184,11 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
         interface Put writeDone = toPut(writeDoneFifo);
     endinterface
 
-    method Action initSharedMem(Bit#(32) refPointer, Addr memSize);
+    method Action initSharedMem(Bit#(32) refPointer, Bit#(64) memSize);
         // $display("[SharedMem] refPointer = 0x%08x. memSize = 0x%08x", refPointer, memSize);
         refPointerReg <= refPointer;
-        memSizeReg <= memSize;
+        // PAddrSz should be 64 or less
+        memSizeReg <= truncate(memSize);
     endmethod
 
     method Action flushRespReqMem;

@@ -21,6 +21,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+`include "ProcConfig.bsv"
+
 import ClientServer::*;
 import FIFOF::*;
 import FIFO::*;
@@ -175,6 +177,9 @@ interface RVIMMU;
     interface Get#(RVIMMUResp) response;
     method Action updateVMInfo(VMInfo vm);
 endinterface
+
+`ifndef rv32
+// XXX: No RV32 support for MMU's yet
 
 // This does not support any paged virtual memory modes
 // TODO: add support for getPMA
@@ -467,6 +472,8 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
     endmethod
 endmodule
 
+`endif
+
 // type used in the module below
 typedef struct {
     Bool isWrite;
@@ -511,7 +518,9 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
                     B: extend(result[7:0]);
                     H: extend(result[15:0]);
                     W: extend(result[31:0]);
+`ifdef rv64
                     D: result[63:0];
+`endif
                 endcase);
             return result;
         endmethod

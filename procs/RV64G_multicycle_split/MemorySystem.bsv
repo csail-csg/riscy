@@ -34,7 +34,7 @@ import BasicMemorySystemBlocks::*;
 import Abstraction::*;
 import RVTypes::*;
 
-module mkBasicMemorySystem#(function PMA getPMA(Addr addr))(SingleCoreMemorySystem#(DataSz));
+module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySystem#(DataSz));
     Bool verbose = False;
     File tracefile = verbose ? stdout : tagged InvalidFile;
 

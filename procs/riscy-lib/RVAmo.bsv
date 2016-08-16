@@ -21,23 +21,33 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+`include "ProcConfig.bsv"
+
 import RVTypes::*;
 import Vector::*;
 
 (* noinline *)
 function Data amoExec(RVAmoOp amoFunc, DataByteEn permutedDataByteEn, Data currentData, Data inData);
-    Data newData = 0;
-    Data oldData = currentData;
+`ifdef rv64
+    return amoExec64(amoFunc, permutedDataByteEn, currentData, inData);
+`else
+    return amoExec32(amoFunc, permutedDataByteEn, currentData, inData);
+`endif
+endfunction
+
+function Bit#(64) amoExec64(RVAmoOp amoFunc, Bit#(8) permutedDataByteEn, Bit#(64) currentData, Bit#(64) inData);
+    Bit#(64) newData = 0;
+    Bit#(64) oldData = currentData;
 
     // This is a leftover from the old byteEn type
-    Vector#(TDiv#(DataSz,8), Bool) byteEn = unpack(permutedDataByteEn);
+    Vector#(8, Bool) byteEn = unpack(permutedDataByteEn);
     function Bit#(8) byteEnToBitMask(Bool en);
         return en ? 8'hFF : 8'h00;
     endfunction
-    Data bitMask = pack(map(byteEnToBitMask, byteEn));
+    Bit#(64) bitMask = pack(map(byteEnToBitMask, byteEn));
 
-    Data currentDataMasked = currentData & bitMask;
-    Data inDataMasked = inData & bitMask;
+    Bit#(64) currentDataMasked = currentData & bitMask;
+    Bit#(64) inDataMasked = inData & bitMask;
 
     // special case for sign extension
     if (amoFunc == Min || amoFunc == Max) begin
@@ -47,6 +57,53 @@ function Data amoExec(RVAmoOp amoFunc, DataByteEn permutedDataByteEn, Data curre
             inDataMasked[63:32] = inDataMasked[31] == 1 ? '1 : 0;
         end
     end
+
+    function Bit#(t) sMax( Bit#(t) a, Bit#(t) b );
+        Int#(t) x = max(unpack(a), unpack(b));
+        return pack(x);
+    endfunction
+    function Bit#(t) sMin( Bit#(t) a, Bit#(t) b );
+        Int#(t) x = min(unpack(a), unpack(b));
+        return pack(x);
+    endfunction
+    function Bit#(t) uMax( Bit#(t) a, Bit#(t) b );
+        UInt#(t) x = max(unpack(a), unpack(b));
+        return pack(x);
+    endfunction
+    function Bit#(t) uMin( Bit#(t) a, Bit#(t) b );
+        UInt#(t) x = min(unpack(a), unpack(b));
+        return pack(x);
+    endfunction
+
+    newData = (case (amoFunc)
+            Swap: inDataMasked;
+            Add:  (currentDataMasked + inDataMasked);
+            Xor:  (currentDataMasked ^ inDataMasked);
+            And:  (currentDataMasked & inDataMasked);
+            Or:   (currentDataMasked | inDataMasked);
+            Min:  sMin(currentDataMasked, inDataMasked);
+            Max:  sMax(currentDataMasked, inDataMasked);
+            Minu: uMin(currentDataMasked, inDataMasked);
+            Maxu: uMax(currentDataMasked, inDataMasked);
+        endcase);
+    newData = (oldData & ~bitMask) | (newData & bitMask);
+
+    return newData;
+endfunction
+
+function Bit#(32) amoExec32(RVAmoOp amoFunc, Bit#(4) permutedDataByteEn, Bit#(32) currentData, Bit#(32) inData);
+    Bit#(32) newData = 0;
+    Bit#(32) oldData = currentData;
+
+    // This is a leftover from the old byteEn type
+    Vector#(4, Bool) byteEn = unpack(permutedDataByteEn);
+    function Bit#(8) byteEnToBitMask(Bool en);
+        return en ? 8'hFF : 8'h00;
+    endfunction
+    Bit#(32) bitMask = pack(map(byteEnToBitMask, byteEn));
+
+    Bit#(32) currentDataMasked = currentData & bitMask;
+    Bit#(32) inDataMasked = inData & bitMask;
 
     function Bit#(t) sMax( Bit#(t) a, Bit#(t) b );
         Int#(t) x = max(unpack(a), unpack(b));

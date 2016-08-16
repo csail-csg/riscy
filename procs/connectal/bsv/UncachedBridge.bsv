@@ -45,7 +45,7 @@ interface UncachedBridge;
 
     // Initialize the shared memory with the ref pointer and size.
     // If an address is out of range, it will handled (somehow)
-    method Action initUncachedMem(Bit#(32) refPointer, Addr romBaseAddr, Addr mmioBaseAddr);
+    method Action initUncachedMem(Bit#(32) refPointer, PAddr romBaseAddr, PAddr mmioBaseAddr);
 
     // Methods for clearing pending requests before reset
     // TODO: actually implement this
@@ -63,7 +63,7 @@ typedef union tagged {
 } UncachedReqType deriving (Bits, Eq, FShow);
 
 (* synthesize *)
-module mkUncachedBridge(UncachedBridge) provisos (EQ#(DataSz, DataBusWidth));
+module mkUncachedBridge(UncachedBridge); //provisos (EQ#(DataSz, DataBusWidth));
     Bool verbose = False;
     File tracefile = verbose ? stdout : tagged InvalidFile;
 
@@ -76,12 +76,12 @@ module mkUncachedBridge(UncachedBridge) provisos (EQ#(DataSz, DataBusWidth));
     FIFO#(MemRequest) romReadReqFifo <- fprintTraceM(tracefile, "romReadReqFifo", mkFIFO);
     FIFO#(MemData#(DataBusWidth)) romReadDataFifo <- fprintTraceM(tracefile, "romReadDataFifo", mkFIFO);
     Reg#(SGLId) refPointerReg <- mkReg(0);
-    Reg#(Addr) romBaseAddrReg <- mkReg(64 << 20); // 64 MB shared memory default
+    Reg#(PAddr) romBaseAddrReg <- mkReg(64 << 20); // 64 MB shared memory default
 
     // MMIO segment
     FIFO#(UncachedMemReq) externalMMIOReq <- fprintTraceM(tracefile, "externalMMIOReq", mkFIFO);
     FIFO#(UncachedMemResp) externalMMIOResp <- fprintTraceM(tracefile, "externalMMIOResp", mkFIFO);
-    Reg#(Addr) mmioBaseAddrReg <- mkReg(70 << 20); // 4 MB ROM by default
+    Reg#(PAddr) mmioBaseAddrReg <- mkReg(70 << 20); // 4 MB ROM by default
 
     interface UncachedMemServer toProc;
         interface Put request;
@@ -142,7 +142,7 @@ module mkUncachedBridge(UncachedBridge) provisos (EQ#(DataSz, DataBusWidth));
 
     interface UncachedMemClient externalMMIO = toGPClient(externalMMIOReq, externalMMIOResp);
 
-    method Action initUncachedMem(Bit#(32) refPointer, Addr romBaseAddr, Addr mmioBaseAddr);
+    method Action initUncachedMem(Bit#(32) refPointer, PAddr romBaseAddr, PAddr mmioBaseAddr);
         refPointerReg <= refPointer;
         romBaseAddrReg <= romBaseAddr;
         mmioBaseAddrReg <= mmioBaseAddr;
