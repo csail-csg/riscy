@@ -51,7 +51,7 @@ endinterface
 module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT#(cores, 16));
 `ifdef rv32
     // TODO: needs to support single-word writes to support RV32
-    warning("mkMemoryMappedCSRs does not support RV32 yet");
+    warningM("mkMemoryMappedCSRs does not support RV32 yet");
 `else
     // this doesn't work for 16 or more cores since it assumes a 16 bit address space
     Reg#(Maybe#(UncachedMemResp)) resp <- mkReg(tagged Invalid);
