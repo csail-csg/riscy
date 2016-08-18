@@ -298,7 +298,6 @@ module mkMulticycleCore#(
         verificationPackets.enq( VerificationPacket {
                 skippedPackets: 0,
                 pc: pc,
-                nextPc: fromMaybe(nextPcWb, maybeNextPc),
                 data: fromMaybe(dataWb, maybeData),
                 addr: addr,
                 instruction: inst,
@@ -372,7 +371,6 @@ module mkMulticycleCore#(
         verificationPackets.enq( VerificationPacket {
                 skippedPackets: 0,
                 pc: pc,
-                nextPc: fromMaybe(?, maybeNextPc),
                 data: fromMaybe(data, maybeData),
                 addr: addr,
                 instruction: inst,

@@ -77,7 +77,6 @@ bool SpikeTandemVerifier::checkVerificationPacket(VerificationPacket packet) {
     if (forcedInterrupt) {
         // verification packet from the processor corresponds to a forced interrupt
         sim->get_core(0)->force_trap(forcedInterruptCause);
-        spikePacket.nextPc = sim->get_core(0)->get_state()->pc;
         spikePacket.interrupt = true;
         spikePacket.exception = false;
         spikePacket.cause = forcedInterruptCause & 0x0F;
@@ -156,8 +155,6 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
     bool instructionRetired = sim->get_core(0)->try_step_synchronize();
 
     // form the rest of spikePacket
-    // -nextPc
-    spikePacket.nextPc = sim->get_core(0)->get_state()->pc;
     // -trap and -trapType
     if (instructionRetired) {
         // this instruction executed successfully and did not result in a trap

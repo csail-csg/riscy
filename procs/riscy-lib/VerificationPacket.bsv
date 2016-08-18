@@ -26,7 +26,6 @@
 typedef struct {
     Bit#(64) skippedPackets;
     Bit#(64) pc;
-    Bit#(64) nextPc;
     Bit#(32) instruction;
     Bit#(64) data;
     Bit#(64) addr;
