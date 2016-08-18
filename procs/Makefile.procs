@@ -93,6 +93,9 @@ VERILATOR_DEFINES=VM_PARALLEL_BUILDS=1 VERILATOR_PROJECT_ARGS="-output-split 100
 ifeq ($(BOARD),zc706)
 ZYNQ=true
 endif
+ifeq ($(BOARD),zybo)
+ZYNQ=true
+endif
 ifeq ($(BOARD),miniitx100)
 ZYNQ=true
 endif
