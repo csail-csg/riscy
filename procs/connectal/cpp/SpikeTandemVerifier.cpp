@@ -211,7 +211,6 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
 bool SpikeTandemVerifier::comparePackets(VerificationPacket procP, VerificationPacket spikeP) {
     bool match = true;
     match = match && (procP.pc == spikeP.pc);
-    match = match && (procP.nextPc == spikeP.nextPc);
     match = match && (procP.instruction == spikeP.instruction);
     match = match && (procP.exception == spikeP.exception);
     match = match && (procP.interrupt == spikeP.interrupt);
