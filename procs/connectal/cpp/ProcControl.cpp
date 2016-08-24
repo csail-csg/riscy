@@ -42,32 +42,15 @@ void ProcControl::reset() {
     procControlRequest->reset();
     // wait for reset to finish
     sem_wait(&resetSem);
-    // configure processor
-    procControlRequest->configure(this->sharedMemRefPointer,
-                                  this->romRefPointer,
-                                  this->romBaseAddr,
-                                  this->externalMMIOBaseAddr);
 }
 
 // configure and start
 void ProcControl::start(const uint64_t startPc) {
-    procControlRequest->configure(this->sharedMemRefPointer,
-                                  this->romRefPointer,
-                                  this->romBaseAddr,
-                                  this->externalMMIOBaseAddr);
     procControlRequest->start(startPc, verificationPacketsToIgnore, (int) sendSynchronizationPackets);
 }
 
 void ProcControl::stop() {
     procControlRequest->stop();
-}
-
-void ProcControl::configure(const uint32_t sharedMemRefPointer, const uint32_t romRefPointer, const uint64_t romBaseAddr, const uint64_t externalMMIOBaseAddr) {
-    this->sharedMemRefPointer = sharedMemRefPointer;
-    this->romRefPointer = romRefPointer;
-    this->romBaseAddr = romBaseAddr;
-    this->externalMMIOBaseAddr = externalMMIOBaseAddr;
-    procControlRequest->configure(sharedMemRefPointer, romRefPointer, romBaseAddr, externalMMIOBaseAddr);
 }
 
 void ProcControl::configureVerificationPackets(const uint64_t verificationPacketsToIgnoreIn, const bool sendSynchronizationPacketsIn) {

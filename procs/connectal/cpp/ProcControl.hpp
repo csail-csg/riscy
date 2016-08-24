@@ -52,10 +52,6 @@ class ProcControl : public ProcControlIndicationWrapper {
         ProcControlRequestProxy *procControlRequest;
         uint64_t verificationPacketsToIgnore;
         bool sendSynchronizationPackets;
-        uint32_t sharedMemRefPointer;
-        uint32_t romRefPointer;
-        uint64_t romBaseAddr;
-        uint64_t externalMMIOBaseAddr;
 
         // used by both threads
         sem_t resetSem;

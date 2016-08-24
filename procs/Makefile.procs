@@ -45,6 +45,7 @@ BSVFILES = \
 
 CPPFILES = \
 	$(RISCY_HOME)/procs/connectal/cpp/testproc.cpp \
+	$(RISCY_HOME)/procs/connectal/cpp/Platform.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ProcControl.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/Verification.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
@@ -56,6 +57,7 @@ CPPFILES = \
 S2H_INTERFACES = \
 	ProcControlRequest:ProcConnectal.procControlRequest \
 	PerfMonitorRequest:ProcConnectal.perfMonitorRequest \
+	PlatformRequest:ProcConnectal.platformRequest \
 	ExternalMMIOResponse:ProcConnectal.externalMMIOResponse \
 
 H2S_INTERFACES = \

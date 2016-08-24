@@ -38,6 +38,7 @@
 #include <signal.h>
 #include "DmaBuffer.h"
 
+#include "Platform.hpp"
 #include "ProcControl.hpp"
 #include "Verification.hpp"
 #include "PerfMonitor.hpp"
@@ -60,6 +61,7 @@
                       __func__, __FILE__, __LINE__)
 
 // main stuff
+static Platform *platform = NULL;
 static ProcControl *procControl = NULL;
 static Verification *verification = NULL;
 static PerfMonitor *perfMonitor = NULL;
@@ -158,56 +160,14 @@ int main(int argc, char * const *argv) {
         (double)actualFrequency * 1.0e-6,
         status, (status != 0) ? errno : 0);
 
-    // initialize dram and rom
-    DmaBuffer ram(ramSz, false); // false == uncached
-    DmaBuffer rom(romSz, false); // false == uncached
-    procControl->configure(ram.reference(),
-                           ramSz,
-                           rom.reference(),
-                           romSz);
-
-    // Populate the ROM with the reset vector and config string
-    // TODO: make number of processors a variable (currently 1)
-    // TODO: make ISA string a variable
-    // This matches the reset vec and config string from Spike's processor
-    uint32_t reset_vec[8] = {
-      0x297 + (0x80000000 - 0x1000),      // reset vector
-      0x00028067,                         //   jump straight to DRAM_BASE
-      0x00000000,                         // reserved
-      0x00001020,                         // config string pointer
-      0, 0, 0, 0                          // trap vector
-    };
-    std::stringstream s;
-    s << std::hex <<
-          "platform {\n"
-          "  vendor ucb;\n"
-          "  arch spike;\n"
-          "};\n"
-          "rtc {\n"
-          "  addr 0x40000000;\n"
-          "};\n"
-          "ram {\n"
-          "  0 {\n"
-          "    addr 0x80000000;\n"
-          "    size 0x" << ramSz << ";\n"
-          "  };\n"
-          "};\n"
-          "core {\n"
-          "  0 {\n"
-          "    0 {\n"
-          "      isa " << "rv64imafd" << ";\n"
-          "      timecmp 0x40000008;\n"
-          "      ipi 0x40001000;\n"
-          "    };\n"
-          "  };\n"
-          "};\n";
-
-    // XXX: What is the "correct" way to do this?
-    memcpy( (void*) &((char*) rom.buffer())[0x1000], (void*) reset_vec, 8 * sizeof(uint32_t) );
-    memcpy( (void*) &((char*) rom.buffer())[0x1020], (void*) s.str().c_str(), s.str().size() );
+    // construct platform
+    platform = new Platform(IfcNames_PlatformRequestS2H,
+                            0x80000000, ramSz,  // ram base and size
+                            0,          romSz); // rom base and size
+    platform->init();
 
     // Connect an HTIF module up to the procControl interfaces
-    htif = new HTIF(htif_args, (uint64_t*) ram.buffer(), ramSz, (uint64_t*) rom.buffer(), romSz, procControl);
+    htif = new HTIF(htif_args, procControl, platform);
 
     // This function loads the specified program, and runs the test
     int result = htif->run();

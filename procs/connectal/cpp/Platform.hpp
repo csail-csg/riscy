@@ -21,43 +21,43 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef HTIF_HPP
-#define HTIF_HPP
+#ifndef PLATFORM_HPP
+#define PLATFORM_HPP
 
-#include "fesvr/htif.h"
-#include "Platform.hpp"
-#include "ProcControl.hpp"
+#include "fesvr/memif.h"
 
-class HTIF : public htif_t {
+#include "DmaBuffer.h"
+#include "PlatformRequest.h"
+#include "GeneratedTypes.h"
+
+class Platform {
     public:
-        HTIF(const std::vector<std::string>& args,
-                ProcControl *procControlIn,
-                Platform *platformIn);
-        ~HTIF();
+        Platform(unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn);
+        virtual ~Platform() {}
 
-        // XXX: This is the main way things are run:
-        // int run();
-        // bool done();
-        // int exit_code();
+        virtual void init();
 
-        // these can be redefined, but they don't need to be
-        virtual void start(); // performs load_program() and reset()
-        virtual void stop();
+        // functions for accessing the platform
+        virtual void read_chunk(addr_t taddr, size_t len, void* dst);
+        virtual void write_chunk(addr_t taddr, size_t len, const void* src);
+        virtual size_t chunk_align();
+        virtual size_t chunk_max_size();
 
     private:
-        void read_chunk(addr_t taddr, size_t len, void* dst);
-        void write_chunk(addr_t taddr, size_t len, const void* src);
-
-        size_t chunk_align() { return platform->chunk_align(); }
-        size_t chunk_max_size() { return platform->chunk_max_size(); }
-
-        virtual void load_program();
-        virtual void reset();
-
-        ProcControl *procControl;
-        Platform *platform;
-
         bool verbose;
+
+        size_t ramBaseAddr;
+        size_t ramSz;
+        DmaBuffer ram;
+
+        size_t romBaseAddr;
+        size_t romSz;
+        DmaBuffer rom;
+
+        uint64_t* ramBuffer;
+        uint64_t* romBuffer;
+
+        PlatformRequestProxy *platformRequest;
 };
 
 #endif

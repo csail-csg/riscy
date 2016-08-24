@@ -45,15 +45,19 @@ import SharedMemoryBridge::*;
 import UncachedBridge::*;
 import PerfMonitorConnectal::*;
 
-// ProcControlControl
+
+// ProcControl
 interface ProcControlRequest;
     method Action reset;
     method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
     method Action stop;
-    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
 endinterface
 interface ProcControlIndication;
     method Action resetDone;
+endinterface
+// Platform
+interface PlatformRequest;
+    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
 endinterface
 // Verification
 interface VerificationIndication;
@@ -73,6 +77,7 @@ endinterface
 // parameters to the mkProcConnectal module.
 interface ProcConnectal;
     interface ProcControlRequest procControlRequest;
+    interface PlatformRequest platformRequest;
     interface PerfMonitorRequest perfMonitorRequest;
     interface ExternalMMIOResponse externalMMIOResponse;
     interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
@@ -144,6 +149,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         method Action stop();
             proc.stop;
         endmethod
+    endinterface
+    interface PlatformRequest platformRequest;
         method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
             // configure shared memory
             ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
