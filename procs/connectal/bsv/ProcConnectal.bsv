@@ -112,8 +112,10 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 
 
     // rules for connecting indications
-    rule finishReset(resetSent && (ramSharedMemoryBridge.numberFlyingOperations == 0)
+    rule finishReset(resetSent && (!procReset.isAsserted)
+                               && (ramSharedMemoryBridge.numberFlyingOperations == 0)
                                && (romSharedMemoryBridge.numberFlyingOperations == 0));
+        // wait for procReset to finish
         resetSent <= False;
         procControlIndication.resetDone;
     endrule
