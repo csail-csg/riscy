@@ -23,6 +23,14 @@
 
 PROC=RV64G_multicycle_split
 
+CONNECTALFLAGS += -D CONFIG_RV64
+CONNECTALFLAGS += -D CONFIG_S
+CONNECTALFLAGS += -D CONFIG_U
+CONNECTALFLAGS += -D CONFIG_M
+CONNECTALFLAGS += -D CONFIG_A
+CONNECTALFLAGS += -D CONFIG_F
+CONNECTALFLAGS += -D CONFIG_D
+
 # Suppress "duplicate folder" and "unfolding over ... steps" warnings
 # CONNECTALFLAGS += --bscflags=" -suppress-warnings S0073:G0024 "
 
