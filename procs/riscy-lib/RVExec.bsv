@@ -86,7 +86,7 @@ endfunction
 // functions for execBasic
 (* noinline *)
 function Data alu(AluFunc func, Bool w, Data a, Data b);
-`ifndef rv64
+`ifndef CONFIG_RV64
     w = True;
 `endif
     // setup inputs
@@ -218,7 +218,7 @@ function Data gatherLoad(DataByteSel byteSel, RVMemSize size, Bool isUnsigned, D
             B: extend(data[7:0]);
             H: extend(data[15:0]);
             W: extend(data[31:0]);
-`ifdef rv64
+`ifdef CONFIG_RV64
             D: data[63:0];
 `endif
         endcase);

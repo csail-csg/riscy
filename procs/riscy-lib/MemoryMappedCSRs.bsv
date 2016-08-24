@@ -49,7 +49,7 @@ interface MemoryMappedCSRs#(numeric type cores);
 endinterface
 
 module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(cores)) provisos (LT#(cores, 16));
-`ifdef rv32
+`ifdef CONFIG_RV32
     // TODO: needs to support single-word writes to support RV32
     warningM("mkMemoryMappedCSRs does not support RV32 yet");
 `else

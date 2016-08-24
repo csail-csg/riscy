@@ -178,7 +178,7 @@ interface RVIMMU;
     method Action updateVMInfo(VMInfo vm);
 endinterface
 
-`ifndef rv32
+`ifndef CONFIG_RV32
 // XXX: No RV32 support for MMU's yet
 
 // This does not support any paged virtual memory modes
@@ -518,7 +518,7 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
                     B: extend(result[7:0]);
                     H: extend(result[15:0]);
                     W: extend(result[31:0]);
-`ifdef rv64
+`ifdef CONFIG_RV64
                     D: result[63:0];
 `endif
                 endcase);

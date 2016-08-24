@@ -102,7 +102,7 @@ module mkRVCsrFile#(
     Reg#(Bit#(3)) frm_field     <- mkReg(0);
 
     // vm fields
-`ifdef rv64
+`ifdef CONFIG_RV64
     // XLEN = 64
     Reg#(Bit#(26)) asid_field      <- mkReg(0);
     Reg#(Bit#(38)) sptbr_ppn_field <- mkReg(0);
@@ -482,7 +482,7 @@ module mkRVCsrFile#(
                         vmMbb: mbase_csr;
                         vmMbbid: mibase_csr;
                         // all paged virtual memory modes
-`ifdef rv64
+`ifdef CONFIG_RV64
                         default: {0, sptbr_ppn_field, 12'd0};
 `else
                         default: truncate({sptbr_ppn_field, 12'd0}); // TODO: allow Addr to be Bit#(34) for rv32
@@ -504,7 +504,7 @@ module mkRVCsrFile#(
                         vmMbb: mbase_csr;
                         vmMbbid: mdbase_csr;
                         // all paged virtual memory modes
-`ifdef rv64
+`ifdef CONFIG_RV64
                         default: {0, sptbr_ppn_field, 12'd0};
 `else
                         default: truncate({sptbr_ppn_field, 12'd0}); // TODO: allow Addr to be Bit#(34) for rv32

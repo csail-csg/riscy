@@ -26,10 +26,10 @@ import DefaultValue::*;
 import FShow::*;
 import Vector::*;
 
-`ifdef rv64
+`ifdef CONFIG_RV64
 typedef 64 XLEN;
 `endif
-`ifdef rv32
+`ifdef CONFIG_RV32
 typedef 32 XLEN;
 `endif
 
@@ -60,10 +60,10 @@ typedef Bit#(AddrSz) Addr;
 typedef 64 PAddrSz;
 typedef Bit#(PAddrSz) PAddr;
 
-`ifdef rv64
+`ifdef CONFIG_RV64
 typedef 26 AsidSz;
 `endif
-`ifdef rv32
+`ifdef CONFIG_RV32
 typedef 10 AsidSz;
 `endif
 typedef Bit#(AsidSz) Asid;
@@ -207,7 +207,7 @@ typedef enum {
     D   = 2'b11
 } RVMemSize deriving (Bits, Eq, FShow);
 
-`ifdef rv64
+`ifdef CONFIG_RV64
 function DataByteEn toDataByteEn(RVMemSize size);
     return unpack(case (size)
             B:       8'b00000001;
@@ -349,38 +349,38 @@ typedef struct {
 
 instance DefaultValue#(RiscVISASubset);
     function RiscVISASubset defaultValue = RiscVISASubset{
-`ifdef rv64
+`ifdef CONFIG_RV64
             rv64:   True,
 `else
             rv64:   False,
 `endif
             h:      False,
-`ifdef s
+`ifdef CONFIG_S
             s:      True,
 `else
             s:      False,
 `endif
-`ifdef u
+`ifdef CONFIG_U
             u:      True,
 `else
             u:      False,
 `endif
-`ifdef m
+`ifdef CONFIG_M
             m:      True,
 `else
             m:      False,
 `endif
-`ifdef a
+`ifdef CONFIG_A
             a:      True,
 `else
             a:      False,
 `endif
-`ifdef f
+`ifdef CONFIG_F
             f:      True,
 `else
             f:      False,
 `endif
-`ifdef d
+`ifdef CONFIG_D
             d:      True,
 `else
             d:      False,

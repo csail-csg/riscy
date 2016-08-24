@@ -320,30 +320,30 @@ function Maybe#(RVDecodedInst) decodeInst(Instruction inst);
     // We will apply a fold function on this vector to find the valid result
     let decoderResults = vec(
             toExecFuncRV32I(inst),
-`ifdef rv64
+`ifdef CONFIG_RV64
             toExecFuncRV64I(inst),
 `endif
-`ifdef m
+`ifdef CONFIG_M
             toExecFuncRV32M(inst),
-`ifdef rv64
+`ifdef CONFIG_RV64
             toExecFuncRV64M(inst),
 `endif
 `endif
-`ifdef a
+`ifdef CONFIG_A
             toExecFuncRV32A(inst),
-`ifdef rv64
+`ifdef CONFIG_RV64
             toExecFuncRV64A(inst),
 `endif
 `endif
-`ifdef f
+`ifdef CONFIG_F
             toExecFuncRV32F(inst),
-`ifdef rv64
+`ifdef CONFIG_RV64
             toExecFuncRV64F(inst),
 `endif
 `endif
-`ifdef d
+`ifdef CONFIG_D
             toExecFuncRV32D(inst),
-`ifdef rv64
+`ifdef CONFIG_RV64
             toExecFuncRV64D(inst),
 `endif
 `endif

@@ -90,7 +90,7 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
     // addr aligned with 8B boundary
     function PAddr getDWordAlignAddr(PAddr a);
         // FIXME: Clean this up
-`ifdef rv64
+`ifdef CONFIG_RV64
         return {truncateLSB(a), 3'b0};
 `else
         return {truncateLSB(a), 2'b0};

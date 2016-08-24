@@ -28,7 +28,7 @@ import Vector::*;
 
 (* noinline *)
 function Data amoExec(RVAmoOp amoFunc, DataByteEn permutedDataByteEn, Data currentData, Data inData);
-`ifdef rv64
+`ifdef CONFIG_RV64
     return amoExec64(amoFunc, permutedDataByteEn, currentData, inData);
 `else
     return amoExec32(amoFunc, permutedDataByteEn, currentData, inData);
