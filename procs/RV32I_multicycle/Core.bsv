@@ -261,7 +261,6 @@ module mkMulticycleCore#(
         verificationPackets.enq( VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
-                nextPc: signExtend(fromMaybe(nextPcWb, maybeNextPc)),
                 data: signExtend(fromMaybe(dataWb, maybeData)),
                 addr: signExtend(addr),
                 instruction: inst,

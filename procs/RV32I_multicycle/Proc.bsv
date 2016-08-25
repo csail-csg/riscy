@@ -95,29 +95,6 @@ module mkProc(Proc#(DataSz));
 
     let core_to_mem <- mkConnection(core, memorySystem.core[0]);
 
-    // // Uncached Memory Connection
-    // FIFO#(UncachedMemReq) externalUncachedReqFIFO <- mkFIFO;
-    // FIFO#(UncachedMemResp) externalUncachedRespFIFO <- mkFIFO;
-    // UncachedMemServer externalUncachedMemServer = toGPServer(externalUncachedReqFIFO, externalUncachedRespFIFO);
-    // UncachedMemClient externalUncachedMemClient = toGPClient(externalUncachedReqFIFO, externalUncachedRespFIFO);
-    // function Bit#(1) whichServer(UncachedMemReq r);
-    //     if (r.addr >= mmioBaseAddr ) begin
-    //         return 1; // mmiocsrs - hardware devices
-    //     end else begin
-    //         return 0; // external - software devices
-    //     end
-    // endfunction
-    // function Bool getsResponse(UncachedMemReq r);
-    //     return True;
-    // endfunction
-    // Integer maxPendingReq = 4;
-    // let uncachedMem <- mkServerJoiner(
-    //                         whichServer,
-    //                         getsResponse,
-    //                         maxPendingReq,
-    //                         vec(externalUncachedMemServer, mmcsrs.memifc));
-    // let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, uncachedMem);
-
     // Uncached Memory Connection
     // connect all uncached memory connections to the memory mapped CSRs
     let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, mmcsrs.memifc);

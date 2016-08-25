@@ -23,6 +23,10 @@
 
 PROC=RV32I_multicycle
 
+CONNECTALFLAGS += -D CONFIG_RV32
+CONNECTALFLAGS += -D CONFIG_S
+CONNECTALFLAGS += -D CONFIG_U
+
 # Use a 32-bit data bus for shared memory in connectal
 CONNECTALFLAGS += -D DataBusWidth=32
 
