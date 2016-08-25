@@ -40,7 +40,7 @@ else
     OPTION=$1
 fi
 
-RUNEXE="./verilator/bin/ubuntu.exe --just-run"
+RUNEXE="./verilator/bin/ubuntu.exe"
 
 rm -rf out/
 mkdir -p out

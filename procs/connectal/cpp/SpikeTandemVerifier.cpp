@@ -27,7 +27,14 @@
 #include "spike/encoding.h"
 #include "spike/mmu.h"
 #include "spike/trap.h"
+
+// ConnectalProjectConfig.h contains CONFIG_* macro definitions.
+// XXX: These are macros are currently passed through the command line, so we
+//      get a error if we also include this file.
+// #include "ConnectalProjectConfig.h"
+
 #include "SpikeTandemVerifier.hpp"
+
 
 SpikeTandemVerifier::SpikeTandemVerifier(std::vector<std::string> htifArgsIn, size_t memSzIn)
         : TandemVerifier(), htifArgs(htifArgsIn), memSz(memSzIn), sim(NULL), disassembler(new disassembler_t(64)), packets(0), instructions(0), abort(false), outBuffer(40) {
@@ -128,7 +135,27 @@ void SpikeTandemVerifier::synchronize(VerificationPacket packet) {
 }
 
 void SpikeTandemVerifier::initSim() {
-    sim = new sim_t("RV64IMAFD", 1 /* cores */, memSz >> 20, true /* halted */, htifArgs);
+    const char* config_string =
+#ifdef CONFIG_RV64
+        "RV64I"
+#endif
+#ifdef CONFIG_RV32
+        "RV32I"
+#endif
+#ifdef CONFIG_M
+        "M"
+#endif
+#ifdef CONFIG_A
+        "A"
+#endif
+#ifdef CONFIG_F
+        "F"
+#endif
+#ifdef CONFIG_D
+        "D"
+#endif
+        ;
+    sim = new sim_t(config_string, 1 /* cores */, memSz >> 20, true /* halted */, htifArgs);
     // sim->start() calls htif_t's start implementation.
     // this loads the program and resets the processor.
     sim->start();
@@ -140,6 +167,16 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
     // get pc and instruction for spikePacket
     if (instructions > 0) {
         spikePacket.pc = sim->get_core(0)->get_state()->pc;
+#ifdef CONFIG_RV32
+        // sign-extend Spikes PC to match the processor
+        if (((spikePacket.pc >> 31) & 1) == 1) {
+            // set upper 32 bits
+            spikePacket.pc = 0xFFFFFFFF00000000llu | spikePacket.pc;
+        } else {
+            // zero upper 32 bits
+            spikePacket.pc = ~(0xFFFFFFFF00000000llu) & spikePacket.pc;
+        }
+#endif
     } else {
         // if no instructions have been retired yet, assume spike starts at
         // address 0x1000
