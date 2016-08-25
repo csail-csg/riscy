@@ -16,6 +16,7 @@ env:
   matrix:
     - TRAVIS_PROC=RV64G_multicycle       TRAVIS_TARGET=bluesim
     - TRAVIS_PROC=RV64G_multicycle_split TRAVIS_TARGET=bluesim
+    - TRAVIS_PROC=RV32I_multicycle       TRAVIS_TARGET=bluesim
 before_script:
   # get all submodules
   - git submodule update --init --recursive
