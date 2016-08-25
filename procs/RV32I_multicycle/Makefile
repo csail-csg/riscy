@@ -39,3 +39,7 @@ CONNECTALFLAGS += -D DataBusWidth=32
 # CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
 
 include $(RISCY_HOME)/procs/Makefile.procs
+
+# override isatest target from Makefile.procs since that one assumes RV64
+isatest.%: gen.%
+	./runtest.sh 0 $*/bin/ubuntu.exe
