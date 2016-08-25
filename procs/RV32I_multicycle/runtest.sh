@@ -40,7 +40,11 @@ else
     OPTION=$1
 fi
 
-RUNEXE="./verilator/bin/ubuntu.exe"
+if [ "$#" -eq 2 ] ; then
+    RUNEXE=$2
+else
+    RUNEXE="./verilator/bin/ubuntu.exe"
+fi
 
 rm -rf out/
 mkdir -p out
