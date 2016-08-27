@@ -51,6 +51,7 @@ CPPFILES = \
 	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/HTIF.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
+	$(RISCY_HOME)/procs/connectal/cpp/PrintTrace.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 
@@ -62,6 +63,7 @@ S2H_INTERFACES = \
 
 H2S_INTERFACES = \
 	ProcConnectal:ProcControlIndication \
+	ProcConnectal:PlatformIndication \
 	ProcConnectal:VerificationIndication \
 	ProcConnectal:PerfMonitorIndication \
 	ProcConnectal:ExternalMMIORequest \

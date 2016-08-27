@@ -206,7 +206,19 @@ module mkProc(Proc#(DataSz));
             endmethod
         endinterface
     endinterface
-    // interface mmio = externalUncachedMemClient;
+    // XXX: Currently unattached
+    interface GenericMemServer extmem;
+        interface Put request;
+            method Action put(GenericMemReq#(XLEN) r) if (False);
+                noAction;
+            endmethod
+        endinterface
+        interface Get response;
+            method ActionValue#(GenericMemResp#(XLEN)) get if (False);
+                return ?;
+            endmethod
+        endinterface
+    endinterface
 
     // Interrupts
     method Action triggerExternalInterrupt;

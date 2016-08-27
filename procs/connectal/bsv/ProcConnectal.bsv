@@ -58,6 +58,10 @@ endinterface
 // Platform
 interface PlatformRequest;
     method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
+    method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
+endinterface
+interface PlatformIndication;
+    method Action memResponse(Bool write, Bit#(64) data);
 endinterface
 // Verification
 interface VerificationIndication;
@@ -86,6 +90,7 @@ interface ProcConnectal;
 endinterface
 
 module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
+                                 PlatformIndication platformIndication,
                                  VerificationIndication verificationIndication,
                                  PerfMonitorIndication perfMonitorIndication,
                                  ExternalMMIORequest externalMMIORequest)
@@ -118,6 +123,10 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         // wait for procReset to finish
         resetSent <= False;
         procControlIndication.resetDone;
+    endrule
+    rule connectExternalMemResponse;
+        let resp <- proc.extmem.response.get;
+        platformIndication.memResponse(resp.write, zeroExtend(resp.data));
     endrule
     rule connectVerificationIndication;
         let msg <- proc.getVerificationPacket;
@@ -158,6 +167,14 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
             // configure ROM
             romSharedMemoryBridge.initSharedMem(romSharedMemRefPointer, romSize);
+        endmethod
+        method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
+            proc.extmem.request.put( GenericMemReq{
+                                        write: write,
+                                        byteen: truncate(byteen),
+                                        addr: truncate(addr),
+                                        data: truncate(data)
+                                    });
         endmethod
     endinterface
     interface PerfMonitorRequest perfMonitorRequest;

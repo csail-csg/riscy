@@ -48,6 +48,7 @@
 
 #include "NullTandemVerifier.hpp"
 #include "SpikeTandemVerifier.hpp"
+#include "PrintTrace.hpp"
 
 #include "GeneratedTypes.h"
 
@@ -145,7 +146,7 @@ int main(int argc, char * const *argv) {
         procControl->configureVerificationPackets(0xFFFFFFFFFFFFFFFFLL, false);
         verification = new Verification(IfcNames_VerificationIndicationH2S, new NullTandemVerifier());
     } else if (just_trace) {
-        verification = new Verification(IfcNames_VerificationIndicationH2S, new NullTandemVerifier());
+        verification = new Verification(IfcNames_VerificationIndicationH2S, new PrintTrace());
     } else {
         // ERROR
         fprintf(stderr, "WARNING: Spike-based tandem verification is not fully tested for priv spec v1.9 yet\n");
@@ -161,7 +162,8 @@ int main(int argc, char * const *argv) {
         status, (status != 0) ? errno : 0);
 
     // construct platform
-    platform = new Platform(IfcNames_PlatformRequestS2H,
+    platform = new Platform(IfcNames_PlatformIndicationH2S,
+                            IfcNames_PlatformRequestS2H,
                             0x80000000, ramSz,  // ram base and size
                             0,          romSz); // rom base and size
     platform->init();

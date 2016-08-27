@@ -41,9 +41,15 @@ HTIF::~HTIF() {
 
 void HTIF::start() {
     if (verbose) fprintf(stderr, "HTIF::start() called\n");
-    // don't really need to do anyhting else
-    htif_t::start(); // read config string, load program, and reset
+    // htif_t::start reads the config string to get the number of cores also,
+    // but we don't always have a config string, so that's not necessary
+    load_program();
+    reset();
+#ifdef CONFIG_START_PC_0
+    procControl->start(0);
+#else
     procControl->start(0x1000);
+#endif
 }
 
 void HTIF::stop() {

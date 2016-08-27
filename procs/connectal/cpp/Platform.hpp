@@ -27,15 +27,19 @@
 #include "fesvr/memif.h"
 
 #include "DmaBuffer.h"
+#include "PlatformIndication.h"
 #include "PlatformRequest.h"
 #include "GeneratedTypes.h"
 
-class Platform {
+class Platform : PlatformIndicationWrapper {
     public:
-        Platform(unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn);
+        Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn);
         virtual ~Platform() {}
 
         virtual void init();
+
+        uint64_t memRead(uint64_t addr);
+        void memWrite(uint64_t addr, uint64_t data);
 
         // functions for accessing the platform
         virtual void read_chunk(addr_t taddr, size_t len, void* dst);
@@ -44,6 +48,9 @@ class Platform {
         virtual size_t chunk_max_size();
 
     private:
+        // called by connectal thread
+        void memResponse(const int write, const uint64_t data);
+
         bool verbose;
 
         size_t ramBaseAddr;
@@ -58,6 +65,10 @@ class Platform {
         uint64_t* romBuffer;
 
         PlatformRequestProxy *platformRequest;
+
+        // used by both threads
+        sem_t responseSem;
+        uint64_t responseData;
 };
 
 #endif

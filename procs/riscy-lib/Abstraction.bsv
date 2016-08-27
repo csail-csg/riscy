@@ -186,6 +186,8 @@ interface MulticoreMemorySystem#(numeric type numCores, numeric type mainMemWidt
     // To main memory and devices
     interface GenericMemClient#(mainMemWidth) cachedMemory;
     interface UncachedMemClient uncachedMemory;
+    // Memory requests from external devices
+    interface GenericMemServer#(XLEN) extMemory;
 endinterface
 
 typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric type mainMemWidth);
@@ -203,6 +205,8 @@ interface Proc#(numeric type mainMemoryWidth);
     interface GenericMemClient#(mainMemoryWidth) rom;
     // Uncached Connections
     interface UncachedMemClient mmio;
+    // External Connections
+    interface GenericMemServer#(XLEN) extmem;
     // Interrupts
     method Action triggerExternalInterrupt;
 endinterface

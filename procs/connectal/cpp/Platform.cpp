@@ -28,8 +28,9 @@
 
 #include "Platform.hpp"
 
-Platform::Platform(unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn)
-        : verbose(false),
+Platform::Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn)
+        : PlatformIndicationWrapper(indicationId),
+          verbose(false),
           ramBaseAddr(ramBaseAddrIn),
           ramSz(ramSzIn),
           ram(ramSzIn, false), // false == uncached
@@ -67,11 +68,11 @@ void Platform::init() {
     // TODO: make ISA string a variable
     // This matches the reset vec and config string from Spike's processor
     uint32_t reset_vec[8] = {
-      0x297 + (0x80000000 - 0x1000),      // reset vector
-      0x00028067,                         //   jump straight to DRAM_BASE
-      0x00000000,                         // reserved
-      0x00001020,                         // config string pointer
-      0, 0, 0, 0                          // trap vector
+        0x297 + (0x80000000 - 0x1000),  // reset vector
+        0x00028067,                     //   jump straight to DRAM_BASE
+        0x00000000,                     // reserved
+        0x00001020,                     // config string pointer
+        0, 0, 0, 0                      // trap vector
     };
     std::stringstream s;
     s << std::hex <<
@@ -102,6 +103,80 @@ void Platform::init() {
     memcpy( (void*) &((char*) romBuffer)[0x1000], (void*) reset_vec, 8 * sizeof(uint32_t) );
     memcpy( (void*) &((char*) romBuffer)[0x1020], (void*) s.str().c_str(), s.str().size() );
 }
+
+uint64_t Platform::memRead(uint64_t addr) {
+    platformRequest->memRequest(0, 0, addr, 0);
+    sem_wait(&responseSem);
+    return responseData;
+}
+
+void Platform::memWrite(uint64_t addr, uint64_t data) {
+#ifdef CONFIG_RV64
+    // byteen is 8 bits long
+    platformRequest->memRequest(1, 0xff, addr, data);
+#else
+    // byteen is 4 bits long
+    platformRequest->memRequest(1, 0xf, addr, data);
+#endif
+    sem_wait(&responseSem);
+}
+
+void Platform::memResponse(const int write, const uint64_t data) {
+    if (write == 0) {
+        responseData = data;
+    }
+    sem_post(&responseSem);
+}
+
+#ifdef CONFIG_ACCESS_USING_EXT_IFC
+
+void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
+#ifdef CONFIG_RV64
+    size_t xlen_bytes = 8;
+#else
+    size_t xlen_bytes = 4;
+#endif
+    if (len != xlen_bytes) {
+        fprintf(stderr, "Platform::read_chunk is not reading a full xlen bytes");
+    }
+    uint64_t data = memRead(taddr);
+    memcpy(dst, &data, len);
+}
+
+void Platform::write_chunk(addr_t taddr, size_t len, const void* src) {
+#ifdef CONFIG_RV64
+    size_t xlen_bytes = 8;
+#else
+    size_t xlen_bytes = 4;
+#endif
+
+    uint64_t data = 0;
+    if (len != xlen_bytes) {
+        fprintf(stderr, "Platform::write_chunk is not writing a full xlen bytes");
+        data = memRead(taddr);
+    }
+    memcpy(&data, src, len);
+
+    memWrite(taddr, data);
+}
+
+size_t Platform::chunk_align() {
+#ifdef CONFIG_RV64
+    return sizeof(uint64_t);
+#else
+    return sizeof(uint32_t);
+#endif
+}
+
+size_t Platform::chunk_max_size() {
+#ifdef CONFIG_RV64
+    return sizeof(uint64_t);
+#else
+    return sizeof(uint32_t);
+#endif
+}
+
+#else
 
 void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
     assert(romBuffer != NULL);
@@ -148,3 +223,5 @@ size_t Platform::chunk_align() {
 size_t Platform::chunk_max_size() {
     return 1024 * sizeof(uint64_t);
 }
+
+#endif
