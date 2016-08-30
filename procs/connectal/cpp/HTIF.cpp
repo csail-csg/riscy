@@ -23,6 +23,10 @@
 
 #include <assert.h>
 #include "spike/encoding.h" // I would include fesvr's encoding.h here but it isn't installed
+
+// ConnectalProjectConfig.h contains CONFIG_* macro definitions.
+#include "ConnectalProjectConfig.h"
+
 #include "HTIF.hpp"
 
 HTIF::HTIF(const std::vector<std::string>& args, ProcControl *procControlIn, Platform *platformIn)

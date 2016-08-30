@@ -26,6 +26,9 @@
 
 #include <assert.h>
 
+// ConnectalProjectConfig.h contains CONFIG_* macro definitions.
+#include "ConnectalProjectConfig.h"
+
 #include "Platform.hpp"
 
 Platform::Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn)

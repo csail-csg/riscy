@@ -29,9 +29,7 @@
 #include "spike/trap.h"
 
 // ConnectalProjectConfig.h contains CONFIG_* macro definitions.
-// XXX: These are macros are currently passed through the command line, so we
-//      get a error if we also include this file.
-// #include "ConnectalProjectConfig.h"
+#include "ConnectalProjectConfig.h"
 
 #include "PrintTrace.hpp"
 
