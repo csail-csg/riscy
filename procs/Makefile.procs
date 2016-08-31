@@ -32,18 +32,18 @@ endif
 
 CONNECTALDIR ?= $(RISCY_HOME)/connectal
 
-BSVPATH = \
+BSVPATH += \
 	$(RISCY_HOME)/procs/riscy-lib \
 	$(RISCY_HOME)/procs/$(PROC) \
 	$(RISCY_HOME)/procs/connectal/bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv \
 
-BSVFILES = \
+BSVFILES += \
 	$(RISCY_HOME)/procs/connectal/bsv/ProcConnectal.bsv \
 	$(RISCY_HOME)/procs/riscy-lib/VerificationPacket.bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv/PerfMonitorConnectal.bsv \
 
-CPPFILES = \
+CPPFILES += \
 	$(RISCY_HOME)/procs/connectal/cpp/testproc.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/Platform.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ProcControl.cpp \
