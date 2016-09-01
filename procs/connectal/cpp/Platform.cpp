@@ -140,7 +140,7 @@ void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
     size_t xlen_bytes = 4;
 #endif
     if (len != xlen_bytes) {
-        fprintf(stderr, "Platform::read_chunk is not reading a full xlen bytes");
+        fprintf(stderr, "Platform::read_chunk is not reading a full xlen bytes\n");
     }
     uint64_t data = memRead(taddr);
     memcpy(dst, &data, len);
@@ -155,7 +155,7 @@ void Platform::write_chunk(addr_t taddr, size_t len, const void* src) {
 
     uint64_t data = 0;
     if (len != xlen_bytes) {
-        fprintf(stderr, "Platform::write_chunk is not writing a full xlen bytes");
+        fprintf(stderr, "Platform::write_chunk is not writing a full xlen bytes\n");
         data = memRead(taddr);
     }
     memcpy(&data, src, len);
