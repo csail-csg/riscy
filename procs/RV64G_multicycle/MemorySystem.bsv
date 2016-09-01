@@ -51,7 +51,10 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
     let uncachedMemClient = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
 
     // splits cached memory port for itlb, imem, dtlb, and dmem
-    Vector#(4, Server#(MainMemReq, MainMemResp)) mainMemorySplitServer <- mkFixedPriorityServerSplitter(constFn(True), 4, mainMemoryServer);
+    Vector#(5, Server#(MainMemReq, MainMemResp)) mainMemorySplitServer <- mkFixedPriorityServerSplitter(constFn(True), 8, mainMemoryServer);
+
+    // extMemServer -- works on 64-bit words
+    let extMemServer = mainMemorySplitServer[4];
 
     let itlb <- mkDummyRVIMMU(getPMA, fprintTrace(tracefile, "IMMU-Arbiter", mainMemorySplitServer[3]));
     let icache <- mkDummyRVICache(fprintTrace(tracefile, "ICache-Arbiter", mainMemorySplitServer[2]));
@@ -108,4 +111,5 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
     interface Vector core = onecore;
     interface Client cachedMemory = mainMemoryClient;
     interface Client uncachedMemory = uncachedMemClient;
+    interface GenericMemServer extMemory = extMemServer;
 endmodule
