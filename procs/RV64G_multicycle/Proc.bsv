@@ -32,6 +32,7 @@ import GetPut::*;
 import Vector::*;
 
 import ClientServerUtil::*;
+import PrintTrace::*;
 import ServerUtil::*;
 
 import Abstraction::*;
@@ -47,31 +48,37 @@ typedef DataSz MainMemoryWidth;
 
 (* synthesize *)
 module mkProc(Proc#(DataSz));
-    // Assumed Address Map
-    // 0x0000_0000 - 0x0000_FFFF : Boot ROM
-    // 0x0001_0000 - 0x3FFF_FFFF : Internal Devices
-    // 0x4000_0000 - 0x0000_0000 : External Devices
-    // 0x8000_0000 -       ?     : RAM
+    // ROM Addresses
+    // 0x0000_0000 - 0x3FFF_FFFF
+    Addr romBaseAddr            = 'h0000_0000;
+    Addr rstvec                 = 'h0000_1000;
+    Addr nmivec                 = 'h0000_1004;
+    Addr configStringPtr        = 'h0000_100C;
+    Addr mtvecDefault           = 'h0000_1010;
+    // Internal Memory-Mapped IO Addresses
+    // 0x4000_0000 - 0x5FFF_FFFF
+    Addr mmioBaseAddr           = 'h4000_0000;
+    Addr rtcBaseAddr            = 'h4000_0000;
+    Addr ipiBaseAddr            = 'h4000_1000;
+    // External Memory-Mapped IO Addresses
+    // 0x6000_0000 - 0x7FFF_FFFF
+    Addr externalMMIOBaseAddr   = 'h6000_0000;
+    // DRAM Addresses
+    // 0x8000_0000 - end of address space
+    Addr dramBaseAddr           = 'h8000_0000;
 
+    // This function assumes romBaseAddr < mmioBaseAddr < dramBaseAddr
     function PMA getPMA(Addr addr);
-        if (addr < 'h0001_0000) begin
+        if (addr < mmioBaseAddr) begin
             return IORom;
-        end else if (addr < 'h8000_0000) begin
+        end else if (addr < dramBaseAddr) begin
             return IODevice;
         end else begin
             return MainMemory;
         end
     endfunction
 
-    Addr rstvec          = 'h0000_1000;
-    Addr nmivec          = 'h0000_1004;
-    Addr configStringPtr = 'h0000_100C;
-    Addr mtvecDefault    = 'h0000_1010;
-    Addr mmioBaseAddr    = 'h4000_0000;
-    Addr rtcBaseAddr     = 'h4000_0000;
-    Addr ipiBaseAddr     = 'h4000_1000;
-    // DRAM at 0x8000_0000 - ?
-    Addr dramBaseAddr    = 'h8000_0000;
+    Wire#(Bool) extInterruptWire <- mkDWire(False);
 
     SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
     MemoryMappedCSRs#(1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
@@ -83,7 +90,7 @@ module mkProc(Proc#(DataSz));
                     mmcsrs.ipi[0], // inter-process interrupt
                     mmcsrs.timerInterrupt[0], // timer interrupt
                     mmcsrs.timerValue,
-                    False, // external interrupt
+                    extInterruptWire, // external interrupt
                     0); // hart ID
 
     // +----------------+ +---------------+
@@ -97,36 +104,31 @@ module mkProc(Proc#(DataSz));
 
     let core_to_mem <- mkConnection(core, memorySystem.core[0]);
 
-    // // Uncached Memory Connection
-    // FIFO#(UncachedMemReq) externalUncachedReqFIFO <- mkFIFO;
-    // FIFO#(UncachedMemResp) externalUncachedRespFIFO <- mkFIFO;
-    // UncachedMemServer externalUncachedMemServer = toGPServer(externalUncachedReqFIFO, externalUncachedRespFIFO);
-    // UncachedMemClient externalUncachedMemClient = toGPClient(externalUncachedReqFIFO, externalUncachedRespFIFO);
-    // function Bit#(1) whichServer(UncachedMemReq r);
-    //     if (r.addr >= mmioBaseAddr ) begin
-    //         return 1; // mmiocsrs - hardware devices
-    //     end else begin
-    //         return 0; // external - software devices
-    //     end
-    // endfunction
-    // function Bool getsResponse(UncachedMemReq r);
-    //     return True;
-    // endfunction
-    // Integer maxPendingReq = 4;
-    // let uncachedMem <- mkServerJoiner(
-    //                         whichServer,
-    //                         getsResponse,
-    //                         maxPendingReq,
-    //                         vec(externalUncachedMemServer, mmcsrs.memifc));
-    // let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, uncachedMem);
-
-    // Uncached Memory Connection
-    // connect all uncached memory connections to the memory mapped CSRs
-    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, mmcsrs.memifc);
+    // Memory Mapped IO connections
+    FIFO#(UncachedMemReq) externalMMIOReqFIFO <- mkFIFO;
+    FIFO#(UncachedMemResp) externalMMIORespFIFO <- mkFIFO;
+    UncachedMemServer externalMMIOServer = toGPServer(externalMMIOReqFIFO, externalMMIORespFIFO);
+    UncachedMemClient externalMMIOClient = toGPClient(externalMMIOReqFIFO, externalMMIORespFIFO);
+    function Bit#(1) whichMMIOServer(UncachedMemReq r);
+        if (r.addr >= externalMMIOBaseAddr ) begin
+            return 1; // external devices
+        end else begin
+            return 0; // internal devices (memory mapped CSRs)
+        end
+    endfunction
+    Integer maxPendingReq = 4;
+    function UncachedMemReq adjustMMIOAddress(Addr a, UncachedMemReq r);
+        r.addr = r.addr - a;
+        return r;
+    endfunction
+    let memoryMappedIO <- mkServerJoiner(
+                            whichMMIOServer,
+                            constFn(True), // if a given request gets a response
+                            maxPendingReq,
+                            vec(mmcsrs.memifc, transformReq(adjustMMIOAddress(externalMMIOBaseAddr), externalMMIOServer)));
+    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO);
 
     // Cached Memory Connection
-    // 0x0000_0000 - 0x0000_FFFF : ROM
-    // 0x8000_0000 - 0x0000_0000 : RAM
     FIFO#(MainMemReq) romReqFIFO <- mkFIFO;
     FIFO#(MainMemResp) romRespFIFO <- mkFIFO;
     MainMemServer romServer = toGPServer(romReqFIFO, romRespFIFO);
@@ -142,17 +144,13 @@ module mkProc(Proc#(DataSz));
             return 0; // rom
         end
     endfunction
-    function Bool getsResponse(MainMemReq r);
-        return True;
-    endfunction
     function MainMemReq adjustAddress(Addr a, MainMemReq r);
         r.addr = r.addr - a;
         return r;
     endfunction
-    Integer maxPendingReq = 4;
     let cachedMemBridge <- mkServerJoiner(
                             whichServer,
-                            getsResponse,
+                            constFn(True), // if a given request gets a response
                             maxPendingReq,
                             vec( transformReq(adjustAddress(0), romServer),
                                  transformReq(adjustAddress(dramBaseAddr), ramServer) ));
@@ -179,37 +177,12 @@ module mkProc(Proc#(DataSz));
     // Main Memory Connection
     interface ram = ramClient;
     interface rom = romClient;
-    // XXX: Currently unattached
-    interface UncachedMemClient mmio;
-        interface Get request;
-            method ActionValue#(UncachedMemReq) get if (False);
-                return ?;
-            endmethod
-        endinterface
-        interface Put response;
-            method Action put(UncachedMemResp resp);
-                noAction;
-            endmethod
-        endinterface
-    endinterface
-    // XXX: Currently unattached
-    interface GenericMemServer extmem;
-        interface Put request;
-            method Action put(GenericMemReq#(XLEN) r) if (False);
-                noAction;
-            endmethod
-        endinterface
-        interface Get response;
-            method ActionValue#(GenericMemResp#(XLEN)) get if (False);
-                return ?;
-            endmethod
-        endinterface
-    endinterface
+    interface UncachedMemClient mmio = externalMMIOClient;
+    interface GenericMemServer extmem = memorySystem.extMemory;
 
     // Interrupts
     method Action triggerExternalInterrupt;
-        // XXX: implement this
-        noAction;
+        extInterruptWire <= True;
     endmethod
 endmodule
 
