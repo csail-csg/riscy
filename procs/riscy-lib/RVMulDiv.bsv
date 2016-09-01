@@ -87,7 +87,7 @@ module mkBluesimMultiplier(Multiplier);
     // FIXME: Replace this with an efficient multiplication implementation like a booth multiplier
     Bit#(TAdd#(TAdd#(DataSz, DataSz), 1)) r = pack(a * b);
 
-    Tuple2#(Data, Data) answer = tuple2( r[127:64], r[63:0] );
+    Tuple2#(Data, Data) answer = tuple2( r[2*valueOf(DataSz)-1:valueOf(DataSz)], r[valueOf(DataSz)-1:0] );
     result_fifo.enq(answer);
   endmethod
 
@@ -138,7 +138,8 @@ module mkBoothMultiplier(Multiplier)
     return i == fromInteger(valueOf(_InputSize)/2);
   endmethod
   method Tuple2#(Data, Data) result_data if (i == fromInteger(valueOf(_InputSize)/2));
-    return tuple2(p[128:65], p[64:1]);
+    // was: return tuple2(p[128:65], p[64:1]);
+    return tuple2(p[2*valueOf(DataSz):valueOf(DataSz)+1], p[valueOf(DataSz):1]);
   endmethod
   method Action result_deq if (i == fromInteger(valueOf(_InputSize)/2));
     i <= fromInteger(valueOf(_InputSize)/2+1);
@@ -160,7 +161,7 @@ module mkBluesimDivider(Divider);
     Int#(TAdd#(DataSz, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
     Int#(TAdd#(DataSz, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
 
-    if ((dividend == 65'h18000000000000000) && (divisor == '1)) begin
+    if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
       quotent = unpack(dividend);
       remainder = 0;
     end
@@ -201,7 +202,7 @@ module mkRoughDivider(Divider)
 
   method Action divide(Bit#(TAdd#(DataSz, 1)) dividend, Bit#(TAdd#(DataSz, 1)) divisor) if (current_bit == fromInteger(valueOf(_InputSize) + 1));
     // Optimization: Divide by zero and handle signed overflow very fast
-    if ((dividend == 65'h18000000000000000) && (divisor == '1)) begin
+    if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
       quotent <= unpack(signExtend(dividend));
       remainder <= 0;
       quotent_negative <= False;
