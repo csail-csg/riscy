@@ -1,0 +1,17 @@
+ACCEL_BSVPATH += \
+	$(RISCY_HOME)/accelerators/DebugAccel \
+
+ACCEL_BSVFILES += \
+	$(RISCY_HOME)/accelerators/DebugAccel/DebugAccel.bsv \
+
+ACCEL_S2H_INTERFACES += \
+	DebugAccelRequest:DebugAccel.debugAccelRequest \
+
+ACCEL_H2S_INTERFACES += \
+
+#ACCEL_PINS_TYPES += \
+#	DebugAccelPins \
+#
+#ACCEL_PINS_INTERFACES += \
+#	pins:DebugAccel.debugAccelPins \
+

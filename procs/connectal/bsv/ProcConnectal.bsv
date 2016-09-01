@@ -29,12 +29,21 @@
 
 import ConnectalConfig::*;
 
+`ifdef CONFIG_ACCELERATOR
+import Portal::*;
+import AccelTop::*;
+`ifdef CONFIG_STR_LEN_PINS
+import StrLen::*;
+`endif
+`endif
+
 // This assumes a Proc.bsv file that contains the mkProc definition
 import Abstraction::*;
 import BuildVector::*;
 import ClientServer::*;
 import Clocks::*;
 import Connectable::*;
+import FIFO::*;
 import GetPut::*;
 import Proc::*;
 import Vector::*;
@@ -42,9 +51,7 @@ import VerificationPacket::*;
 import MemTypes::*;
 import RVTypes::*;
 import SharedMemoryBridge::*;
-import UncachedBridge::*;
 import PerfMonitorConnectal::*;
-
 
 // ProcControl
 interface ProcControlRequest;
@@ -89,12 +96,15 @@ interface ProcConnectal;
     interface Vector#(1, MemReadClient#(DataBusWidth)) romReadClient;
 endinterface
 
+typedef enum { Accel, Ext } ExtMemUser deriving (Bits, Eq, FShow);
+
 module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
                                  PlatformIndication platformIndication,
                                  VerificationIndication verificationIndication,
                                  PerfMonitorIndication perfMonitorIndication,
                                  ExternalMMIORequest externalMMIORequest)
                                 (ProcConnectal);
+    Bool verbose = False;
     let clock <- exposeCurrentClock;
     let reset <- exposeCurrentReset;
     let procReset <- mkReset(10, True, clock);
@@ -110,11 +120,112 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     SharedMemoryBridge#(MainMemoryWidth) ramSharedMemoryBridge <- mkSharedMemoryBridge;
     let ramToSharedMem <- mkConnection(proc.ram, ramSharedMemoryBridge.to_proc);
 
-    // Address space: ?
-    UncachedBridge uncachedBridge <- mkUncachedBridge;
-    let memToUncachedMem <- mkConnection(proc.mmio, uncachedBridge.toProc);
+    FIFO#(GenericMemReq#(DataSz)) extMemReqFIFO <- mkFIFO;
+    FIFO#(GenericMemResp#(DataSz)) extMemRespFIFO <- mkFIFO;
+    FIFO#(ExtMemUser) extMemUserFIFO <- mkFIFO;
 
+    rule connectExtMemReq;
+        let req = extMemReqFIFO.first;
+        extMemReqFIFO.deq;
+        proc.extmem.request.put(req);
+    endrule
+    rule connectExtMemResp;
+        let resp <- proc.extmem.response.get;
+        extMemRespFIFO.enq(resp);
+    endrule
 
+`ifdef CONFIG_ACCELERATOR
+`ifdef CONFIG_STR_LEN_PINS
+    ConnectalTop#(StrLenPins) accelerator <- mkAccelTop();
+`else
+    ConnectalTop#(StrLenPins) accelerator <- mkAccelTop();
+`endif
+    FIFO#(Bit#(1)) pendingAcceleratorReq <- mkFIFO;
+    // accelerator.slave.write_server requires the writeReq to come before the
+    // writeData, so writeDataFIFO holds the data until the accelerator is
+    // ready for it
+    FIFO#(MemData#(32)) writeDataFIFO <- mkFIFO;
+
+    rule connectAcceleratorRequest;
+        let req <- proc.mmio.request.get;
+        if (req.write) begin
+            if (verbose) $fdisplay(stderr, "[Accelerator Write] addr = 0x%0x, data = 0x%0x", req.addr, req.data);
+            accelerator.slave.write_server.writeReq.put(
+                    PhysMemRequest{
+                        addr: truncate(req.addr),
+                        burstLen: 4, // 4 bytes, 32-bits
+                        tag: 1
+                    });
+            writeDataFIFO.enq(
+                    MemData{
+                        data: truncate(req.data),
+                        tag: 1,
+                        last: True
+                    });
+            pendingAcceleratorReq.enq(1);
+        end else begin
+            if (verbose) $fdisplay(stderr, "[Accelerator Read] addr = 0x%0x", req.addr);
+            accelerator.slave.read_server.readReq.put(
+                    PhysMemRequest{
+                        addr: truncate(req.addr),
+                        burstLen: 4, // 4 bytes, 32-bits
+                        tag: 0
+                    });
+            pendingAcceleratorReq.enq(0);
+        end
+    endrule
+    rule connectalAcceleratorWriteData;
+        if (verbose) $fdisplay(stderr, "[Accelerator Write] data = 0x%0x", writeDataFIFO.first.data);
+        accelerator.slave.write_server.writeData.put(writeDataFIFO.first);
+        writeDataFIFO.deq;
+    endrule
+    rule connectAcceleratorResponse;
+        Data data = 0;
+        if (pendingAcceleratorReq.first == 1) begin
+            if (verbose) $fdisplay(stderr, "[Accelerator Write] response");
+            let tag <- accelerator.slave.write_server.writeDone.get();
+        end else begin
+            let readData <- accelerator.slave.read_server.readData.get();
+            data = zeroExtend(readData.data);
+            if (verbose) $fdisplay(stderr, "[Accelerator Read] response data = 0x%0x", data);
+        end
+        pendingAcceleratorReq.deq;
+        proc.mmio.response.put(
+                UncachedMemResp{
+                    write: pendingAcceleratorReq.first == 1,
+                    data: data
+                });
+    endrule
+
+    // XXX: This is hard-coded for only 2 portals
+    //rule connectInterrupts(accelerator.interrupt[0] || accelerator.interrupt[1]);
+    //    proc.triggerExternalInterrupt;
+    //endrule
+    function t doRead(ReadOnly#(t) x) = x._read;
+    rule connectInterrupts(fold( \|| , map(doRead, accelerator.interrupt)));
+        proc.triggerExternalInterrupt;
+    endrule
+
+`ifdef CONFIG_STR_LEN_PINS
+    // Only if accelerator has pins
+    rule acceleratorMemReq;
+        let req <- accelerator.pins.readReq;
+        extMemReqFIFO.enq( GenericMemReq{
+                                write: False,
+                                byteen: '1,
+                                addr: truncate(req),
+                                data: 0
+                            });
+        extMemUserFIFO.enq(Accel);
+    endrule
+    rule acceleratorMemResp(extMemUserFIFO.first == Accel);
+        let resp = extMemRespFIFO.first;
+        extMemRespFIFO.deq;
+        extMemUserFIFO.deq;
+        accelerator.pins.readData(resp.data);
+    endrule
+`endif
+`endif
 
     // rules for connecting indications
     rule finishReset(resetSent && (!procReset.isAsserted)
@@ -124,16 +235,19 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         resetSent <= False;
         procControlIndication.resetDone;
     endrule
-    rule connectExternalMemResponse;
-        let resp <- proc.extmem.response.get;
+    rule connectExternalMemResponse(extMemUserFIFO.first == Ext);
+        let resp = extMemRespFIFO.first;
+        extMemRespFIFO.deq;
+        extMemUserFIFO.deq;
         platformIndication.memResponse(resp.write, zeroExtend(resp.data));
     endrule
     rule connectVerificationIndication;
         let msg <- proc.getVerificationPacket;
         verificationIndication.getVerificationPacket(msg);
     endrule
+`ifndef CONFIG_ACCELERATOR
     rule connectExternalMMIORequest;
-        let msg <- uncachedBridge.externalMMIO.request.get;
+        let msg <- proc.mmio.request.get;
         Bit#(4) length = (case (msg.size)
                 B: 1;
                 H: 2;
@@ -143,6 +257,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         // zero extend data in case XLEN is not 64
         externalMMIORequest.request(msg.write, length, msg.addr, zeroExtend(msg.data));
     endrule
+`endif
 
     // request interfaces
     interface ProcControlRequest procControlRequest;
@@ -169,12 +284,13 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             romSharedMemoryBridge.initSharedMem(romSharedMemRefPointer, romSize);
         endmethod
         method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
-            proc.extmem.request.put( GenericMemReq{
-                                        write: write,
-                                        byteen: truncate(byteen),
-                                        addr: truncate(addr),
-                                        data: truncate(data)
-                                    });
+            extMemReqFIFO.enq( GenericMemReq{
+                                    write: write,
+                                    byteen: truncate(byteen),
+                                    addr: truncate(addr),
+                                    data: truncate(data)
+                                });
+            extMemUserFIFO.enq(Ext);
         endmethod
     endinterface
     interface PerfMonitorRequest perfMonitorRequest;
@@ -188,15 +304,27 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             perfMonitorIndication.resp(0);
         endmethod
     endinterface
+`ifdef CONFIG_ACCELERATOR
+    // don't connect External MMIO interface
+    interface ExternalMMIOResponse externalMMIOResponse;
+        method Action response(Bool write, Bit#(64) data) if (False);
+            noAction;
+        endmethod
+        method Action triggerExternalInterrupt if (False);
+            noAction;
+        endmethod
+    endinterface
+`else
     interface ExternalMMIOResponse externalMMIOResponse;
         method Action response(Bool write, Bit#(64) data);
             // truncate data in case XLEN is not 64
-            uncachedBridge.externalMMIO.response.put( UncachedMemResp{write: write, data: truncate(data)} );
+            proc.mmio.response.put( UncachedMemResp{write: write, data: truncate(data)} );
         endmethod
         method Action triggerExternalInterrupt;
             proc.triggerExternalInterrupt;
         endmethod
     endinterface
+`endif
 
     // dma interfaces
     interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);

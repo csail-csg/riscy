@@ -1,0 +1,63 @@
+
+# Copyright (c) 2016 Massachusetts Institute of Technology
+
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation
+# files (the "Software"), to deal in the Software without
+# restriction, including without limitation the rights to use, copy,
+# modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+ifndef RISCY_HOME
+$(error RISCY_HOME is not set)
+endif
+ifndef ACCELERATORS
+$(error ACCELERATORS is not set)
+endif
+
+CONNECTALDIR ?= $(RISCY_HOME)/connectal
+
+ifndef ACCEL_PROJECTDIR
+ifndef PROC
+$(error Either PROJECTDIR or PROC needs to be set)
+endif
+ACCEL_PROJECTDIR ?= $(RISCY_HOME)/procs/$(PROC)/accelerator
+endif
+
+include $(foreach f, $(ACCELERATORS), $(RISCY_HOME)/accelerators/$f/Makefrag)
+
+prebuild::
+	$(CONNECTALDIR)/scripts/topgen.py \
+		--project-dir $(ACCEL_PROJECTDIR)/generatedbsv \
+		--filename 'AccelTop.bsv' \
+		--topname mkAccelTop \
+		--ifcnames 'AccelIfcNames' \
+		$(foreach f, $(ACCEL_S2H_INTERFACES), --wrapper $f) \
+		$(foreach f, $(ACCEL_H2S_INTERFACES), --proxy $f) \
+		$(foreach f, $(ACCEL_PINS_TYPES), --pintype $f) \
+		$(foreach f, $(ACCEL_PINS_INTERFACES), --interface $f)
+	$(CONNECTALDIR)/scripts/makefilegen.py \
+		-Bverilator \
+		--project-dir $(ACCEL_PROJECTDIR) \
+		$(foreach f, $(ACCEL_S2H_INTERFACES), -interfaces $(word 1, $(subst /,, $(subst :, , $f)))) \
+		$(foreach f, $(ACCEL_H2S_INTERFACES), $(foreach g, $(subst $(comma), , $(word 2, $(subst :, , $f))), -interfaces $g)) \
+		$(foreach f, $(ACCEL_CPPFILES), --source $f) \
+		$(foreach f, $(ACCEL_BSVPATH), --bsvpath $f) \
+		$(CONNECTALFLAGS) \
+		$(ACCEL_BSVFILES)
+	DTOP=$(ACCEL_PROJECTDIR) BSVPATH=$(RISCY_HOME)/procs $(CONNECTALDIR)/scripts/syntax.py $(ACCEL_BSVFILES)
+	-make -C $(ACCEL_PROJECTDIR)
+

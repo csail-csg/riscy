@@ -1,0 +1,20 @@
+ACCEL_BSVPATH += \
+	$(RISCY_HOME)/accelerators/StrLen \
+
+ACCEL_BSVFILES += \
+	$(RISCY_HOME)/accelerators/StrLen/StrLen.bsv \
+
+ACCEL_S2H_INTERFACES += \
+	StrLenRequest:StrLen.strLenRequest \
+
+ACCEL_H2S_INTERFACES += \
+	StrLen:StrLenIndication \
+
+ACCEL_PINS_TYPES += \
+	StrLenPins \
+
+ACCEL_PINS_INTERFACES += \
+	pins:StrLen.strLenPins \
+
+CONNECTALFLAGS += -D CONFIG_STR_LEN_PINS
+

@@ -32,6 +32,19 @@ endif
 
 CONNECTALDIR ?= $(RISCY_HOME)/connectal
 
+# Add accelerators if ACCELERATORS was defined
+ifdef ACCELERATORS
+CONNECTALFLAGS += -D CONFIG_ACCELERATOR
+
+include $(RISCY_HOME)/accelerators/Makefile.accelerators
+
+BSVFILES += $(ACCEL_BSVFILES)
+BSVPATH += $(ACCEL_BSVPATH)
+
+BSVFILES += $(RISCY_HOME)/procs/$(PROC)/accelerator/generatedbsv/AccelTop.bsv
+BSVPATH += $(RISCY_HOME)/procs/$(PROC)/accelerator/generatedbsv
+endif
+
 BSVPATH += \
 	$(RISCY_HOME)/procs/riscy-lib \
 	$(RISCY_HOME)/procs/$(PROC) \
