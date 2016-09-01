@@ -50,7 +50,7 @@ prebuild::
 		$(foreach f, $(ACCEL_PINS_TYPES), --pintype $f) \
 		$(foreach f, $(ACCEL_PINS_INTERFACES), --interface $f)
 	$(CONNECTALDIR)/scripts/makefilegen.py \
-		-Bverilator \
+		-B$(BOARD) \
 		--project-dir $(ACCEL_PROJECTDIR) \
 		$(foreach f, $(ACCEL_S2H_INTERFACES), -interfaces $(word 1, $(subst /,, $(subst :, , $f)))) \
 		$(foreach f, $(ACCEL_H2S_INTERFACES), $(foreach g, $(subst $(comma), , $(word 2, $(subst :, , $f))), -interfaces $g)) \
