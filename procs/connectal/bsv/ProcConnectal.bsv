@@ -138,7 +138,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 `ifdef CONFIG_STR_LEN_PINS
     ConnectalTop#(StrLenPins) accelerator <- mkAccelTop();
 `else
-    ConnectalTop#(StrLenPins) accelerator <- mkAccelTop();
+    ConnectalTop#(Empty) accelerator <- mkAccelTop();
 `endif
     FIFO#(Bit#(1)) pendingAcceleratorReq <- mkFIFO;
     // accelerator.slave.write_server requires the writeReq to come before the
