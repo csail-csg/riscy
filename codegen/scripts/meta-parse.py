@@ -216,19 +216,33 @@ class RiscvMeta:
         ## TODO: make these inputs for this script
         self.extensions = [base + ext for ext in extension_letters]
 
+        # must parse operands before parsing instructions
         self.operands = self.parse_operands()
         self.insts = self.parse_instructions()
+
+        # reduce known operands
+        self.used_operands = {}
+        for (inst_name, bsv_val, inst_args, inst_extensions) in self.insts:
+            for inst_extension in inst_extensions:
+                if inst_extension[0:4] == base:
+                    included_inst = True
+                    for l in inst_extension[4:]:
+                        if l not in extension_letters:
+                            included_inst = False
+                    if included_inst:
+                        for operand in inst_args:
+                            self.used_operands[operand] = self.operands[operand]
 
         print('extensions = ' + str(self.extensions))
 
     def parse_operands(self):
-        operands = []
+        operands = {}
         for operand_row in self.meta['operands']:
-            operands += [RiscvOperand(operand_row)]
+            new_operand = RiscvOperand(operand_row)
+            operands[new_operand.name] = new_operand
         return operands
 
     def parse_instructions(self):
-        args = list(map( lambda x : x[0], self.meta['operands'] ))
         opcodes = list(map( lambda x : x[0], self.meta['opcodes'] ))
         codecs = list(map( lambda x : x[0], self.meta['codecs'] ))
         parsed_insts = []
@@ -252,8 +266,8 @@ class RiscvMeta:
             assert len(instline) > 0, 'unexpected end of instline during parsing'
 
             while instline[0] not in codecs:
-                if instline[0] in args:
-                    # known arg
+                if instline[0] in self.operands:
+                    # known operand
                     inst_args.append(instline[0])
                 else:
                     # bit constraint
@@ -469,6 +483,42 @@ endmodule
         with open(filename, 'w') as f:
             f.write(csrenum)
 
+    def print_imm_stub(self, filename):
+        # Find unique encodings
+        imm_encodings = {}
+        for operand in self.used_operands:
+            if self.operands[operand].is_imm():
+                if self.operands[operand].inst_bit_string in imm_encodings:
+                    imm_encodings[self.operands[operand].inst_bit_string] += [operand]
+                else:
+                    imm_encodings[self.operands[operand].inst_bit_string] = [operand]
+
+        keys = list(imm_encodings.keys())
+        keys.sort(key = lambda x: x[::-1])
+        for x in keys:
+            print("%-24s %s" % (str(imm_encodings[x]), x))
+
+        # Immediate type enumeration
+        imm_stub = 'typedef enum {\n'
+        imm_stub += '    IMM_NONE'
+        for operand in self.used_operands:
+            if self.operands[operand].is_imm():
+                imm_stub += ',\n    IMM_%s' % operand.upper()
+        imm_stub += '\n} ImmType deriving (Bits, Eq, FShow);\n\n'
+
+        # Immediate decoding function
+        imm_stub += 'function Maybe#(Data) getImm(Bit#(32) inst, ImmType immType);\n'
+        imm_stub += '    return (case (immType)\n'
+        for operand in self.used_operands:
+            if self.operands[operand].is_imm():
+                imm_stub += '            IMM_%s: tagged Valid %s;\n' % (operand.upper(), self.operands[operand].inst_bit_string)
+        imm_stub += '            default: tagged Invalid;\n'
+        imm_stub += '        endcase);\n'
+        imm_stub += 'endfunction\n'
+        with open(filename, 'w') as f:
+            f.write(imm_stub)
+
+
 if __name__ == '__main__':
     riscv_meta_dir = '../riscv-meta/meta/'
     ## TODO: make these inputs for this script
@@ -480,5 +530,6 @@ if __name__ == '__main__':
     rvmeta.print_bsv_decoder('Opcodes.bsv')
     rvmeta.print_verilog_decoder('toInstType_verilog.v')
     rvmeta.print_macro_definitions('Opcodes.defines')
-    rvmeta.print_csr_stub('CSRs.stub')
+    rvmeta.print_csr_stub('CSRs.stub.bsv')
+    rvmeta.print_imm_stub('Imm.stub.bsv')
 
