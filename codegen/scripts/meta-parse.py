@@ -114,9 +114,95 @@ def get_inst_types(args):
 
     return (rd, rs1, rs2, rs3, imm)
 
+class RiscvOperand:
+    def __init__(self, operand_row):
+        self.name = operand_row[0]
+        self.bit_string = operand_row[1]
+        self.operand_type = operand_row[2]
+        self.description = operand_row[3]
+
+        # parse bit_string
+        if '[' in self.bit_string:
+            # we have an immediate value
+            inst_bits = []
+            imm_bits = []
+            for bitrange in self.bit_string.split(','):
+                # we have something like a:b[x:y|z] or a[x]
+                raw_inst_bits = bitrange.split('[')[0]
+                raw_imm_bits = bitrange.split('[')[1].split(']')[0]
+                if ':' in raw_inst_bits:
+                    lrange, rrange = raw_inst_bits.split(':')
+                    inst_bits += range(int(lrange), int(rrange)-1, -1)
+                else:
+                    inst_bits += [int(raw_inst_bits)]
+                for y in raw_imm_bits.split('|'):
+                    if ':' in y:
+                        lrange, rrange = y.split(':')
+                        imm_bits += range(int(lrange), int(rrange)-1, -1)
+                    else:
+                        imm_bits += [int(y)]
+
+            # create bit_map dictionary
+            bit_map = {}
+            for i in range(len(inst_bits)):
+                bit_map[imm_bits[i]] = inst_bits[i]
+
+            # construct self.inst_bit_string
+            first_bit = True
+            i = 31
+            while i >= 0:
+                if i in bit_map:
+                    # look for sequential bits
+                    starting_i = i
+                    while i > 0 and i-1 in bit_map and bit_map[i-1] == bit_map[i]-1:
+                        i -= 1
+                    # prepare inst_bit_string
+                    if first_bit:
+                        self.inst_bit_string = '{'
+                        first_bit = False
+                    else:
+                        self.inst_bit_string += ', '
+                    # add inst[] to inst_bit_string
+                    if starting_i == i:
+                        # one bit
+                        self.inst_bit_string += "inst[%d]" % bit_map[i]
+                    else:
+                        # multiple bits
+                        self.inst_bit_string += "inst[%d:%d]" % (bit_map[starting_i], bit_map[i])
+                    i -= 1
+                elif not first_bit:
+                    # count sequential zero bits
+                    length = 0
+                    while i >= 0 and i not in bit_map:
+                        i -= 1
+                        length += 1
+                    self.inst_bit_string += ", %d'b0" % length
+                else:
+                    i -= 1
+            self.inst_bit_string += '}'
+
+            if self.is_simm():
+                self.inst_bit_string = 'signExtend(%s)' % self.inst_bit_string
+            elif self.is_uimm():
+                self.inst_bit_string = 'zeroExtend(%s)' % self.inst_bit_string
+        else:
+            self.inst_bit_string = 'inst[' + self.bit_string + ']'
+
+    def is_imm(self):
+        return self.operand_type == 'simm' or self.operand_type == 'offset' or self.operand_type == 'uimm'
+
+    def is_simm(self):
+        return self.operand_type == 'simm' or self.operand_type == 'offset'
+
+    def is_uimm(self):
+        return self.operand_type == 'uimm'
+
+    def __repr__(self):
+        return "<%s: %s %s>"%(self.name, self.operand_type, self.inst_bit_string)
+
 class RiscvMeta:
     def __init__(self, path, base, extension_letters):
-        # path should point to <path_to>/riscv-meta/meta
+        # path should point to something like path/to/riscv-meta/meta
         meta_files = ['codecs', 'compression', 'constraints', 'csrs', 'enums',
                 'extensions', 'formats', 'glossary', 'notation',
                 'opcode-descriptions', 'opcode-fullnames',
@@ -130,9 +216,16 @@ class RiscvMeta:
         ## TODO: make these inputs for this script
         self.extensions = [base + ext for ext in extension_letters]
 
+        self.operands = self.parse_operands()
         self.insts = self.parse_instructions()
 
         print('extensions = ' + str(self.extensions))
+
+    def parse_operands(self):
+        operands = []
+        for operand_row in self.meta['operands']:
+            operands += [RiscvOperand(operand_row)]
+        return operands
 
     def parse_instructions(self):
         args = list(map( lambda x : x[0], self.meta['operands'] ))
