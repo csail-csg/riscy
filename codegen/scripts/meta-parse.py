@@ -81,36 +81,28 @@ def bsv_match_mask_val(match, mask, width):
     return bsv_val
 
 def get_inst_types(args):
+    # TODO: Fix this function
     def get_reg_type(reg, args):
-        if reg in args:
-            return 'i'
-        elif 'f' + reg in args:
-            return 'f'
-        else:
-            return 'n'
-    def get_imm_type(args):
-        imm_mapping = {
-                'imm20'   : 'U',
-                'oimm20'  : 'U',
-                'jimm20'  : 'UJ',
-                'imm12'   : 'I',
-                'oimm12'  : 'I',
-                'simm12'  : 'S',
-                'sbimm12' : 'SB',
-                'zimm'    : 'Z',
-                'shamt5'  : 'I',
-                'shamt6'  : 'I'
-                }
-        for imm_name in imm_mapping:
-            if imm_name in args:
-                return imm_mapping[imm_name]
-        return 'None'
+        for arg in args:
+            if arg.is_reg():
+                if reg in arg.description:
+                    return arg.name.upper()
+                elif 'f' + reg in arg.description:
+                    return arg.name.upper()
+        return 'n'
+
+    imm = 'IMM_NONE'
+    for arg in args:
+        if arg.is_imm():
+            if imm != 'IMM_NONE':
+                print('ERROR: multiple immediates found!')
+            imm = arg.name.upper()
 
     rd  = get_reg_type('rd',  args)
     rs1 = get_reg_type('rs1', args)
     rs2 = get_reg_type('rs2', args)
     rs3 = get_reg_type('rs3', args)
-    imm = get_imm_type(args)
+    # imm = get_imm_type(args)
 
     return (rd, rs1, rs2, rs3, imm)
 
@@ -197,6 +189,9 @@ class RiscvOperand:
     def is_uimm(self):
         return self.operand_type == 'uimm'
 
+    def is_reg(self):
+        return self.operand_type == 'ireg' or self.operand_type == 'freg' or self.operand_type == 'creg'
+
     def __repr__(self):
         return "<%s: %s %s>"%(self.name, self.operand_type, self.inst_bit_string)
 
@@ -231,7 +226,7 @@ class RiscvMeta:
                             included_inst = False
                     if included_inst:
                         for operand in inst_args:
-                            self.used_operands[operand] = self.operands[operand]
+                            self.used_operands[operand.name] = operand
 
         print('extensions = ' + str(self.extensions))
 
@@ -268,7 +263,7 @@ class RiscvMeta:
             while instline[0] not in codecs:
                 if instline[0] in self.operands:
                     # known operand
-                    inst_args.append(instline[0])
+                    inst_args.append(self.operands[instline[0]])
                 else:
                     # bit constraint
                     (bits, val) = instline[0].split('=', 1)
@@ -346,7 +341,8 @@ function InstType toInstType(Instruction inst);
             macro_name = inst_name.replace('.','_').upper()
             (rd, rs1, rs2, rs3, imm) = get_inst_types(inst_args)
             if functools.reduce( lambda x, y: x or y, [x == y for x in inst_extension for y in self.extensions] ):
-                decoder = decoder + '            %-16sInstType{rs1: %s, rs2: %s, rs3: %s, dst: %s, imm: %-4s};\n' % ('`' + macro_name + ':',rs1,rs2,rs3,rd,imm)
+                # decoder = decoder + '            %-16sInstType{rs1: %s, rs2: %s, rs3: %s, dst: %s, imm: %-4s};\n' % ('`' + macro_name + ':',rs1,rs2,rs3,rd,imm)
+                decoder = decoder + '            %-16sInstType{rs1: %-08s rs2: %-08s rs3: %-08s dst: %-08s imm: %-4s};\n' % ('`' + macro_name + ':',rs1+',',rs2+',',rs3+',',rd+',',imm)
             else:
                 skipped_macros.append(macro_name)
         decoder = decoder + '''            default:        ?;
@@ -523,7 +519,7 @@ if __name__ == '__main__':
     riscv_meta_dir = '../riscv-meta/meta/'
     ## TODO: make these inputs for this script
     base = 'rv64'
-    extension_letters = 'imafds'
+    extension_letters = 'imafdcs'
 
     rvmeta = RiscvMeta(riscv_meta_dir, base, extension_letters)
 
