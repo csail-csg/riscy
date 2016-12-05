@@ -45,10 +45,6 @@ typedef Bit#(4) PendMemRespCount;
 typedef 4 DCacheWayNum;
 typedef 128 DCacheSetNum;
 
-function CLineDataSel getCLineDataSel(Addr a);
-    return truncate(a >> valueOf(TLog#(NumBytes)));
-endfunction
-
 typedef enum {I, S, M} MSI deriving(Bits, Eq);
 
 typedef enum {
@@ -142,6 +138,10 @@ module mkDCache#(GenericMemServer#(cacheLineSz) mainMemory)(Cache) provisos (
 
     function cacheTag getTag(Addr a);
         return truncateLSB(a);
+    endfunction
+
+    function logCLineNumData getCLineDataSel(Addr a);
+        return truncate(a >> valueOf(TLog#(TDiv#(XLEN,8))));
     endfunction
 
     // RAMs
@@ -412,14 +412,14 @@ module mkDCache#(GenericMemServer#(cacheLineSz) mainMemory)(Cache) provisos (
     // (3) set bypass
     // (4) reset pipeline reg to invalid
     // XXX: curState must be S if refill = True
-    function Action handleReq(RVDMemReq r, cacheWay way, Vector#(CLineNumData, Data) curLine, MSI curState, Bool refill);
+    function Action handleReq(RVDMemReq r, cacheWay way, Vector#(clineNumData, Data) curLine, MSI curState, Bool refill);
         return action
             cacheIndex reqIndex = getIndex(r.addr);
             cacheTag reqTag = getTag(r.addr);
             CLineDataSel reqDataSel = getCLineDataSel(r.addr);
 
             // value to be written back to ram
-            Vector#(CLineNumData, Data) newLine = curLine;
+            Vector#(clineNumData, Data) newLine = curLine;
             MSI newState = curState;
 
             // process

@@ -192,7 +192,7 @@ typedef enum {DMem, Ext} PortBUser deriving (Bits, Eq, FShow);
 module mkBramIDExtMem(IDMemWLoader);
     BRAM_Configure cfg = defaultValue;
     // BRAM2PortBE#(Bit#(12), Data, TDiv#(XLEN,8)) bram <- mkBRAM2ServerBE(cfg);
-    BRAM2PortBE#(Bit#(12), Data, TDiv#(XLEN,8)) bram <- mkCustomBRAM2ServerBE(cfg);
+    BRAM2PortBE#(Bit#(16), Data, TDiv#(XLEN,8)) bram <- mkCustomBRAM2ServerBE(cfg);
 
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingIReq   <- mkEhr(tagged Invalid);
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingDReq   <- mkEhr(tagged Invalid);

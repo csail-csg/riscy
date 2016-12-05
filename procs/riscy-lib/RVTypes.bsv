@@ -38,21 +38,12 @@ typedef Bit#(DataSz) Data;
 typedef Bit#(TDiv#(DataSz,8)) DataByteEn;
 typedef Bit#(TLog#(TDiv#(DataSz,8))) DataByteSel; // Type of byte select value for Data
 
-typedef DataSz WordSz;
-typedef Bit#(WordSz) Word;
-typedef Bit#(TDiv#(WordSz,8)) WordByteEn;
-
-typedef 512 CacheLineSz;
-typedef Bit#(CacheLineSz) CacheLine;
-typedef TDiv#(CacheLineSz, DataSz) CLineNumData;
-typedef TLog#(CLineNumData) LogCLineNumData;
-typedef Bit#(LogCLineNumData) CLineDataSel;
-typedef TDiv#(CacheLineSz, 8) CLineNumBytes;
-typedef TLog#(CLineNumBytes) LogCLineNumBytes;
+typedef 512 CacheLineSz; // Used in DCache.bsv
 
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
 
+// Virtual address
 typedef XLEN AddrSz;
 typedef Bit#(AddrSz) Addr;
 
@@ -127,10 +118,6 @@ function InstructionFields getInstFields(Instruction x);
             csr:        unpack(x[31:20])
         };
 endfunction
-
-typedef TDiv#(DataSz, 8) NumBytes;
-typedef TLog#(NumBytes) IndxShamt;
-typedef Vector#(NumBytes, Bool) ByteEn;
 
 // This encoding partially matches rocket, one day we may be able to use the same caches
 // These are requests that a processor may send to the 
@@ -427,20 +414,6 @@ typedef `PHYS_REG_COUNT NumPhyReg;
 `else
 typedef NumArchReg NumPhyReg;
 `endif
-
-// // This is not really needed now
-// typedef struct {
-//     Maybe#(ArchRIndx) src1;
-//     Maybe#(ArchRIndx) src2;
-//     Maybe#(ArchRIndx) src3;
-//     Maybe#(ArchRIndx) dst;
-// } ArchRegs deriving (Bits, Eq, FShow);
-// typedef struct {
-//     Maybe#(PhyRIndx) src1;
-//     Maybe#(PhyRIndx) src2;
-//     Maybe#(PhyRIndx) src3;
-//     Maybe#(PhyRIndx) dst;
-// } PhyRegs deriving (Bits, Eq, FShow);
 
 typedef enum {
     Load    = 7'b0000011,
@@ -855,14 +828,6 @@ function Bool isCacheable(PMA pma);
                 default: False;
             endcase);
 endfunction
-
-typedef 4 NumSpecTags;
-typedef Bit#(TLog#(NumSpecTags)) SpecTag;
-typedef Bit#(NumSpecTags) SpecBits;
-
-// typedef 32 NumInstTags; // Old definition
-typedef TSub#(NumPhyReg, NumArchReg) NumInstTags;
-typedef Bit#(TLog#(NumInstTags)) InstTag;
 
 Bit#(2) prvU = 0;
 Bit#(2) prvS = 1;
