@@ -33,7 +33,6 @@ import Vector::*;
 import Ehr::*;
 
 import Abstraction::*;
-import RVAmo::*;
 import RVExec::*; // for scatterStore and gatherLoad
 import RVTypes::*;
 
