@@ -194,16 +194,28 @@ module mkBramIDExtMem(IDMemWLoader);
     BRAM2PortBE#(Bit#(16), Data, TDiv#(XLEN,8)) bram <- mkCustomBRAM2ServerBE(cfg);
 
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingIReq   <- mkEhr(tagged Invalid);
-    Ehr#(2, Maybe#(BramDMemPendingReq)) pendingDReq   <- mkEhr(tagged Invalid);
-    Ehr#(2, Maybe#(BramDMemPendingReq)) pendingExtReq <- mkEhr(tagged Invalid);
+    Ehr#(3, Maybe#(BramDMemPendingReq)) pendingDReq   <- mkEhr(tagged Invalid);
+    Ehr#(3, Maybe#(GenericMemReq#(XLEN))) pendingExtReq <- mkEhr(tagged Invalid);
 
     // for multiplexing portB between DMem and ExtMem
-    Ehr#(4, Maybe#(PortBUser)) portBReq <- mkEhr(tagged Invalid);
+    Ehr#(6, Maybe#(PortBUser)) portBReq <- mkEhr(tagged Invalid);
 
-    rule clearDMemStResp(pendingDReq[0] matches tagged Valid .req &&& req.write &&& portBReq[0] == tagged Valid DMem);
-        let ignore <- bram.portB.response.get;
-        pendingDReq[0] <= tagged Invalid;
-        portBReq[0] <= tagged Invalid;
+    // DMem no longer requests responses on writes
+    rule clearDMemStResp(pendingDReq[1] matches tagged Valid .req &&& req.write &&& portBReq[2] == tagged Valid DMem);
+        // let ignore <- bram.portB.response.get;
+        pendingDReq[1] <= tagged Invalid;
+        portBReq[2] <= tagged Invalid;
+    endrule
+
+    rule doDelayedExtReq if (pendingExtReq[1] matches tagged Valid .r &&& portBReq[3] == tagged Invalid);
+        // this is done if an external request couldn't be performed when requested
+        bram.portB.request.put( BRAMRequestBE {
+                writeen:            r.write ? r.byteen : 0,
+                responseOnWrite:    True,
+                address:            truncate(r.addr >> valueOf(TLog#(TDiv#(XLEN,8)))), // get word address
+                datain:             r.data
+            } );
+        portBReq[3] <= tagged Valid Ext;
     endrule
 
     interface Server imem;
@@ -235,22 +247,22 @@ module mkBramIDExtMem(IDMemWLoader);
 
     interface Server dmem;
         interface Put request;
-            method Action put(RVDMemReq r) if (pendingDReq[1] == tagged Invalid && portBReq[2] == tagged Invalid);
+            method Action put(RVDMemReq r) if (pendingDReq[2] == tagged Invalid && portBReq[4] == tagged Invalid);
                 Bool isLd = r.op == tagged Mem Ld;
                 let {permutedDataByteEn, permutedStData} = scatterStore(truncate(r.addr), r.size, r.data);
                 bram.portB.request.put( BRAMRequestBE {
                         writeen:            isLd ? 0 : permutedDataByteEn,
-                        responseOnWrite:    True,
+                        responseOnWrite:    False,
                         address:            truncate(r.addr >> valueOf(TLog#(TDiv#(XLEN,8)))), // get word address
                         datain:             permutedStData
                     } );
-                pendingDReq[1] <= tagged Valid BramDMemPendingReq {
+                pendingDReq[2] <= tagged Valid BramDMemPendingReq {
                         write: !isLd,
                         addrByteSel: truncate(r.addr),
                         size: r.size,
                         isUnsigned: r.isUnsigned
                     };
-                portBReq[2] <= tagged Valid DMem;
+                portBReq[4] <= tagged Valid DMem;
             endmethod
         endinterface
         interface Get response;
@@ -266,31 +278,15 @@ module mkBramIDExtMem(IDMemWLoader);
 
     interface Server ext;
         interface Put request;
-            method Action put(GenericMemReq#(XLEN) r) if (pendingExtReq[1] == tagged Invalid && portBReq[3] == tagged Invalid);
-                Bool isLd = !r.write;
+            method Action put(GenericMemReq#(XLEN) r) if (pendingExtReq[2] == tagged Invalid);
                 // XXX: This method assumes all accesses are word aligned
                 Bit#(TLog#(TDiv#(XLEN,8))) offset = truncate(r.addr);
                 if (offset != 0) begin
                     $fdisplay(stderr, "[ERROR] ExtMemReq is not word aligned");
                 end
 
-                bram.portB.request.put( BRAMRequestBE {
-                        writeen:            isLd ? 0 : r.byteen,
-                        responseOnWrite:    True,
-                        address:            truncate(r.addr >> valueOf(TLog#(TDiv#(XLEN,8)))), // get word address
-                        datain:             r.data
-                    } );
-                pendingExtReq[1] <= tagged Valid BramDMemPendingReq {
-                        write: !isLd,
-                        addrByteSel: truncate(r.addr),
-`ifdef CONFIG_RV64
-                        size: D,
-`else
-                        size: W,
-`endif
-                        isUnsigned: False
-                    };
-                portBReq[3] <= tagged Valid Ext;
+                // The actually memory request is performed in the doDelayedExtReq rule
+                pendingExtReq[2] <= tagged Valid r;
             endmethod
         endinterface
         interface Get response;

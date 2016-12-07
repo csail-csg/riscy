@@ -93,7 +93,7 @@ module mkThreeStageCore#(
             Bool externalInterrupt,
             Data hartID
         )(Core);
-    ArchRFile rf <- mkArchRFile;
+    ArchRFile rf <- mkBypassArchRFile;
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 
 `ifdef CONFIG_M
@@ -127,9 +127,10 @@ module mkThreeStageCore#(
 
         // check for interrupts
         Maybe#(TrapCause) trap = tagged Invalid;
-        if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
-            trap = tagged Valid (tagged Interrupt validInterrupt);
-        end
+        // TODO: Implement interrupts without creating a conflict between execute and write-back
+        // if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
+        //     trap = tagged Valid (tagged Interrupt validInterrupt);
+        // end
 
         // get the instruction
         let inst <- ifetch.response.get;
@@ -284,6 +285,10 @@ module mkThreeStageCore#(
                 interrupt: isInterrupt,
                 cause: trapCause } );
 
+        // This split attribute is required to produce multiple rules so the
+        // ifetch.response.get method doesn't cause this rule to conflict
+        // with the execute rule.
+        (* split *)
         if (maybeNextPc matches tagged Valid .replayPc) begin
             // This instruction is not writing to the register file
             // it is either an instruction that requires flushing the pipeline
