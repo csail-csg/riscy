@@ -176,9 +176,9 @@ VerificationPacket SpikeTandemVerifier::synchronizedSimStep(VerificationPacket p
         }
 #endif
     } else {
-        // if no instructions have been retired yet, assume spike starts at
-        // address 0x1000
-        spikePacket.pc = 0x1000;
+        // if no instructions have been retired yet, assume spike starts at the
+        // same address as the processor.
+        spikePacket.pc = packet.pc;
     }
     try {
         spikePacket.instruction = sim->get_core(0)->get_mmu()->load_uint32(spikePacket.pc);
