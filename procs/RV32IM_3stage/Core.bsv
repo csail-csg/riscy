@@ -128,9 +128,9 @@ module mkThreeStageCore#(
         // check for interrupts
         Maybe#(TrapCause) trap = tagged Invalid;
         // TODO: Implement interrupts without creating a conflict between execute and write-back
-        // if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
-        //     trap = tagged Valid (tagged Interrupt validInterrupt);
-        // end
+        if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
+            trap = tagged Valid (tagged Interrupt validInterrupt);
+        end
 
         // get the instruction
         let inst <- ifetch.response.get;

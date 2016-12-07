@@ -79,15 +79,14 @@ module mkRVCsrFile#(
     Addr default_mtvec = 'h0000_1000;
     Addr default_stvec = 'h0000_8000;
 
+    // This is used to allow the readyInterruptSignal to be read after writing to the CSRF
+    Wire#(Maybe#(InterruptCause)) readyInterruptWire <- mkDWire(tagged Invalid);
+
     Reg#(Bit#(2)) prv <- mkReg(prvM); // resets to machine mode
 
     // Counters
     Reg#(Bit#(64)) cycle_counter <- mkReg(0);
     Reg#(Bit#(64)) instret_counter <- mkReg(0);
-
-    rule incCycleCounter;
-        cycle_counter <= cycle_counter + 1;
-    endrule
 
     // Counter enables
     Reg#(Bit#(1)) u_ir_field <- mkReg(0);
@@ -465,8 +464,37 @@ module mkRVCsrFile#(
             endcase);
     endfunction
 
+    function Maybe#(InterruptCause) readyInterruptFunc();
+        Bit#(12) ready_interrupts = truncate(mip_csr) & truncate(mie_csr);
+        // machine mode
+        let ready_machine_interrupts = ready_interrupts & ~truncate(mideleg_csr);
+        Bool machine_interrupts_enabled = (mie_field == 1) || (prv < prvM);
+        // supervisor mode
+        let ready_supervisor_interrupts = ready_interrupts & truncate(mideleg_csr) & ~truncate(sideleg_csr);
+        Bool supervisor_interrupts_enabled = ((sie_field == 1) && (prv == prvS)) || (prv < prvS);
+        // user mode
+        let ready_user_interrupts = ready_interrupts & truncate(mideleg_csr) & truncate(sideleg_csr);
+        let user_interrupts_enabled = (uie_field == 1) && (prv == prvU);
+        // combined
+        ready_interrupts = (machine_interrupts_enabled ? ready_machine_interrupts : 0)
+                            | (supervisor_interrupts_enabled ? ready_supervisor_interrupts : 0)
+                            | (user_interrupts_enabled ? ready_user_interrupts : 0);
+        // format pendingInterrupt value to return
+        Maybe#(InterruptCause) ret = tagged Invalid;
+        if (ready_interrupts != 0) begin
+            // pack/unpack type conversion:
+            // UInt#(TLog#(TAdd#(12,1))) == UInt#(4) -> Bit#(4) -> InterruptCause
+            ret = tagged Valid unpack(pack(countZerosLSB(ready_interrupts)));
+        end
+        return ret;
+    endfunction
+
     // RULES
     ////////////////////////////////////////////////////////
+
+    rule setReadyInterruptWire;
+        readyInterruptWire <= readyInterruptFunc();
+    endrule
 
     rule incrementCycle;
         cycle_counter <= cycle_counter + 1;
@@ -521,28 +549,7 @@ module mkRVCsrFile#(
     method CsrState csrState = CsrState {prv: prv, frm: frm_field, f_enabled: (fs_field != 0), x_enabled: (xs_field != 0)};
 
     method Maybe#(InterruptCause) readyInterrupt;
-        Bit#(12) ready_interrupts = truncate(mip_csr) & truncate(mie_csr);
-        // machine mode
-        let ready_machine_interrupts = ready_interrupts & ~truncate(mideleg_csr);
-        Bool machine_interrupts_enabled = (mie_field == 1) || (prv < prvM);
-        // supervisor mode
-        let ready_supervisor_interrupts = ready_interrupts & truncate(mideleg_csr) & ~truncate(sideleg_csr);
-        Bool supervisor_interrupts_enabled = ((sie_field == 1) && (prv == prvS)) || (prv < prvS);
-        // user mode
-        let ready_user_interrupts = ready_interrupts & truncate(mideleg_csr) & truncate(sideleg_csr);
-        let user_interrupts_enabled = (uie_field == 1) && (prv == prvU);
-        // combined
-        ready_interrupts = (machine_interrupts_enabled ? ready_machine_interrupts : 0)
-                            | (supervisor_interrupts_enabled ? ready_supervisor_interrupts : 0)
-                            | (user_interrupts_enabled ? ready_user_interrupts : 0);
-        // format pendingInterrupt value to return
-        Maybe#(InterruptCause) ret = tagged Invalid;
-        if (ready_interrupts != 0) begin
-            // pack/unpack type conversion:
-            // UInt#(TLog#(TAdd#(12,1))) == UInt#(4) -> Bit#(4) -> InterruptCause
-            ret = tagged Valid unpack(pack(countZerosLSB(ready_interrupts)));
-        end
-        return ret;
+        return readyInterruptWire;
     endmethod
 
     method ActionValue#(CsrReturn) wr(
