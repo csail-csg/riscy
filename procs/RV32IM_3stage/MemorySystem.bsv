@@ -57,7 +57,7 @@ module mkTightlyCoupledMemorySystem(TightlyCoupledMemorySystem);
 
     // address decoding the dmem port of the sram for uncachedMemClient
     function Bit#(1) whichServer(RVDMemReq r);
-        return (r.addr > 'h4000_0000) ? 1 : 0;
+        return (r.addr >= 'h4000_0000) ? 1 : 0;
     endfunction
     function Bool getsResponse(RVDMemReq r);
         return r.op != tagged Mem St;
