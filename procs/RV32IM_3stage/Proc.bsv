@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -35,9 +35,11 @@ import ClientServerUtil::*;
 import ServerUtil::*;
 
 import Abstraction::*;
+import BasicMemorySystemBlocks::*;
+import BRAMTightlyCoupledMemory::*;
 import Core::*;
-import MemorySystem::*;
 import MemoryMappedCSRs::*;
+import RTC::*;
 import RVTypes::*;
 import VerificationPacket::*;
 import VerificationPacketFilter::*;
@@ -51,22 +53,47 @@ module mkProc(Proc#(DataSz));
     // 0x0000_0000 - 0x4000_0000 : tightly coupled memory (not all used)
     // 0x4000_0000 - 0xFFFF_FFFF : mmio
 
-    // simple timer
-    Reg#(Bit#(TAdd#(64,10))) timer <- mkReg(0);
-    rule incrementTiemr;
-        timer <= timer + 1;
-    endrule
+`ifdef CONFIG_RV32
+    RTC#(1) rtc <- mkRTC_RV32;
+`else
+    RTC#(1) rtc <- mkRTC_RV64;
+`endif
+
+    Bool timer_interrupt = rtc.timerInterrupt[0];
+    Bit#(64) timer_value = rtc.timerValue;
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
-    // TCM as main memory
-    TightlyCoupledMemorySystem memorySystem <- mkTightlyCoupledMemorySystem;
+    // Instead of using mkTightlyCoupledMemorySystem from MemorySystem.bsv, we
+    // are including the mkBramIDExtMem here. This allows us to attach the RTC
+    // without adding another mkServerJoiner.
+
+    // Shared I/D Memory
+    let sram <- mkBramIDExtMem;
+
+    // This is the new way:
+    FIFO#(UncachedMemReq) uncachedReqFIFO <- mkFIFO;
+    FIFO#(UncachedMemResp) uncachedRespFIFO <- mkFIFO;
+    let mmio_server <- mkUncachedConverter(toGPServer(uncachedReqFIFO, uncachedRespFIFO));
+    let rtc_server <- mkUncachedConverter(rtc.memifc);
+
+    // address decoding the dmem port of the sram for the RTC and MMIO
+    function Bit#(2) whichServer(RVDMemReq r);
+        if (r.addr >= 'h4000_0000) return 2;
+        else if (r.addr >= 'h2000_0000) return 1;
+        else return 0;
+    endfunction
+    function Bool getsResponse(RVDMemReq r);
+        return r.op != tagged Mem St;
+    endfunction
+    let proc_dmem <- mkServerJoiner(whichServer, getsResponse, 2, vec(sram.dmem, rtc_server, mmio_server));
+
     Core core <- mkThreeStageCore(
-                    memorySystem.ifetch,
-                    memorySystem.dmem,
+                    sram.imem,
+                    proc_dmem,
                     False, // inter-process interrupt
-                    False, // timer interrupt
-                    truncateLSB(timer), // timer value
+                    timer_interrupt, // timer interrupt
+                    timer_value, // timer value
                     extInterruptWire, // external interrupt
                     0); // hart ID
 
@@ -131,9 +158,9 @@ module mkProc(Proc#(DataSz));
         endinterface
     endinterface
 
-    interface UncachedMemClient mmio = memorySystem.mmio;
+    interface UncachedMemClient mmio = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
 
-    interface GenericMemServer extmem = memorySystem.ext;
+    interface GenericMemServer extmem = sram.ext;
 
     // Interrupts
     method Action triggerExternalInterrupt;

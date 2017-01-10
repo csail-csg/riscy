@@ -21,6 +21,10 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+
+// NOTE: This file is no longer used by the RV32IM_3stage processor.
+// Instead the processor includes the memory system directly in Proc.bsv.
+
 import BuildVector::*;
 import ClientServer::*;
 import FIFO::*;
