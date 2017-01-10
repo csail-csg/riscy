@@ -204,7 +204,8 @@ module mkThreeStageCore#(
                                                 };
     endrule
 
-    rule doWriteBack(writeBackStateEhr[0] matches tagged Valid .writeBackState);
+    rule doWriteBack(writeBackStateEhr[0] matches tagged Valid .writeBackState
+                        &&& (writeBackState.dInst.execFunc != tagged System WFI || ipi || timerInterrupt));
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
         let dInst = writeBackState.dInst;
