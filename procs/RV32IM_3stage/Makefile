@@ -27,6 +27,8 @@ CONNECTALFLAGS += -D CONFIG_RV32
 # Use a 32-bit data bus for shared memory in connectal
 CONNECTALFLAGS += -D DataBusWidth=32
 
+ACCELERATORS=DebugAccel
+
 # This processor can be configured as an RV64 processor by uncommenting these
 # two lines below and commenting out the two lines above.
 # CONNECTALFLAGS += -D CONFIG_RV64
