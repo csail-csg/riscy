@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -133,20 +133,28 @@ void Platform::memResponse(const int write, const uint64_t data) {
 
 #ifdef CONFIG_ACCESS_USING_EXT_IFC
 
-void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
+void Platform::read_chunk(uint64_t taddr, size_t len, void* dst) {
 #ifdef CONFIG_RV64
     size_t xlen_bytes = 8;
 #else
     size_t xlen_bytes = 4;
 #endif
-    if (len != xlen_bytes) {
+    while (len > xlen_bytes) {
+        // multiple writes required
+        uint64_t data = memRead(taddr);
+        memcpy(dst, &data, xlen_bytes);
+        taddr += xlen_bytes;
+        dst = (void*) (((char*) dst) + xlen_bytes);
+        len -= xlen_bytes;
+    }
+    if (len < xlen_bytes) {
         fprintf(stderr, "Platform::read_chunk is not reading a full xlen bytes\n");
     }
     uint64_t data = memRead(taddr);
     memcpy(dst, &data, len);
 }
 
-void Platform::write_chunk(addr_t taddr, size_t len, const void* src) {
+void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
 #ifdef CONFIG_RV64
     size_t xlen_bytes = 8;
 #else
@@ -154,7 +162,15 @@ void Platform::write_chunk(addr_t taddr, size_t len, const void* src) {
 #endif
 
     uint64_t data = 0;
-    if (len != xlen_bytes) {
+    while (len > xlen_bytes) {
+        // multiple writes required
+        memcpy(&data, src, xlen_bytes);
+        memWrite(taddr, data);
+        taddr += xlen_bytes;
+        src = (void*) (((char*) src) + xlen_bytes);
+        len -= xlen_bytes;
+    }
+    if (len < xlen_bytes) {
         fprintf(stderr, "Platform::write_chunk is not writing a full xlen bytes\n");
         data = memRead(taddr);
     }
@@ -181,7 +197,7 @@ size_t Platform::chunk_max_size() {
 
 #else
 
-void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
+void Platform::read_chunk(uint64_t taddr, size_t len, void* dst) {
     assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);
@@ -200,7 +216,7 @@ void Platform::read_chunk(addr_t taddr, size_t len, void* dst) {
     }
 }
 
-void Platform::write_chunk(addr_t taddr, size_t len, const void* src) {
+void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
     assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);

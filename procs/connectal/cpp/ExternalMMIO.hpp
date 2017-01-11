@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -36,6 +36,7 @@ class ExternalMMIO : public ExternalMMIORequestWrapper {
         ~ExternalMMIO();
 
         void addDevice(const uint64_t addr, abstract_device_t* device);
+        void triggerInterrupt();
 
     private:
         void request(const int write, const uint8_t length, const uint64_t addr, const uint64_t data);

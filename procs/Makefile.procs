@@ -1,5 +1,5 @@
 
-# Copyright (c) 2016 Massachusetts Institute of Technology
+# Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -62,9 +62,9 @@ CPPFILES += \
 	$(RISCY_HOME)/procs/connectal/cpp/ProcControl.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/Verification.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/HTIF.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/PrintTrace.cpp \
+	$(RISCY_HOME)/procs/connectal/cpp/ElfLoader.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 
@@ -131,7 +131,7 @@ CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/riscv
 CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/
 CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/hwacha
 CONNECTALFLAGS += -I$(RISCY_TOOLS)/include/spike
-CONNECTALFLAGS += --stl=c++_static --cxxflags=" -UNDEBUG -std=gnu++11 -fexceptions" -D PREFIX="\"/mnt/sdcard\""
+CONNECTALFLAGS += --stl=c++_static --cxxflags=" -UNDEBUG -std=gnu++11 -fexceptions "
 
 FESVR_SRC_DIR = $(RISCY_HOME)/riscv-tools/riscv-fesvr/fesvr
 FESVR_SRC_FILES = $(addprefix $(FESVR_SRC_DIR)/, context.cc htif.cc htif_pthread.cc device.cc memif.cc rfb.cc syscall.cc elfloader.cc term.cc)

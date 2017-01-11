@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -31,6 +31,10 @@ ExternalMMIO::ExternalMMIO(unsigned int requestId, unsigned int responseId) : Ex
 
 void ExternalMMIO::addDevice(const uint64_t addr, abstract_device_t* device) {
     bus.add_device((reg_t) addr, device);
+}
+
+void ExternalMMIO::triggerInterrupt() {
+    externalMMIOResponse->triggerExternalInterrupt();
 }
 
 void ExternalMMIO::request(const int write, const uint8_t length, const uint64_t addr, const uint64_t data) {

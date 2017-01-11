@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -24,8 +24,6 @@
 #ifndef PLATFORM_HPP
 #define PLATFORM_HPP
 
-#include "fesvr/memif.h"
-
 #include "DmaBuffer.h"
 #include "PlatformIndication.h"
 #include "PlatformRequest.h"
@@ -38,18 +36,23 @@ class Platform : PlatformIndicationWrapper {
 
         virtual void init();
 
+        bool load_elf(const char* elf_filename);
+
         uint64_t memRead(uint64_t addr);
         void memWrite(uint64_t addr, uint64_t data);
 
         // functions for accessing the platform
-        virtual void read_chunk(addr_t taddr, size_t len, void* dst);
-        virtual void write_chunk(addr_t taddr, size_t len, const void* src);
+        virtual void read_chunk(uint64_t taddr, size_t len, void* dst);
+        virtual void write_chunk(uint64_t taddr, size_t len, const void* src);
         virtual size_t chunk_align();
         virtual size_t chunk_max_size();
 
     private:
         // called by connectal thread
         void memResponse(const int write, const uint64_t data);
+
+        template <typename Elf_Ehdr, typename Elf_Phdr>
+        bool load_elf_specific(char* buf, size_t buf_sz);
 
         bool verbose;
 

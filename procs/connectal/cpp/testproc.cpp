@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -43,8 +43,8 @@
 #include "Verification.hpp"
 #include "PerfMonitor.hpp"
 #include "ExternalMMIO.hpp"
-#include "HTIF.hpp"
 #include "DeviceTree.hpp"
+#include "Devices.hpp"
 
 #include "NullTandemVerifier.hpp"
 #include "SpikeTandemVerifier.hpp"
@@ -67,7 +67,10 @@ static ProcControl *procControl = NULL;
 static Verification *verification = NULL;
 static PerfMonitor *perfMonitor = NULL;
 static ExternalMMIO *externalMMIO = NULL;
-static HTIF *htif = NULL;
+
+// devices
+static emulated_uart_t *uart = NULL;
+static exit_code_reg_t *exit_code_reg = NULL;
 
 // The amount of RAM attached to the processor. 64 MB by default
 size_t ramSz = 64 * 1024 * 1024;
@@ -85,7 +88,7 @@ static void handle_signal(int sig) {
 
 void printHelp(const char *prog)
 {
-    fprintf(stderr, "Usage: %s [--just-run] HTIF_ARGS\n", prog);
+    fprintf(stderr, "Usage: %s [--just-run] <elf-file>\n", prog);
 }
 
 int main(int argc, char * const *argv) {
@@ -112,6 +115,13 @@ int main(int argc, char * const *argv) {
         argc--;
         argv++;
     }
+    if (argc <= 0) {
+        fprintf(stderr, "[ERROR] missing elf file\n");
+        printHelp(prog_name);
+        exit(1);
+    }
+
+    const char *elf_name = argv[0];
 
     signal(SIGINT, &handle_signal);
 
@@ -125,21 +135,6 @@ int main(int argc, char * const *argv) {
     setenv("SOFTWARE_SOCKET_NAME", socket_name, 0);
 #endif
 
-    // format htif args
-    std::vector<std::string> htif_args;
-    fprintf(stderr, "htif_args: ");
-    for (int i = 0 ; i < argc ; i++ ) {
-        // adding argument
-        htif_args.push_back(argv[i]);
-        // printing arguments
-        fprintf(stderr, "%s", argv[i]);
-        if (i == argc-1) {
-            fprintf(stderr, "\n");
-        } else {
-            fprintf(stderr, ", ");
-        }
-    }
-
     // objects for controlling the interaction with the processor
     procControl = new ProcControl(IfcNames_ProcControlIndicationH2S, IfcNames_ProcControlRequestS2H);
     if (just_run) {
@@ -148,12 +143,21 @@ int main(int argc, char * const *argv) {
     } else if (just_trace) {
         verification = new Verification(IfcNames_VerificationIndicationH2S, new PrintTrace());
     } else {
-        // ERROR
-        fprintf(stderr, "WARNING: Spike-based tandem verification is not fully tested for priv spec v1.9 yet\n");
-        verification = new Verification(IfcNames_VerificationIndicationH2S, new SpikeTandemVerifier(htif_args, ramSz));
+        // HTIF is no longer used, so throw an error until HTIF has been
+        // removed from Spike.
+        fprintf(stderr, "ERROR: Spike-based tandem verification is not supported without HTIF at the moment\n");
+        exit(1);
+        // This is the old code
+        // verification = new Verification(IfcNames_VerificationIndicationH2S, new SpikeTandemVerifier(htif_args, ramSz));
     }
     perfMonitor = new PerfMonitor(IfcNames_PerfMonitorIndicationH2S, IfcNames_PerfMonitorRequestS2H);
     externalMMIO = new ExternalMMIO(IfcNames_ExternalMMIORequestH2S, IfcNames_ExternalMMIOResponseS2H);
+
+    // add some devices to externalMMIO
+    uart = new emulated_uart_t();
+    exit_code_reg = new exit_code_reg_t();
+    externalMMIO->addDevice( 0x40000000, uart );
+    externalMMIO->addDevice( 0x60000000, exit_code_reg );
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
     printf("Requested main clock frequency %5.2f, actual clock frequency %5.2f MHz status=%d errno=%d\n",
@@ -168,18 +172,16 @@ int main(int argc, char * const *argv) {
                             0,          romSz); // rom base and size
     platform->init();
 
-    // Connect an HTIF module up to the procControl interfaces
-    htif = new HTIF(htif_args, procControl, platform);
+    // TODO: program processor using the provided elf file
+    std::cout << "Loading elf: " << elf_name << std::endl;
+    platform->load_elf( elf_name );
+    // TODO: run the processor (possibly wait until the processor is done)
+    procControl->reset();
+    procControl->start(0);
+    // TODO: get the result of the processor
+    int result = exit_code_reg->wait_for_exit_code();
 
-    // This function loads the specified program, and runs the test
-    int result = htif->run();
     perfMonitor->setEnable(0);
-
-    if (result == 0) {
-        fprintf(stderr, "[32mPASSED[39m\n");
-    } else {
-        fprintf(stderr, "[31mFAILED %d[39m\n", (int) result);
-    }
 
 #ifdef SIMULATION
     unlink(socket_name);
