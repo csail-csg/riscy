@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -37,8 +37,35 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
     Reg#(Bool) sendSynchronization <- mkReg(False);
     FIFO#(VerificationPacket) packets <- mkFIFO;
 
+`ifdef CONFIG_TEXTFILE_DEBUG
+    Reg#(Bit#(64)) packet_count <- mkReg(1);
+    Reg#(Bit#(64)) time_init <- mkReg('1);
+    Reg#(Bool) tracefile_init <- mkReg(False);
+    Reg#(File) tracefile <- mkReg(tagged InvalidFile);
+    rule openFile(!tracefile_init);
+        let file <- $fopen("trace.txt", "w");
+        tracefile <= file;
+        tracefile_init <= True;
+    endrule
+`endif
+
     rule getPackets;
         let packet <- packetIn;
+
+`ifdef CONFIG_TEXTFILE_DEBUG
+        if (tracefile != tagged InvalidFile) begin
+            let t <- $time;
+            packet_count <= packet_count + 1;
+            t = t >> 1;
+            if (time_init == '1) begin
+                time_init <= t - 1;
+                t = 1;
+            end else begin
+                t = t - time_init;
+            end
+            $fwrite(tracefile, "%0d - %0d - %08x\n", t, packet_count, packet.pc);
+        end
+`endif
 
         // update skippedPackets field
         packet.skippedPackets = skippedCounter;

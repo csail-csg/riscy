@@ -1,5 +1,5 @@
 
-# Copyright (c) 2016 Massachusetts Institute of Technology
+# Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -39,6 +39,8 @@ CONNECTALFLAGS += -D CONFIG_S
 CONNECTALFLAGS += -D CONFIG_U
 CONNECTALFLAGS += -D CONFIG_ACCESS_USING_EXT_IFC
 CONNECTALFLAGS += -D CONFIG_START_PC_0
+# This is for printing to textfiles
+# CONNECTALFLAGS += -D CONFIG_TEXTFILE_DEBUG
 
 # Suppress "duplicate folder" and "unfolding over ... steps" warnings
 # CONNECTALFLAGS += --bscflags=" -suppress-warnings S0073:G0024 "
