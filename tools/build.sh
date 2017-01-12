@@ -81,7 +81,7 @@ echo "Building riscv-tests..."
 cd $RISCV
 mkdir build-tests
 cd build-tests
-../../riscv-tests/configure --prefix=$RISCV/riscv$XLEN-unknown-elf
+../../riscv-tests/configure --prefix=$RISCV/riscv$XLEN-unknown-elf --with-xlen=$XLEN
 # This may fail since some riscv-tests require ISA extensions
 # Also there is an issue with building 32-bit executables when gcc is
 # configured with --with-arch=<isa>

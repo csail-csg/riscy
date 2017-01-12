@@ -26,7 +26,9 @@
 # subsets of the RISC-V ISA.
 
 # Points to root folder of repository
-export RISCY_HOME=$PWD
+RISCY_HOME=$PWD
+
+[ "$0" == "$BASH_SOURCE" ] && echo "[WARNING] This scipt needs to be sourced to correctly setup the environment variables"
 
 if [ ! -d $RISCY_HOME/tools ] ; then
     echo "[ERROR] Can't find folder $RISCY_HOME/tools"
@@ -38,35 +40,39 @@ if [ ! -d $RISCY_HOME/tools ] ; then
 fi
 
 if [ $# -eq 0 ] ; then
-    TOOLCHAIN=riscv
-    if [ ! -d $RISCY_HOME/tools/$TOOLCHAIN ] ; then
-        echo "[ERROR] $RISCH_HOME/tools/riscv does not exist"
-        echo ""
-        echo "To build this toolchain, go to the tools folder and run ./build.sh"
-        return 1
-    fi
+    TOOLCHAIN=RV64G
 else
-    # This should be an ISA string like RV32IM
     TOOLCHAIN=$1
-    if echo "$TOOLCHAIN" | grep -vqE "^RV(32|64)" ; then
-        # error
-        echo "[ERROR] This script expects either no command line argument, or a RISC-V ISA"
-        echo "string in all caps as an input (example: RV64IMAFDC)"
-        return 1
-    fi
-    if [ ! -d $RISCY_HOME/tools/$TOOLCHAIN ] ; then
-        echo "[ERROR] $RISCH_HOME/tools/riscv does not exist"
-        echo ""
-        echo "To build this toolchain, go to the tools folder and run"
-        echo "./build-specific-isa.sh $TOOLCHAIN"
-        return 1
-    fi
 fi
 
-# Points to tool chain built tiscv-tools
+# TOOLCHAIN should be an ISA string like RV32IM
+
+if echo "$TOOLCHAIN" | grep -vqE "^RV(32|64)" ; then
+    # error
+    echo "[ERROR] This script expects a RISC-V ISA string in all caps as the"
+    echo "command line argument (example: RV64IMAFDC)"
+    return 1
+fi
+
+if [ ! -d $RISCY_HOME/tools/$TOOLCHAIN ] ; then
+    if [ "$TOOLCHAIN" == "RV64G" ] ; then
+        BUILD_COMMAND="./build.sh"
+    else
+        BUILD_COMMAND="./build.sh $TOOLCHAIN"
+    fi
+
+    echo "[WARNING] $RISCY_HOME/tools/$TOOLCHAIN does not exist"
+    echo ""
+    echo "To use this toolchain you need to build it first by going to the tools folder and running $BUILD_COMMAND"
+    # echo ""
+    # read -p "Would you like to start building the toolchain now? [N/y] " RESP
+    # case $RESP in
+    #     [Yy]*) pushd $RISCY_HOME/tools ; $BUILD_COMMAND ; popd ;;
+    # esac
+fi
+
+# Points to toolchain
 export RISCY_TOOLS=$RISCY_HOME/tools/$TOOLCHAIN
-# Used by riscv-tools for building tools
-export RISCV=$RISCY_TOOLS
 # Adding to path and ld library path
 export PATH=$RISCY_TOOLS/bin:$PATH
 export LD_LIBRARY_PATH=$RISCY_TOOLS/lib
