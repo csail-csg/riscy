@@ -10,7 +10,7 @@ How to use (in Ubuntu 14.04):
 2. Edit setup.sh so `RISCY_HOME` points to the riscy directory
 3. Setup environment for RISCY
 
-        $ source ./setup.sh
+        $ source ./setup.sh RV64IMAFD
 
 4. Get dependencies for building riscv tools.
 
@@ -22,10 +22,10 @@ How to use (in Ubuntu 14.04):
         $ sudo apt-get update
         $ sudo apt-get install verilator
 
-6. Build riscv-tools
+6. Build riscv-gnu-toolchain and riscv-tests
 
-        $ cd riscv-tools
-        $ ./build.sh
+        $ cd tools
+        $ ./build.sh RV64IMAFD
 
 7. Build multicycle processor
 

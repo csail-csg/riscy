@@ -4,9 +4,6 @@
 [submodule "connectal"]
 	path = connectal
 	url = https://github.com/csail-csg/connectal.git
-[submodule "riscv-tools"]
-	path = riscv-tools
-	url = https://github.com/csail-csg/riscv-tools.git
 [submodule "codegen/riscv-meta"]
 	path = codegen/riscv-meta
 	url = https://github.com/csail-csg/riscv-meta.git
@@ -16,3 +13,15 @@
 [submodule "fpgamake"]
 	path = fpgamake
 	url = https://github.com/cambridgehackers/fpgamake.git
+[submodule "tools/riscv-gnu-toolchain"]
+	path = tools/riscv-gnu-toolchain
+	url = https://github.com/riscv/riscv-gnu-toolchain.git
+[submodule "tools/riscv-tests"]
+	path = tools/riscv-tests
+	url = https://github.com/csail-csg/riscv-tests.git
+[submodule "tools/riscv-isa-sim"]
+	path = tools/riscv-isa-sim
+	url = https://github.com/csail-csg/riscv-isa-sim.git
+[submodule "tools/riscv-fesvr"]
+	path = tools/riscv-fesvr
+	url = https://github.com/csail-csg/riscv-fesvr.git
