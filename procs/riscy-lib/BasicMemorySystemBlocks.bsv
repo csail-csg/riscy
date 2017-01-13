@@ -483,14 +483,23 @@ typedef struct {
 // probably should be called mkUncachedBridge
 module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RVDMemResp));
     // this assumes there are no RMW operations to uncached memory
-    FIFO#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFO;
+    FIFOF#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFOF;
 
     rule ignoreWriteResponses(bookkeepingFIFO.first.isWrite);
         let resp <- uncachedMem.response.get;
         if (!resp.write) begin
             $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a write response but got a read response.");
+            $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+            $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
         end
         bookkeepingFIFO.deq;
+    endrule
+
+    rule dequeueUnexpectedResponse(!bookkeepingFIFO.notEmpty);
+        // empty bookkeepingFIFO, but there is a response ready
+        let resp <- uncachedMem.response.get;
+        $fdisplay(stderr, "[ERROR] Unexpected uncached memory responses.");
+        $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
     endrule
 
     interface Put request;
@@ -511,6 +520,8 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
             let uncachedResp <- uncachedMem.response.get;
             if (uncachedResp.write) begin
                 $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a read response but got a write response.");
+                $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+                $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(uncachedResp));
             end
             let result = uncachedResp.data;
             let extend = reqInfo.isUnsigned ? zeroExtend : signExtend;
