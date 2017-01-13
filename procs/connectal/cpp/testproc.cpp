@@ -183,10 +183,6 @@ int main(int argc, char * const *argv) {
 
     perfMonitor->setEnable(0);
 
-#ifdef SIMULATION
-    unlink(socket_name);
-#endif
-
     fprintf(stderr, "---- Verification results: ------------------------------------------\n");
     verification->printStatus();
     fprintf(stderr, "\n");
@@ -194,8 +190,20 @@ int main(int argc, char * const *argv) {
     perfMonitor->printPerformance("verilator/Proc.perfmon.txt");
     fprintf(stderr, "\n");
 
+    procControl->reset();
+
+    if (result == 0) {
+        fprintf(stderr, "PASSED\n");
+    } else {
+        fprintf(stderr, "FAILED %d\n", (int) result);
+    }
+
     fflush(stdout);
     fflush(stderr);
+
+#ifdef SIMULATION
+    unlink(socket_name);
+#endif
 
     return result;
 }

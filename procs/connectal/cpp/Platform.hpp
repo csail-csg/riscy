@@ -38,16 +38,23 @@ class Platform : PlatformIndicationWrapper {
 
         bool load_elf(const char* elf_filename);
 
-        uint64_t memRead(uint64_t addr);
-        void memWrite(uint64_t addr, uint64_t data);
-
-        // functions for accessing the platform
+        // Functions to access the RISC-V's memory
+        // These either access the memory through shared memory or through
+        // the external memory interface.
         virtual void read_chunk(uint64_t taddr, size_t len, void* dst);
         virtual void write_chunk(uint64_t taddr, size_t len, const void* src);
-        virtual size_t chunk_align();
-        virtual size_t chunk_max_size();
 
     private:
+        // Access the RISC-V's memory through the external memory interface
+        uint64_t memRead(uint64_t addr);
+        void memWrite(uint64_t addr, uint64_t data);
+        void read_chunk_extIfc(uint64_t taddr, size_t len, void* dst);
+        void write_chunk_extIfc(uint64_t taddr, size_t len, const void* src);
+
+        // Read from shared memory
+        void read_chunk_sharedMem(uint64_t taddr, size_t len, void* dst);
+        void write_chunk_sharedMem(uint64_t taddr, size_t len, const void* src);
+
         // called by connectal thread
         void memResponse(const int write, const uint64_t data);
 

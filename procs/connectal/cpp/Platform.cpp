@@ -131,9 +131,23 @@ void Platform::memResponse(const int write, const uint64_t data) {
     sem_post(&responseSem);
 }
 
-#ifdef CONFIG_ACCESS_USING_EXT_IFC
-
 void Platform::read_chunk(uint64_t taddr, size_t len, void* dst) {
+#ifdef CONFIG_PLATFORM_MCU
+    read_chunk_extIfc(taddr, len, dst);
+#else
+    read_chunk_sharedMem(taddr, len, dst);
+#endif
+}
+
+void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
+#ifdef CONFIG_PLATFORM_MCU
+    write_chunk_extIfc(taddr, len, src);
+#else
+    write_chunk_sharedMem(taddr, len, src);
+#endif
+}
+
+void Platform::read_chunk_extIfc(uint64_t taddr, size_t len, void* dst) {
 #ifdef CONFIG_RV64
     size_t xlen_bytes = 8;
 #else
@@ -148,13 +162,13 @@ void Platform::read_chunk(uint64_t taddr, size_t len, void* dst) {
         len -= xlen_bytes;
     }
     if (len < xlen_bytes) {
-        fprintf(stderr, "Platform::read_chunk is not reading a full xlen bytes\n");
+        if (verbose) fprintf(stderr, "[WARNING] Platform::read_chunk_extIfc is reading a number of bytes that is not a multiple of XLEN\n");
     }
     uint64_t data = memRead(taddr);
     memcpy(dst, &data, len);
 }
 
-void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
+void Platform::write_chunk_extIfc(uint64_t taddr, size_t len, const void* src) {
 #ifdef CONFIG_RV64
     size_t xlen_bytes = 8;
 #else
@@ -171,7 +185,7 @@ void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
         len -= xlen_bytes;
     }
     if (len < xlen_bytes) {
-        fprintf(stderr, "Platform::write_chunk is not writing a full xlen bytes\n");
+        if (verbose) fprintf(stderr, "[WARNING] Platform::write_chunk_extIfc is writing a number of bytes that is not a multiple of XLEN\n");
         data = memRead(taddr);
     }
     memcpy(&data, src, len);
@@ -179,68 +193,41 @@ void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
     memWrite(taddr, data);
 }
 
-size_t Platform::chunk_align() {
-#ifdef CONFIG_RV64
-    return sizeof(uint64_t);
-#else
-    return sizeof(uint32_t);
-#endif
-}
-
-size_t Platform::chunk_max_size() {
-#ifdef CONFIG_RV64
-    return sizeof(uint64_t);
-#else
-    return sizeof(uint32_t);
-#endif
-}
-
-#else
-
-void Platform::read_chunk(uint64_t taddr, size_t len, void* dst) {
+void Platform::read_chunk_sharedMem(uint64_t taddr, size_t len, void* dst) {
     assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);
 
     if ((taddr >= romBaseAddr) && (taddr + len <= romBaseAddr + romSz)) {
         // rom address
-        if (verbose) fprintf(stderr, "Platform::read_chunk(taddr=0x%lx, len=%ld, dst=%p) from ROM address\n", (long)taddr, (long)len, dst);
+        if (verbose) fprintf(stderr, "Platform::read_chunk_sharedMem(taddr=0x%lx, len=%ld, dst=%p) from ROM address\n", (long)taddr, (long)len, dst);
         memcpy(dst, &romBuffer[(taddr - romBaseAddr)/sizeof(uint64_t)], len);
     } else if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
         // ram address
-        if (verbose) fprintf(stderr, "Platform::read_chunk(taddr=0x%lx, len=%ld, dst=%p) from RAM address\n", (long)taddr, (long)len, dst);
+        if (verbose) fprintf(stderr, "Platform::read_chunk_sharedMem(taddr=0x%lx, len=%ld, dst=%p) from RAM address\n", (long)taddr, (long)len, dst);
         memcpy(dst, &ramBuffer[(taddr - ramBaseAddr)/sizeof(uint64_t)], len);
     } else {
         // illegal address
-        if (verbose) fprintf(stderr, "[WARNING] Platform::read_chunk(taddr=0x%lx, len=%ld, dst=%p) from illegal address\n", (long)taddr, (long)len, dst);
+        if (verbose) fprintf(stderr, "[WARNING] Platform::read_chunk_sharedMem(taddr=0x%lx, len=%ld, dst=%p) from illegal address\n", (long)taddr, (long)len, dst);
     }
 }
 
-void Platform::write_chunk(uint64_t taddr, size_t len, const void* src) {
+void Platform::write_chunk_sharedMem(uint64_t taddr, size_t len, const void* src) {
     assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);
 
     if ((taddr >= romBaseAddr) && (taddr + len <= romBaseAddr + romSz)) {
         // rom address
-        if (verbose) fprintf(stderr, "Platform::write_chunk(taddr=0x%lx, len=%ld, src=%p) from ROM address\n", (long)taddr, (long)len, src);
+        if (verbose) fprintf(stderr, "Platform::write_chunk_sharedMem(taddr=0x%lx, len=%ld, src=%p) from ROM address\n", (long)taddr, (long)len, src);
         memcpy(&romBuffer[(taddr - romBaseAddr)/sizeof(uint64_t)], src, len);
     } else if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
         // ram address
-        if (verbose) fprintf(stderr, "Platform::write_chunk(taddr=0x%lx, len=%ld, src=%p) from RAM address\n", (long)taddr, (long)len, src);
+        if (verbose) fprintf(stderr, "Platform::write_chunk_sharedMem(taddr=0x%lx, len=%ld, src=%p) from RAM address\n", (long)taddr, (long)len, src);
         memcpy(&ramBuffer[(taddr - ramBaseAddr)/sizeof(uint64_t)], src, len);
     } else {
         // illegal address
-        if (verbose) fprintf(stderr, "[WARNING] Platform::write_chunk(taddr=0x%lx, len=%ld, src=%p) from illegal address\n", (long)taddr, (long)len, src);
+        if (verbose) fprintf(stderr, "[WARNING] Platform::write_chunk_sharedMem(taddr=0x%lx, len=%ld, src=%p) from illegal address\n", (long)taddr, (long)len, src);
     }
 }
 
-size_t Platform::chunk_align() {
-    return sizeof(uint64_t);
-}
-
-size_t Platform::chunk_max_size() {
-    return 1024 * sizeof(uint64_t);
-}
-
-#endif
