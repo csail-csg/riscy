@@ -26,7 +26,7 @@
 # subsets of the RISC-V ISA.
 
 # Points to root folder of repository
-RISCY_HOME=$PWD
+export RISCY_HOME=$PWD
 
 [ "$0" == "$BASH_SOURCE" ] && echo "[WARNING] This scipt needs to be sourced to correctly setup the environment variables"
 
