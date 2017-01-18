@@ -48,4 +48,8 @@ CONNECTALFLAGS += -D CONFIG_PLATFORM_MCU
 # flags by default.
 # CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
 
+ifdef RISCY_HOME
 include $(RISCY_HOME)/procs/Makefile.procs
+else
+$(error RISCY_HOME is undefined)
+endif
