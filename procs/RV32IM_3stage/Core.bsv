@@ -35,7 +35,11 @@ import Ehr::*;
 import Abstraction::*;
 import RegUtil::*;
 import RVRFile::*;
+`ifdef CONFIG_U
 import RVCsrFile::*;
+`else
+import RVCsrFileMCU::*;
+`endif
 import RVExec::*;
 import RVTypes::*;
 import VerificationPacket::*;
@@ -80,7 +84,13 @@ module mkThreeStageCore#(
             Data hartID
         )(Core);
     ArchRFile rf <- mkBypassArchRFile;
+`ifdef CONFIG_U
+    // If user mode is supported, use the full CSR File
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+`else
+    // Otherwise use the M-only CSR File designed for MCUs
+    RVCsrFile csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+`endif
 
 `ifdef CONFIG_M
     MulDivExec mulDiv <- mkBoothRoughMulDivExec;
