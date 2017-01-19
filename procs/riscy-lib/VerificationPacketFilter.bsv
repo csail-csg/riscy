@@ -63,7 +63,13 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
             end else begin
                 t = t - time_init;
             end
-            $fwrite(tracefile, "%0d - %0d - %08x\n", t, packet_count, packet.pc);
+            $fwrite(tracefile, "%0d - %0d - pc: %08x, addr: %08x, data: %08x", t, packet_count, packet.pc, packet.addr, packet.data);
+            if (packet.interrupt) begin
+                $fwrite(tracefile, " - interrupt: %0d", packet.cause);
+            end else if (packet.exception) begin
+                $fwrite(tracefile, " - exception: %0d", packet.cause);
+            end
+            $fwrite(tracefile, "\n");
         end
 `endif
 
