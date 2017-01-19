@@ -100,15 +100,6 @@ module mkProc(Proc#(DataSz));
                     extInterruptWire, // external interrupt
                     0); // hart ID
 
-    // +----------------+ +---------------+
-    // |      Core      | | verification  |
-    // |                |-| packet filter |
-    // +----------------+ +---------------+
-    //     ||      ||
-    // +----------------+
-    // | memory system  |
-    // +----------------+
-
     // Verification Packet Connection
     VerificationPacketFilter verificationPacketFilter <- mkVerificationPacketFilter(core.getVerificationPacket);
 

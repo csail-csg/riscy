@@ -48,25 +48,11 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
-// This interface is the combination of FrontEnd and BackEnd
 interface Core;
     method Action start(Addr startPc);
     method Action stop;
-
     method ActionValue#(VerificationPacket) getVerificationPacket;
-    method ActionValue#(VMInfo) updateVMInfoI;
-    method ActionValue#(VMInfo) updateVMInfoD;
-
-    interface Client#(FenceReq, FenceResp) fence;
 endinterface
-
-instance Connectable#(Core, MemorySystem);
-    module mkConnection#(Core core, MemorySystem mem)(Empty);
-        mkConnection(core.fence, mem.fence);
-        mkConnection(toGet(core.updateVMInfoI), toPut(mem.updateVMInfoI));
-        mkConnection(toGet(core.updateVMInfoD), toPut(mem.updateVMInfoD));
-    endmodule
-endinstance
 
 typedef struct {
     Addr pc;
