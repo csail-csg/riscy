@@ -92,7 +92,7 @@ module mkProc(Proc#(DataSz));
     let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
 
     Core core <- mkThreeStageCore(
-                    transformReq(truncate, sram.imem), // truncate requests because they leave the processor as Bit#(64)
+                    sram.imem,
                     proc_dmem_ifc,
                     False, // inter-process interrupt
                     timer_interrupt, // timer interrupt

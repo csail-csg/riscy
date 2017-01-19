@@ -85,7 +85,7 @@ typedef struct {
 } WriteBackState deriving (Bits, Eq, FShow);
 
 module mkThreeStageCore#(
-            Server#(RVIMemReq, RVIMemResp) ifetch,
+            Server#(Addr, Instruction) ifetch,
             Server#(RVDMemReq, RVDMemResp) dmem,
             Bool ipi,
             Bool timerInterrupt,
@@ -113,7 +113,7 @@ module mkThreeStageCore#(
         fetchStateEhr[2] <= tagged Invalid;
 
         // request instruction
-        ifetch.request.put(zeroExtend(pc));
+        ifetch.request.put(pc);
 
         // pass to execute state
         executeStateEhr[2] <= tagged Valid ExecuteState{ pc: pc };
