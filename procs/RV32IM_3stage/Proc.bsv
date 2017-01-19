@@ -36,7 +36,7 @@ import ServerUtil::*;
 
 import Abstraction::*;
 import BasicMemorySystemBlocks::*;
-import BRAMTightlyCoupledMemory::*;
+import BramIDMem::*;
 import Core::*;
 import MemoryMappedCSRs::*;
 import RTC::*;
@@ -50,7 +50,8 @@ typedef DataSz MainMemoryWidth;
 (* synthesize *)
 module mkProc(Proc#(DataSz));
     // Address map (some portions hard-coded in memory system
-    // 0x0000_0000 - 0x4000_0000 : tightly coupled memory (not all used)
+    // 0x0000_0000 - 0x2000_0000 : tightly coupled memory (not all used)
+    // 0x2000_0000 - 0x3FFF_FFFF : rtc
     // 0x4000_0000 - 0xFFFF_FFFF : mmio
 
 `ifdef CONFIG_RV32
@@ -64,33 +65,35 @@ module mkProc(Proc#(DataSz));
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
-    // Instead of using mkTightlyCoupledMemorySystem from MemorySystem.bsv, we
-    // are including the mkBramIDExtMem here. This allows us to attach the RTC
-    // without adding another mkServerJoiner.
-
     // Shared I/D Memory
-    let sram <- mkBramIDExtMem;
+    // the type of the imem port is Server#(Bit#(XLEN), Bit#(32))
+    // the type of the dmem port is Server#(UncachedMemReq, UncachedMemResp)
+    let sram <- mkBramIDMem;
 
     // This is the new way:
     FIFO#(UncachedMemReq) uncachedReqFIFO <- mkFIFO;
     FIFO#(UncachedMemResp) uncachedRespFIFO <- mkFIFO;
-    let mmio_server <- mkUncachedConverter(toGPServer(uncachedReqFIFO, uncachedRespFIFO));
-    let rtc_server <- mkUncachedConverter(rtc.memifc);
+    let mmio_server = toGPServer(uncachedReqFIFO, uncachedRespFIFO);
+    let mmio_client = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
 
     // address decoding the dmem port of the sram for the RTC and MMIO
-    function Bit#(2) whichServer(RVDMemReq r);
+    function Bit#(2) whichServer(UncachedMemReq r);
         if (r.addr >= 'h4000_0000) return 2;
         else if (r.addr >= 'h2000_0000) return 1;
         else return 0;
     endfunction
-    function Bool getsResponse(RVDMemReq r);
-        return r.op != tagged Mem St;
+    function Bool getsResponse(UncachedMemReq r);
+        // currently all UncachedMemReq's get a response
+        return True;
     endfunction
-    let proc_dmem <- mkServerJoiner(whichServer, getsResponse, 2, vec(sram.dmem, rtc_server, mmio_server));
+    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, mmio_server));
+
+    // mkUncachedConverter converts UncachedMemServer to Server#(RVDMemReq, RVDMemResp)
+    let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
 
     Core core <- mkThreeStageCore(
-                    sram.imem,
-                    proc_dmem,
+                    transformReq(truncate, sram.imem), // truncate requests because they leave the processor as Bit#(64)
+                    proc_dmem_ifc,
                     False, // inter-process interrupt
                     timer_interrupt, // timer interrupt
                     timer_value, // timer value
@@ -158,13 +161,35 @@ module mkProc(Proc#(DataSz));
         endinterface
     endinterface
 
-    interface UncachedMemClient mmio = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
+    interface UncachedMemClient mmio = mmio_client;
 
-    interface GenericMemServer extmem = sram.ext;
+    interface GenericMemServer extmem;
+        interface Put request;
+            method Action put(GenericMemReq#(XLEN) x);
+                if (x.byteen != '1) begin
+                    $fdisplay(stderr, "[ERROR] mkProc.extmem : expecting byteen to be all 1's, but byteen = ", fshow(x.byteen));
+                end
+                memoryBus.extIfc.request.put(UncachedMemReq {
+                        write:  x.write,
+                        size:   (valueOf(XLEN) == 64 ? D : W),
+                        addr:   x.addr,
+                        data:   x.data
+                    } );
+            endmethod
+        endinterface
+        interface Get response;
+            method ActionValue#(GenericMemResp#(XLEN)) get();
+                let x <- memoryBus.extIfc.response.get;
+                return GenericMemResp {
+                        write: x.write,
+                        data:  x.data
+                    };
+            endmethod
+        endinterface
+    endinterface
 
     // Interrupts
     method Action triggerExternalInterrupt;
         extInterruptWire <= True;
     endmethod
 endmodule
-
