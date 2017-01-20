@@ -40,7 +40,11 @@ module mkArchRFile( ArchRFile );
     File fout = stdout;
 
     Vector#(32, Reg#(Data)) gpr_rfile <- replicateM(mkReg(0));
+`ifdef CONFIG_F
     Vector#(32, Reg#(Data)) fpu_rfile <- replicateM(mkReg(0));
+`else
+    Vector#(32, Reg#(Data)) fpu_rfile <- replicateM(mkReadOnlyReg(0));
+`endif
 
     function Data read(Maybe#(FullRegIndex) fullRegIndex);
         return (case (fullRegIndex) matches
@@ -75,7 +79,11 @@ module mkBypassArchRFile( ArchRFile );
     File fout = stdout;
 
     Vector#(32, Reg#(Data)) gpr_rfile <- replicateM(mkReg(0));
+`ifdef CONFIG_F
     Vector#(32, Reg#(Data)) fpu_rfile <- replicateM(mkReg(0));
+`else
+    Vector#(32, Reg#(Data)) fpu_rfile <- replicateM(mkReadOnlyReg(0));
+`endif
     // gpr_rfile[0]._write = constfn(noAction);
     gpr_rfile[0] = readOnlyReg(0);
 
