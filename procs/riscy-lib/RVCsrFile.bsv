@@ -59,6 +59,7 @@ interface RVCsrFile;
     method VMInfo vmD;
     method CsrState csrState; // prv, frm, f_enabled, x_enabled
     method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
+    method Bool wakeFromWFI;
 endinterface
 
 module mkRVCsrFile#(
@@ -550,6 +551,10 @@ module mkRVCsrFile#(
 
     method Maybe#(InterruptCause) readyInterrupt;
         return readyInterruptWire;
+    endmethod
+
+    method Bool wakeFromWFI;
+        return (mip_csr & mie_csr) != 0;
     endmethod
 
     method ActionValue#(CsrReturn) wr(

@@ -39,7 +39,7 @@ typedef union tagged {
     void None;       // all other operations
 } CsrReturn deriving (Bits, Eq, FShow);
 
-interface RVCsrFile;
+interface RVCsrFileMCU;
     // Read and Write ports
     // method Data rd(CSR csr);
     method ActionValue#(CsrReturn)
@@ -57,6 +57,7 @@ interface RVCsrFile;
     // Outputs for CSRs that the rest of the processor needs to know about
     method CsrState csrState; // prv, frm, f_enabled, x_enabled
     method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
+    method Bool wakeFromWFI;
 endinterface
 
 module mkRVCsrFileMCU#(
@@ -64,7 +65,7 @@ module mkRVCsrFileMCU#(
             Bit#(64) time_counter, Bool mtip, // From RTC
             Bool msip,                        // From IPI
             Bool meip                         // From interrupt controller
-        )(RVCsrFile);
+        )(RVCsrFileMCU);
 
     let verbose = False;
     File fout = stdout;
@@ -289,6 +290,10 @@ module mkRVCsrFileMCU#(
 
     method Maybe#(InterruptCause) readyInterrupt;
         return readyInterruptWire;
+    endmethod
+
+    method Bool wakeFromWFI;
+        return (mip_csr & mie_csr) != 0;
     endmethod
 
     method ActionValue#(CsrReturn) wr(

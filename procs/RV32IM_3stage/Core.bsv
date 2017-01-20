@@ -89,7 +89,7 @@ module mkThreeStageCore#(
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `else
     // Otherwise use the M-only CSR File designed for MCUs
-    RVCsrFile csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+    RVCsrFileMCU csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `endif
 
 `ifdef CONFIG_M
@@ -201,7 +201,7 @@ module mkThreeStageCore#(
     endrule
 
     rule doWriteBack(writeBackStateEhr[0] matches tagged Valid .writeBackState
-                        &&& (writeBackState.dInst.execFunc != tagged System WFI || ipi || timerInterrupt || externalInterrupt ));
+                        &&& (writeBackState.dInst.execFunc != tagged System WFI || csrf.wakeFromWFI()));
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
         let dInst = writeBackState.dInst;
