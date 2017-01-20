@@ -487,21 +487,35 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
     // this assumes there are no RMW operations to uncached memory
     FIFOF#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFOF;
 
-    rule ignoreWriteResponses(bookkeepingFIFO.first.isWrite);
+    Ehr#(2, Maybe#(RVDMemResp)) respEhr <- mkEhr(tagged Invalid);
+
+    rule handleResp(!isValid(respEhr[0]));
         let resp <- uncachedMem.response.get;
-        if (!resp.write) begin
-            $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a write response but got a read response.");
-            $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+        if (bookkeepingFIFO.notEmpty) begin
+            let reqInfo = bookkeepingFIFO.first;
+            if (reqInfo.isWrite != resp.write) begin
+                $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync.");
+                $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+                $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
+            end
+            if (!resp.write) begin
+                let result = resp.data;
+                let extend = reqInfo.isUnsigned ? zeroExtend : signExtend;
+                result = (case (reqInfo.size)
+                        B: extend(result[7:0]);
+                        H: extend(result[15:0]);
+                        W: extend(result[31:0]);
+`ifdef CONFIG_RV64
+                        D: result[63:0];
+`endif
+                    endcase);
+                respEhr[0] <= tagged Valid result;
+            end
+            bookkeepingFIFO.deq;
+        end else begin
+            $fdisplay(stderr, "[ERROR] Unexpected uncached memory responses.");
             $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
         end
-        bookkeepingFIFO.deq;
-    endrule
-
-    rule dequeueUnexpectedResponse(!bookkeepingFIFO.notEmpty);
-        // empty bookkeepingFIFO, but there is a response ready
-        let resp <- uncachedMem.response.get;
-        $fdisplay(stderr, "[ERROR] Unexpected uncached memory responses.");
-        $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
     endrule
 
     interface Put request;
@@ -516,26 +530,9 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
         endmethod
     endinterface
     interface Get response;
-        method ActionValue#(RVDMemResp) get if (!bookkeepingFIFO.first.isWrite);
-            let reqInfo = bookkeepingFIFO.first;
-            bookkeepingFIFO.deq;
-            let uncachedResp <- uncachedMem.response.get;
-            if (uncachedResp.write) begin
-                $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a read response but got a write response.");
-                $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
-                $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(uncachedResp));
-            end
-            let result = uncachedResp.data;
-            let extend = reqInfo.isUnsigned ? zeroExtend : signExtend;
-            result = (case (reqInfo.size)
-                    B: extend(result[7:0]);
-                    H: extend(result[15:0]);
-                    W: extend(result[31:0]);
-`ifdef CONFIG_RV64
-                    D: result[63:0];
-`endif
-                endcase);
-            return result;
+        method ActionValue#(RVDMemResp) get if (respEhr[1] matches tagged Valid .resp);
+            respEhr[1] <= tagged Invalid;
+            return resp;
         endmethod
     endinterface
 endmodule
