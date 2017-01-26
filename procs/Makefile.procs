@@ -53,6 +53,7 @@ BSVPATH += \
 
 BSVFILES += \
 	$(RISCY_HOME)/procs/connectal/bsv/ProcConnectal.bsv \
+	$(RISCY_HOME)/procs/riscy-lib/ProcPins.bsv \
 	$(RISCY_HOME)/procs/riscy-lib/VerificationPacket.bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv/PerfMonitorConnectal.bsv \
 
@@ -89,6 +90,11 @@ MEM_WRITE_INTERFACES = \
 	lProcConnectal.dmaWriteClient \
 
 NUMBER_OF_MASTERS = 1
+
+PINOUT_FILE += pin_translation.json
+PIN_TYPE = ProcPins
+PIN_TYPE_INCLUDE = ProcPins
+AUTOTOP = --interface pins:ProcConnectal.pins
 
 # Expand the stack used by BSC
 CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"

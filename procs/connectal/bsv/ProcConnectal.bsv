@@ -49,6 +49,7 @@ import Proc::*;
 import Vector::*;
 import VerificationPacket::*;
 import MemTypes::*;
+import ProcPins::*;
 import RVTypes::*;
 import SharedMemoryBridge::*;
 import PerfMonitorConnectal::*;
@@ -94,6 +95,8 @@ interface ProcConnectal;
     interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
     interface Vector#(1, MemWriteClient#(DataBusWidth)) dmaWriteClient;
     interface Vector#(1, MemReadClient#(DataBusWidth)) romReadClient;
+    (* prefix = "" *)
+    interface ProcPins pins;
 endinterface
 
 typedef enum { Accel, Ext } ExtMemUser deriving (Bits, Eq, FShow);
@@ -330,4 +333,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);
     interface MemWriteClient dmaWriteClient = vec(ramSharedMemoryBridge.to_host_write);
     interface MemReadClient romReadClient = vec(romSharedMemoryBridge.to_host_read);
+
+    // pins interface
+    interface ProcPins pins = proc.pins;
 endmodule

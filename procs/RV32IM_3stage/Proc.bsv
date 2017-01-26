@@ -39,6 +39,7 @@ import BasicMemorySystemBlocks::*;
 import BramIDMem::*;
 import Core::*;
 import MemoryMappedCSRs::*;
+import ProcPins::*;
 import RTC::*;
 import RVTypes::*;
 import VerificationPacket::*;
@@ -53,6 +54,8 @@ module mkProc(Proc#(DataSz));
     // 0x0000_0000 - 0x2000_0000 : tightly coupled memory (not all used)
     // 0x2000_0000 - 0x3FFF_FFFF : rtc
     // 0x4000_0000 - 0xFFFF_FFFF : mmio
+
+    let clock <- exposeCurrentClock();
 
 `ifdef CONFIG_RV32
     RTC#(1) rtc <- mkRTC_RV32;
@@ -183,4 +186,9 @@ module mkProc(Proc#(DataSz));
     method Action triggerExternalInterrupt;
         extInterruptWire <= True;
     endmethod
+
+    interface ProcPins pins;
+        // no other pins connected at the moment
+        interface Clock deleteme_unused_clock = clock;
+    endinterface
 endmodule
