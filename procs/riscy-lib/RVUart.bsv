@@ -1,19 +1,21 @@
-`include "ProcConfig.bsv"
-
 import ClientServer::*;
 import RS232::*;
 import Vector::*;
+import GetPut::*;
+import Vector::*;
+import BuildVector::*;
 import Ehr::*;
+
 
 interface RVUart;
   // Internal connections
   interface UncachedMemServer memifc;
-  method Action put(Bit#(8));
-  method Maybe(?, Bit#(8)) get;
+  method Action put (Bit#(8) data);
+  method Maybe#(Bit#(8)) get;
 
   // external connections for rx/tx (to be connected to a UART
   method Action rx (Bit#(1) x);
-  method Action Bit#(1) tx;
+  method Bit#(1) tx;
   method Bit#(16) divisor;
   method Vector#(cores, Bool) receiveInterrupt;
 endinterface
@@ -68,8 +70,8 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
   endrule
 
   rule doRxData (!rxDataReg[0] && rxCtrlReg[0]);
-    rxDataReg <- uart.get;
-    interruptReg[0] <- True;
+    rxDataReg <= uart.get;
+    interruptReg[0] <= True;
   endrule
 
   interface UncachedMemServer memifc;
@@ -108,21 +110,28 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
         return UncachedMemResp{ write: write, data: write? 0: retVal };
       endmethod
     endinterface
+  endinterface
 
-    method Action put(Bit#(8) data);
-      if (txDataReg[31] && txCtrlReg[0]) begin
-        txDataReg <= {1, '0, data};
-      end
-    endmethod
+  method Action put(Bit#(8) data);
+    if (txDataReg[31] && txCtrlReg[0]) begin
+      txDataReg <= {1, '0, data};
+    end
+  endmethod
 
-    method Maybe(?, Bit#(8)) get;
-      Bit#(8) retVal = tagged Invalid;
-      if (rxDataReg[31]) begin
-        retVal = tagged Valid(rxDataReg[7:0]);
-        if (rxCtrlReg[0]) begin
-          rxDataReg <= 0;
-        end
+  method ActionValue#(Maybe#(Bit#(8))) get;
+    Bit#(8) retVal = tagged Invalid;
+    if (rxDataReg[31]) begin
+      retVal = tagged Valid(rxDataReg[7:0]);
+      if (rxCtrlReg[0]) begin
+        rxDataReg <= 0;
       end
-      return retVal;
-    endmethod
+    end
+    return retVal;
+  endmethod
+
+  method Action rx (Bit#(1) x) = uart.sin;
+  method Bit#(1) tx = uart.sout;
+  method Bit#(16) divisor = divReg;
+  method Vector#(1, Bool) receiveInterrupt = vec(receiveInterrupt);
+
 endmodule
