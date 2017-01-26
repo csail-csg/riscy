@@ -7,9 +7,9 @@ How to get started with this repository (tested in Ubuntu 14.04):
 
         $ git submodule update --init --recursive
 
-2. Get dependencies for building the RISC-V toolchain.
+2. Get dependencies for building the RISC-V toolchain and building using connectal.
 
-        $ sudo apt-get install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc
+        $ sudo apt-get install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc python-ply
 
 3. Build riscv-gnu-toolchain and riscv-tests.
 `build.sh` can be used to build custom toolchains by passing the desired RISC-V ISA string in all caps (eg: `./build.sh RV32IMC").
