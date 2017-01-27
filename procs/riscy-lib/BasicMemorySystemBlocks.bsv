@@ -29,6 +29,8 @@ import FIFO::*;
 import GetPut::*;
 import Vector::*;
 
+import Ehr::*;
+
 import Abstraction::*;
 import RVAmo::*;
 import RVExec::*; // for scatterStore and gatherLoad
@@ -485,21 +487,35 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
     // this assumes there are no RMW operations to uncached memory
     FIFOF#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFOF;
 
-    rule ignoreWriteResponses(bookkeepingFIFO.first.isWrite);
+    Ehr#(2, Maybe#(RVDMemResp)) respEhr <- mkEhr(tagged Invalid);
+
+    rule handleResp(!isValid(respEhr[0]));
         let resp <- uncachedMem.response.get;
-        if (!resp.write) begin
-            $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a write response but got a read response.");
-            $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+        if (bookkeepingFIFO.notEmpty) begin
+            let reqInfo = bookkeepingFIFO.first;
+            if (reqInfo.isWrite != resp.write) begin
+                $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync.");
+                $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
+                $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
+            end
+            if (!resp.write) begin
+                let result = resp.data;
+                let extend = reqInfo.isUnsigned ? zeroExtend : signExtend;
+                result = (case (reqInfo.size)
+                        B: extend(result[7:0]);
+                        H: extend(result[15:0]);
+                        W: extend(result[31:0]);
+`ifdef CONFIG_RV64
+                        D: result[63:0];
+`endif
+                    endcase);
+                respEhr[0] <= tagged Valid result;
+            end
+            bookkeepingFIFO.deq;
+        end else begin
+            $fdisplay(stderr, "[ERROR] Unexpected uncached memory responses.");
             $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
         end
-        bookkeepingFIFO.deq;
-    endrule
-
-    rule dequeueUnexpectedResponse(!bookkeepingFIFO.notEmpty);
-        // empty bookkeepingFIFO, but there is a response ready
-        let resp <- uncachedMem.response.get;
-        $fdisplay(stderr, "[ERROR] Unexpected uncached memory responses.");
-        $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(resp));
     endrule
 
     interface Put request;
@@ -514,26 +530,123 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
         endmethod
     endinterface
     interface Get response;
-        method ActionValue#(RVDMemResp) get if (!bookkeepingFIFO.first.isWrite);
-            let reqInfo = bookkeepingFIFO.first;
-            bookkeepingFIFO.deq;
-            let uncachedResp <- uncachedMem.response.get;
-            if (uncachedResp.write) begin
-                $fdisplay(stderr, "[ERROR] Uncached memory responses out of sync. Expected a read response but got a write response.");
-                $fdisplay(stderr, "[INFO] top of bookkeeping FIFO: ", fshow(bookkeepingFIFO.first));
-                $fdisplay(stderr, "[INFO] uncached mem response: ", fshow(uncachedResp));
-            end
-            let result = uncachedResp.data;
-            let extend = reqInfo.isUnsigned ? zeroExtend : signExtend;
-            result = (case (reqInfo.size)
-                    B: extend(result[7:0]);
-                    H: extend(result[15:0]);
-                    W: extend(result[31:0]);
-`ifdef CONFIG_RV64
-                    D: result[63:0];
-`endif
-                endcase);
-            return result;
+        method ActionValue#(RVDMemResp) get if (respEhr[1] matches tagged Valid .resp);
+            respEhr[1] <= tagged Invalid;
+            return resp;
         endmethod
+    endinterface
+endmodule
+
+// Memory bus takes in a vector of Servers and produces two server interfaces,
+// one for a processor to attach to and one for an external interface to use.
+// The processor port has priority, but if the external interface is preempted
+// it will have the higher priority in the next cycle.
+interface MemoryBus#(type reqT, type respT);
+    interface Server#(reqT, respT) procIfc;
+    interface Server#(reqT, respT) extIfc;
+endinterface
+
+typedef struct {
+    Bool isExt;
+    Bit#(TLog#(n)) server;
+    Bool getsResp;
+} MemoryBusPendingReq#(numeric type n) deriving (Bits, Eq, FShow);
+
+module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool getsResponse(reqT x), Vector#(n, Server#(reqT, respT)) servers)(MemoryBus#(reqT, respT)) provisos (Bits#(reqT, reqTsz), Bits#(respT, respTsz));
+    // ordering:
+    // response < forwardResponse < request < forwardRequest
+
+    Ehr#(4, Maybe#(reqT)) procReqEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(reqT)) extReqEhr <- mkEhr(tagged Invalid);
+
+    Ehr#(4, Maybe#(MemoryBusPendingReq#(n))) pendingReq <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(respT)) readyResp <- mkEhr(tagged Invalid);
+
+    Reg#(Bool) extReqWasPreempted <- mkReg(False);
+
+    // request priority:
+    // old procIfc.request
+    // old extIfc.request
+    // current procIfc.request
+    // current extIfc.request
+
+    rule forwardRequest if (!isValid(pendingReq[3])
+                            && (isValid(procReqEhr[3])
+                                || isValid(extReqEhr[3])));
+        Bool isExt = False;
+        Bit#(TLog#(n)) serverIndx = 0;
+
+        if (procReqEhr[3] matches tagged Valid .req &&& !extReqWasPreempted) begin
+            procReqEhr[3] <= tagged Invalid;
+            serverIndx = whichServer(req);
+            servers[serverIndx].request.put(req);
+            pendingReq[3] <= tagged Valid MemoryBusPendingReq { isExt: False, server: serverIndx, getsResp: getsResponse(req) };
+
+            if (!isValid(extReqEhr[3])) begin
+                extReqWasPreempted <= False;
+            end else begin
+                extReqWasPreempted <= True;
+            end
+        end else if (extReqEhr[3] matches tagged Valid .req) begin
+            extReqEhr[3] <= tagged Invalid;
+            serverIndx = whichServer(req);
+            servers[serverIndx].request.put(req);
+            pendingReq[3] <= tagged Valid MemoryBusPendingReq { isExt: True, server: serverIndx, getsResp: getsResponse(req) };
+
+            extReqWasPreempted <= False;
+        end else begin
+            // Due to the guard of this rule, the only way this can happen is
+            // if extWasPreempted is true but extReqEhr was invalid.
+            $fdisplay(stderr, "[ERROR] mkMemoryBus: extReqWasPreempted == True, but there is no valid extReq");
+            extReqWasPreempted <= False;
+        end
+    endrule
+
+    rule forwardResponse if (pendingReq[0] matches tagged Valid .req
+                                &&& !isValid(readyResp[0]));
+        // get response
+        let resp <- servers[req.server].response.get();
+        if (req.getsResp) begin
+            readyResp[0] <= tagged Valid resp;
+        end else begin
+            pendingReq[0] <= tagged Invalid;
+        end
+    endrule
+
+
+    // Internal interface
+    interface Server procIfc;
+        interface Put request;
+            method Action put(reqT r) if (!isValid(procReqEhr[2]));
+                procReqEhr[2] <= tagged Valid r;
+            endmethod
+        endinterface
+        interface Get response;
+            method ActionValue#(respT) get if (pendingReq[1] matches tagged Valid .req
+                                                    &&& readyResp[1] matches tagged Valid .resp
+                                                    &&& req.isExt == False);
+                pendingReq[1] <= tagged Invalid;
+                readyResp[1] <= tagged Invalid;
+                return resp;
+            endmethod
+        endinterface
+    endinterface
+
+    // External interface
+    interface Server extIfc;
+        interface Put request;
+            method Action put(reqT r) if (!isValid(extReqEhr[2]));
+                extReqEhr[2] <= tagged Valid r;
+            endmethod
+        endinterface
+        interface Get response;
+            method ActionValue#(respT) get if (pendingReq[1] matches tagged Valid .req
+                                                    &&& readyResp[1] matches tagged Valid .resp
+                                                    &&& req.isExt == True);
+                pendingReq[1] <= tagged Invalid;
+                readyResp[1] <= tagged Invalid;
+                return resp;
+            endmethod
+        endinterface
     endinterface
 endmodule

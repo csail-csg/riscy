@@ -1,5 +1,5 @@
 
-# Copyright (c) 2016 Massachusetts Institute of Technology
+# Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -38,7 +38,11 @@ CONNECTALFLAGS += -D DataBusWidth=32
 # flags by default.
 # CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
 
+ifdef RISCY_HOME
 include $(RISCY_HOME)/procs/Makefile.procs
+else
+$(error RISCY_HOME is undefined)
+endif
 
 # override isatest target from Makefile.procs since that one assumes RV64
 isatest.%: gen.%

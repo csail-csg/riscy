@@ -27,6 +27,7 @@ import DefaultValue::*;
 import GetPut::*;
 import Vector::*;
 
+import ProcPins::*;
 import RVTypes::*;
 import VerificationPacket::*;
 
@@ -209,6 +210,10 @@ interface Proc#(numeric type mainMemoryWidth);
     interface GenericMemServer#(XLEN) extmem;
     // Interrupts
     method Action triggerExternalInterrupt;
+
+    // Pins
+    (* prefix = "" *)
+    interface ProcPins pins;
 endinterface
 
 instance Connectable#(FrontEnd#(epochType), BackEnd#(epochType));

@@ -53,6 +53,7 @@ BSVPATH += \
 
 BSVFILES += \
 	$(RISCY_HOME)/procs/connectal/bsv/ProcConnectal.bsv \
+	$(RISCY_HOME)/procs/riscy-lib/ProcPins.bsv \
 	$(RISCY_HOME)/procs/riscy-lib/VerificationPacket.bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv/PerfMonitorConnectal.bsv \
 
@@ -90,6 +91,11 @@ MEM_WRITE_INTERFACES = \
 
 NUMBER_OF_MASTERS = 1
 
+PINOUT_FILE += $(RISCY_HOME)/procs/pin_translation.json
+PIN_TYPE = ProcPins
+PIN_TYPE_INCLUDE = ProcPins
+AUTOTOP = --interface pins:ProcConnectal.pins
+
 # Expand the stack used by BSC
 CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
 # Don't use buildcache
@@ -126,16 +132,16 @@ else
 
 # For zync targets, use static linking for spike and fesvr
 CONNECTALFLAGS += --cxxflags=" -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS "
-CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/riscv/insns
-CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/riscv
-CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/
-CONNECTALFLAGS += -I$(RISCY_HOME)/riscv-tools/riscv-isa-sim/hwacha
+CONNECTALFLAGS += -I$(RISCY_HOME)/tools/riscv-isa-sim/riscv/insns
+CONNECTALFLAGS += -I$(RISCY_HOME)/tools/riscv-isa-sim/riscv
+CONNECTALFLAGS += -I$(RISCY_HOME)/tools/riscv-isa-sim/
+CONNECTALFLAGS += -I$(RISCY_HOME)/tools/riscv-isa-sim/hwacha
 CONNECTALFLAGS += -I$(RISCY_TOOLS)/include/spike
 CONNECTALFLAGS += --stl=c++_static --cxxflags=" -UNDEBUG -std=gnu++11 -fexceptions "
 
-FESVR_SRC_DIR = $(RISCY_HOME)/riscv-tools/riscv-fesvr/fesvr
+FESVR_SRC_DIR = $(RISCY_HOME)/tools/riscv-fesvr/fesvr
 FESVR_SRC_FILES = $(addprefix $(FESVR_SRC_DIR)/, context.cc htif.cc htif_pthread.cc device.cc memif.cc rfb.cc syscall.cc elfloader.cc term.cc)
-SPIKE_SRC_DIR = $(RISCY_HOME)/riscv-tools/riscv-isa-sim
+SPIKE_SRC_DIR = $(RISCY_HOME)/tools/riscv-isa-sim
 SPIKE_RISCV_SRC_FILES = \
 	processor.cc \
 	execute.cc \

@@ -57,38 +57,44 @@ echo "Building $ISA toolchain..."
 STARTINGDIR=$PWD
 export RISCV=$PWD/$ISA
 export PATH=$RISCV/bin:$PATH
+OUTPUT_PATH=$RISCV/build-log
+
 mkdir -p $RISCV
+mkdir -p $OUTPUT_PATH
 
 # Build riscv-gnu-toolchain
-echo "Building riscv-gnu-toolchain..."
+OUTPUT_FILE=$OUTPUT_PATH/riscv-gnu-toolchain.log
+echo "Building riscv-gnu-toolchain... (writing output to $OUTPUT_FILE)"
 cd $RISCV
 mkdir build-gnu-toolchain
 cd build-gnu-toolchain
-../../riscv-gnu-toolchain/configure --prefix=$RISCV $WITH_ARCH
-make
+../../riscv-gnu-toolchain/configure --prefix=$RISCV $WITH_ARCH &> $OUTPUT_FILE
+make &>> $OUTPUT_FILE
 
 # Rebuild newlib with -mcmodel=medany
-echo "Rebuilding newlib..."
+OUTPUT_FILE=$OUTPUT_PATH/newlib.log
+echo "Rebuilding newlib... (writing output to $OUTPUT_FILE)"
 cd build-gcc-newlib/riscv$XLEN-unknown-elf/newlib
 sed 's/^CFLAGS = /CFLAGS = -mcmodel=medany /' Makefile > Makefile.sed
 mv Makefile.sed Makefile
-make clean
-make
-make install
+make clean &> $OUTPUT_FILE
+make &>> $OUTPUT_FILE
+make install &>> $OUTPUT_FILE
 
 # Build riscv-tests
-echo "Building riscv-tests..."
+OUTPUT_FILE=$OUTPUT_PATH/riscv-tests.log
+echo "Building riscv-tests... (writing output to $OUTPUT_FILE)"
 cd $RISCV
 mkdir build-tests
 cd build-tests
-../../riscv-tests/configure --prefix=$RISCV/riscv$XLEN-unknown-elf --with-xlen=$XLEN
+../../riscv-tests/configure --prefix=$RISCV/riscv$XLEN-unknown-elf --with-xlen=$XLEN &> $OUTPUT_FILE
 # This may fail since some riscv-tests require ISA extensions
 # Also there is an issue with building 32-bit executables when gcc is
 # configured with --with-arch=<isa>
 set +e
-make
+make &>> $OUTPUT_FILE
 if [ $? -eq 0 ] ; then
-    make install
+    make install &>> $OUTPUT_FILE
     RISCV_TEST_FAILED=0
 else
     RISCV_TEST_FAILED=1
@@ -96,22 +102,24 @@ fi
 set -e
 
 # Build riscv-fesvr
-echo "Building riscv-fesvr..."
+OUTPUT_FILE=$OUTPUT_PATH/riscv-fesvr.log
+echo "Building riscv-fesvr... (writing output to $OUTPUT_FILE)"
 cd $RISCV
 mkdir build-fesvr
 cd build-fesvr
-../../riscv-fesvr/configure --prefix=$RISCV
-make
-make install
+../../riscv-fesvr/configure --prefix=$RISCV &> $OUTPUT_FILE
+make &>> $OUTPUT_FILE
+make install &>> $OUTPUT_FILE
 
 # Build riscv-isa-sim
-echo "Building riscv-isa-sim..."
+OUTPUT_FILE=$OUTPUT_PATH/riscv-isa-sim.log
+echo "Building riscv-isa-sim... (writing output to $OUTPUT_FILE)"
 cd $RISCV
 mkdir build-isa-sim
 cd build-isa-sim
-../../riscv-isa-sim/configure --prefix=$RISCV --with-fesvr=$RISCV
-make
-make install
+../../riscv-isa-sim/configure --prefix=$RISCV --with-fesvr=$RISCV &> $OUTPUT_FILE
+make &>> $OUTPUT_FILE
+make install &>> $OUTPUT_FILE
 
 cd $STARTINGDIR
 

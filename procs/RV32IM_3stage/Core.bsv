@@ -35,7 +35,11 @@ import Ehr::*;
 import Abstraction::*;
 import RegUtil::*;
 import RVRFile::*;
+`ifdef CONFIG_U
 import RVCsrFile::*;
+`else
+import RVCsrFileMCU::*;
+`endif
 import RVExec::*;
 import RVTypes::*;
 import VerificationPacket::*;
@@ -48,31 +52,18 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
-// This interface is the combination of FrontEnd and BackEnd
 interface Core;
     method Action start(Addr startPc);
     method Action stop;
-
     method ActionValue#(VerificationPacket) getVerificationPacket;
-    method ActionValue#(VMInfo) updateVMInfoI;
-    method ActionValue#(VMInfo) updateVMInfoD;
-
-    interface Client#(FenceReq, FenceResp) fence;
 endinterface
-
-instance Connectable#(Core, MemorySystem);
-    module mkConnection#(Core core, MemorySystem mem)(Empty);
-        mkConnection(core.fence, mem.fence);
-        mkConnection(toGet(core.updateVMInfoI), toPut(mem.updateVMInfoI));
-        mkConnection(toGet(core.updateVMInfoD), toPut(mem.updateVMInfoD));
-    endmodule
-endinstance
 
 typedef struct {
     Addr pc;
 } FetchState deriving (Bits, Eq, FShow);
 
 typedef struct {
+    Bool poisoned;
     Addr pc;
 } ExecuteState deriving (Bits, Eq, FShow);
 
@@ -85,7 +76,7 @@ typedef struct {
 } WriteBackState deriving (Bits, Eq, FShow);
 
 module mkThreeStageCore#(
-            Server#(RVIMemReq, RVIMemResp) ifetch,
+            Server#(Addr, Instruction) ifetch,
             Server#(RVDMemReq, RVDMemResp) dmem,
             Bool ipi,
             Bool timerInterrupt,
@@ -94,7 +85,13 @@ module mkThreeStageCore#(
             Data hartID
         )(Core);
     ArchRFile rf <- mkBypassArchRFile;
+`ifdef CONFIG_U
+    // If user mode is supported, use the full CSR File
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+`else
+    // Otherwise use the M-only CSR File designed for MCUs
+    RVCsrFileMCU csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+`endif
 
 `ifdef CONFIG_M
     MulDivExec mulDiv <- mkBoothRoughMulDivExec;
@@ -103,6 +100,7 @@ module mkThreeStageCore#(
     Ehr#(4, Maybe#(FetchState)) fetchStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(ExecuteState)) executeStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(WriteBackState)) writeBackStateEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Bool) epoch <- mkEhr(False);
 
     FIFO#(VerificationPacket) verificationPackets <- mkFIFO;
 
@@ -113,99 +111,102 @@ module mkThreeStageCore#(
         fetchStateEhr[2] <= tagged Invalid;
 
         // request instruction
-        ifetch.request.put(zeroExtend(pc));
+        ifetch.request.put(pc);
 
         // pass to execute state
-        executeStateEhr[2] <= tagged Valid ExecuteState{ pc: pc };
+        executeStateEhr[2] <= tagged Valid ExecuteState{ poisoned: False, pc: pc };
     endrule
 
     rule doExecute(executeStateEhr[1] matches tagged Valid .executeState
                     &&& writeBackStateEhr[1] == tagged Invalid);
         // get and clear the execute state
+        let poisoned = executeState.poisoned;
         let pc = executeState.pc;
         executeStateEhr[1] <= tagged Invalid;
-
-        // check for interrupts
-        Maybe#(TrapCause) trap = tagged Invalid;
-        if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
-            trap = tagged Valid (tagged Interrupt validInterrupt);
-        end
 
         // get the instruction
         let inst <- ifetch.response.get;
 
-        // decode the instruction
-        let maybeDInst = decodeInst(inst);
-        if (maybeDInst == tagged Invalid && trap == tagged Invalid) begin
-            trap = tagged Valid (tagged Exception IllegalInst);
-        end
-        let dInst = fromMaybe(?, maybeDInst);
+        if (!poisoned) begin
+            // check for interrupts
+            Maybe#(TrapCause) trap = tagged Invalid;
+            if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
+                trap = tagged Valid (tagged Interrupt validInterrupt);
+            end
 
-        // $display("[Execute] pc: 0x%0x, inst: 0x%0x, dInst: ", pc, inst, fshow(dInst));
+            // decode the instruction
+            let maybeDInst = decodeInst(inst);
+            if (maybeDInst == tagged Invalid && trap == tagged Invalid) begin
+                trap = tagged Valid (tagged Exception IllegalInst);
+            end
+            let dInst = fromMaybe(?, maybeDInst);
 
-        // read registers
-        let rVal1 = rf.rd1(toFullRegIndex(dInst.rs1, getInstFields(inst).rs1));
-        let rVal2 = rf.rd2(toFullRegIndex(dInst.rs2, getInstFields(inst).rs2));
+            // $display("[Execute] pc: 0x%0x, inst: 0x%0x, dInst: ", pc, inst, fshow(dInst));
 
-        // execute instruction
-        let execResult = basicExec(dInst, rVal1, rVal2, pc);
-        let data = execResult.data;
-        let addr = execResult.addr;
-        let nextPc = execResult.nextPc;
+            // read registers
+            let rVal1 = rf.rd1(toFullRegIndex(dInst.rs1, getInstFields(inst).rs1));
+            let rVal2 = rf.rd2(toFullRegIndex(dInst.rs2, getInstFields(inst).rs2));
 
-        // check for next address alignment
-        if (nextPc[1:0] != 0 && trap == tagged Invalid) begin
-            trap = tagged Valid (tagged Exception InstAddrMisaligned);
-        end
+            // execute instruction
+            let execResult = basicExec(dInst, rVal1, rVal2, pc);
+            let data = execResult.data;
+            let addr = execResult.addr;
+            let nextPc = execResult.nextPc;
+
+            // check for next address alignment
+            if (nextPc[1:0] != 0 && trap == tagged Invalid) begin
+                trap = tagged Valid (tagged Exception InstAddrMisaligned);
+            end
 
 `ifdef CONFIG_M
-        if (dInst.execFunc matches tagged MulDiv .mulDivInst &&& trap == tagged Invalid) begin
-            mulDiv.exec(mulDivInst, rVal1, rVal2);
-        end
+            if (dInst.execFunc matches tagged MulDiv .mulDivInst &&& trap == tagged Invalid) begin
+                mulDiv.exec(mulDivInst, rVal1, rVal2);
+            end
 `endif
 
-        if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
-            // check allignment
-            Bool aligned = (case (memInst.size)
-                                B: True;
-                                H: (execResult.addr[0] == 0);
-                                W: (execResult.addr[1:0] == 0);
-                                D: (execResult.addr[2:0] == 0);
-                            endcase);
-            if (aligned) begin
-                // send the request to the memory
-                dmem.request.put( RVDMemReq {
-                    op: dInst.execFunc.Mem.op,
-                    size: dInst.execFunc.Mem.size,
-                    isUnsigned: dInst.execFunc.Mem.isUnsigned,
-                    addr: zeroExtend(addr),
-                    data: data } );
-            end else begin
-                // misaligned address exception
-                if ((memInst.op == tagged Mem Ld) || (memInst.op == tagged Mem Lr)) begin
-                    trap = tagged Valid (tagged Exception LoadAddrMisaligned);
+            if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
+                // check allignment
+                Bool aligned = (case (memInst.size)
+                                    B: True;
+                                    H: (execResult.addr[0] == 0);
+                                    W: (execResult.addr[1:0] == 0);
+                                    D: (execResult.addr[2:0] == 0);
+                                endcase);
+                if (aligned) begin
+                    // send the request to the memory
+                    dmem.request.put( RVDMemReq {
+                        op: dInst.execFunc.Mem.op,
+                        size: dInst.execFunc.Mem.size,
+                        isUnsigned: dInst.execFunc.Mem.isUnsigned,
+                        addr: zeroExtend(addr),
+                        data: data } );
                 end else begin
-                    trap = tagged Valid (tagged Exception StoreAddrMisaligned);
+                    // misaligned address exception
+                    if ((memInst.op == tagged Mem Ld) || (memInst.op == tagged Mem Lr)) begin
+                        trap = tagged Valid (tagged Exception LoadAddrMisaligned);
+                    end else begin
+                        trap = tagged Valid (tagged Exception StoreAddrMisaligned);
+                    end
                 end
             end
-        end
 
-        // update next pc for fetch stage if no trap
-        if (trap == tagged Invalid) begin
-            fetchStateEhr[1] <= tagged Valid FetchState{ pc: nextPc };
+            // update next pc for fetch stage if no trap
+            if (trap == tagged Invalid) begin
+                fetchStateEhr[1] <= tagged Valid FetchState{ pc: nextPc };
+            end
+            // store things for next stage
+            writeBackStateEhr[1] <= tagged Valid WriteBackState{
+                                                        pc: pc,
+                                                        trap: trap,
+                                                        dInst: dInst,
+                                                        addr: addr,
+                                                        data: data
+                                                    };
         end
-        // store things for next stage
-        writeBackStateEhr[1] <= tagged Valid WriteBackState{
-                                                    pc: pc,
-                                                    trap: trap,
-                                                    dInst: dInst,
-                                                    addr: addr,
-                                                    data: data
-                                                };
     endrule
 
     rule doWriteBack(writeBackStateEhr[0] matches tagged Valid .writeBackState
-                        &&& (writeBackState.dInst.execFunc != tagged System WFI || ipi || timerInterrupt || externalInterrupt ));
+                        &&& (writeBackState.dInst.execFunc != tagged System WFI || csrf.wakeFromWFI()));
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
         let dInst = writeBackState.dInst;
@@ -285,20 +286,15 @@ module mkThreeStageCore#(
                 interrupt: isInterrupt,
                 cause: trapCause } );
 
-        // This split attribute is required to produce multiple rules so the
-        // ifetch.response.get method doesn't cause this rule to conflict
-        // with the execute rule.
-        (* split *)
         if (maybeNextPc matches tagged Valid .replayPc) begin
             // This instruction is not writing to the register file
             // it is either an instruction that requires flushing the pipeline
             // or it caused an exception
             fetchStateEhr[0] <= tagged Valid FetchState{ pc: replayPc };
             // kill other instructions
-            if (executeStateEhr[0] matches tagged Valid .*) begin
-                let ignore <- ifetch.response.get;
+            if (executeStateEhr[0] matches tagged Valid .validExecuteState) begin
+                executeStateEhr[0] <= tagged Valid ExecuteState{ poisoned: True, pc: validExecuteState.pc };
             end
-            executeStateEhr[0] <= tagged Invalid;
         end else begin
             // This instruction retired
             // write to the register file

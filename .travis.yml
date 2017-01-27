@@ -24,7 +24,7 @@ before_script:
   - mkdir -p $RISCV
   - export CXX=g++-4.8 CC=gcc-4.8
   - cd tools
-  - ./build.sh
+  - travis_wait 45 ./build.sh
   - cd ..
   # download and install bluespec
   - if [ -d Bluespec-2015.09.beta2 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2015.09.beta2.tar.gz | tar -zxf - ; fi
