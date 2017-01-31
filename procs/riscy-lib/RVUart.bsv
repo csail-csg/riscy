@@ -8,7 +8,7 @@ import Ehr::*;
 
 import Abstraction::*;
 
-interface RVUart;
+interface RVUart#(numeric type cores);
   // Internal connections
   interface UncachedMemServer memifc;
 
@@ -21,7 +21,7 @@ interface RVUart;
   method Vector#(cores, Bool) receiveInterrupt;
 endinterface
 
-module mkRVUart_RV32#(Integer divisor)(RVUart)
+module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1))
     provisos (NumAlias#(internalAddrSize, 8));
   // Layout of memory interface (mostly derived by SiFive Freedom E300)
   // Address   Name     Description
@@ -54,25 +54,26 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
   //   interface Put#(Bit#(8))  rx;
   //     method Action put(x)
   // Get and Put have FiFos attached to the ends of them
-  UART#(16) uart <- mkUART(8, NO, STOP_1, divReg);
+  Reg#(Bit#(16)) divReg <- mkReg(divisor);
+  UART#(16) uart <- mkUART(8, NONE, STOP_1, divReg);
   // Data registers
-  Maybe#(Reg#(Bit#(8))) txDataReg <- mkReg(0);
-  Maybe#(Reg#(Bit#(8))) rxDataReg <- mkReg(0);
+  Reg#(Maybe#(Bit#(8))) txDataReg <- mkReg(tagged Invalid);
+  Reg#(Maybe#(Bit#(8))) rxDataReg <- mkReg(tagged Invalid);
   Reg#(Bit#(32)) txCtrlReg <- mkReg(0);
   Reg#(Bit#(32)) rxCtrlReg <- mkReg(0);
-  Reg#(Bit#(16)) divReg <- mkReg(divsor);
 
-  Ehr#(2, Bool) interruptReg <- mkEhr(0);
+  Ehr#(2, Bool) interruptReg <- mkEhr(False);
 
-  rule doTxData (txDataReg[31]);
+  rule doTxData (txDataReg matches tagged Valid .x);
     // There is an implicit guard on the Fifo for uart.put
-    uart.put(txDataReg[7:0]);
-    txDataReg[31] <= 0;
+    uart.rx.put(x);
+    txDataReg <= tagged Invalid;
   endrule
 
-  rule doRxData (!rxDataReg[0]);
+  rule doRxData (rxDataReg matches tagged Invalid .x);
     // There is an implicit guard on the Fifo for uart.get
-    rxDataReg <= uart.get;
+    let data <- uart.tx.get;
+    rxDataReg <= Valid(data);
     interruptReg[0] <= True;
   endrule
 
@@ -87,7 +88,7 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
             rxDataAddr: noAction;
             txCtrlAddr: txCtrlReg  <= req.data;
             rxCtrlAddr: rxCtrlReg  <= req.data;
-            divAddr:    divReg     <= req.data;
+            divAddr:    divReg     <= truncate(req.data);
             default: noAction;
           endcase
           pendingReq[1] <= tagged Valid tuple2(True, truncate(req.addr));
@@ -103,7 +104,7 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
         Bit#(32) retVal = 0;
         case (truncate(addr))
           txDataAddr: begin
-                        retVal = 0
+                        retVal = 0;
                         if (txDataReg matches tagged Valid .x) begin
                           retVal = {1'b1, '0, x};
                         end
@@ -117,7 +118,7 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
                       end
           txCtrlAddr: retVal = txCtrlReg;
           rxCtrlAddr: retVal = rxCtrlReg;
-          divAddr:    retVal = divReg;
+          divAddr:    retVal = {'0, divReg};
           default:    retVal = 0;
         endcase
         pendingReq[0] <= tagged Invalid;
@@ -128,6 +129,6 @@ module mkRVUart_RV32#(Integer divisor)(RVUart)
 
   interface RS232 uart_pins = uart.rs232;
   method Bit#(16) divisor = divReg;
-  method Vector#(1, Bool) receiveInterrupt = vec(receiveInterrupt);
+  method Vector#(1, Bool) receiveInterrupt = vec(interruptReg[0]);
 
 endmodule
