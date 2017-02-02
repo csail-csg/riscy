@@ -67,7 +67,7 @@ module mkProc(Proc#(DataSz));
 
     //   9600 baud: divisor = 26042
     // 115200 baud: divisor = 134
-    RVUart#(1) uart_module <- mkRVUart_RV32(26042);
+    RVUart#(1) uart_module <- mkRVUart_RV32(17);
 
 
     Bool timer_interrupt = rtc.timerInterrupt[0];

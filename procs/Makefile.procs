@@ -74,7 +74,7 @@ S2H_INTERFACES = \
 	ProcControlRequest:ProcConnectal.procControlRequest \
 	PerfMonitorRequest:ProcConnectal.perfMonitorRequest \
 	PlatformRequest:ProcConnectal.platformRequest \
-	UartBridgeRequest:ProcConnnectal.uartBridgeRequest \
+	UartBridgeRequest:ProcConnectal.uartBridgeRequest \
 	ExternalMMIOResponse:ProcConnectal.externalMMIOResponse \
 
 H2S_INTERFACES = \

@@ -155,12 +155,12 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 // Put the actual flag for Config Simulation
 `ifdef CONFIG_RS232
 `ifdef SIMULATION
-    Reg#(Bit#(16)) uartDivisor <- mkReg(10000);
+    Reg#(Bit#(16)) uartDivisor <- mkReg(17);
     UART#(16) simUart <- mkUART(8, NONE, STOP_1, uartDivisor);
     Reg#(Maybe#(Bit#(8))) simUartTxCache <- mkReg(tagged Invalid);
     Reg#(Maybe#(Bit#(8))) simUartRxCache <- mkReg(tagged Invalid);
-    let uartSimToFPGABridge <- mkConnection(proc.pins.uart.sin, simUart.rs232.sout);
-    let uartFPGAToSimBridge <- mkConnection(simUart.rs232.sin, proc.pins.uart.sout);
+    let uartSimToFPGABridge <- mkConnection(toPut(proc.pins.uart.sin), toGet(simUart.rs232.sout));
+    let uartFPGAToSimBridge <- mkConnection(toPut(simUart.rs232.sin), toGet(proc.pins.uart.sout));
 `endif
 `endif
 
@@ -295,11 +295,9 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
       simUart.rx.put(fromMaybe(?, simUartTxCache));
       simUartTxCache <= tagged Invalid;
     endrule
-    rule getData (!isValid(simUartRxCache));
+    rule getData;
       let data <- simUart.tx.get;
-      simUartRxCache <= Valid(data);
-      uartBridgeIndication.get(fromMaybe(?, simUartRxCache));
-      simUartRxCache <= tagged Invalid;
+      uartBridgeIndication.get(data);
     endrule
 `endif
 
