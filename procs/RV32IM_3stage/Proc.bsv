@@ -41,6 +41,7 @@ import Core::*;
 import MemoryMappedCSRs::*;
 import ProcPins::*;
 import RTC::*;
+import RVUart::*;
 import RVTypes::*;
 import VerificationPacket::*;
 import VerificationPacketFilter::*;
@@ -52,7 +53,8 @@ typedef DataSz MainMemoryWidth;
 module mkProc(Proc#(DataSz));
     // Address map (some portions hard-coded in memory system
     // 0x0000_0000 - 0x2000_0000 : tightly coupled memory (not all used)
-    // 0x2000_0000 - 0x3FFF_FFFF : rtc
+    // 0x2000_0000 - 0x2FFF_FFFF : rtc
+    // 0x3000_0000 - 0x3FFF_FFFF : uart
     // 0x4000_0000 - 0xFFFF_FFFF : mmio
 
     let clock <- exposeCurrentClock();
@@ -62,6 +64,11 @@ module mkProc(Proc#(DataSz));
 `else
     RTC#(1) rtc <- mkRTC_RV64;
 `endif
+
+    //   9600 baud: divisor = 26042
+    // 115200 baud: divisor = 134
+    RVUart#(1) uart_module <- mkRVUart_RV32(26042);
+
 
     Bool timer_interrupt = rtc.timerInterrupt[0];
     Bit#(64) timer_value = rtc.timerValue;
@@ -81,7 +88,8 @@ module mkProc(Proc#(DataSz));
 
     // address decoding the dmem port of the sram for the RTC and MMIO
     function Bit#(2) whichServer(UncachedMemReq r);
-        if (r.addr >= 'h4000_0000) return 2;
+        if (r.addr >= 'h4000_0000) return 3;
+        else if (r.addr >= 'h3000_0000) return 2;
         else if (r.addr >= 'h2000_0000) return 1;
         else return 0;
     endfunction
@@ -89,7 +97,7 @@ module mkProc(Proc#(DataSz));
         // currently all UncachedMemReq's get a response
         return True;
     endfunction
-    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, mmio_server));
+    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, uart_module.memifc, mmio_server));
 
     // mkUncachedConverter converts UncachedMemServer to Server#(RVDMemReq, RVDMemResp)
     let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
@@ -189,6 +197,9 @@ module mkProc(Proc#(DataSz));
 
     interface ProcPins pins;
         // no other pins connected at the moment
+        `ifdef CONFIG_RS232
+          interface RS232 uart = uart_module.rs232;
+        `endif
         interface Clock deleteme_unused_clock = clock;
     endinterface
 endmodule
