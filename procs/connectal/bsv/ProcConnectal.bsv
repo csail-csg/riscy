@@ -24,7 +24,7 @@
 `include "ProcConfig.bsv"
 
 // ProcConnectal.bsv
-// This is a wrapper to translate the generic Proc interface to an interface
+// This is a wrapper to ttagged Invalidranslate the generic Proc interface to an interface
 // that is accepted by connectal.
 
 import ConnectalConfig::*;
@@ -35,6 +35,9 @@ import AccelTop::*;
 `ifdef CONFIG_STR_LEN_PINS
 import StrLen::*;
 `endif
+`endif
+`ifdef SIMULATION
+import RS232::*;
 `endif
 
 // This assumes a Proc.bsv file that contains the mkProc definition
@@ -75,6 +78,16 @@ endinterface
 interface VerificationIndication;
     method Action getVerificationPacket(VerificationPacket packet);
 endinterface
+
+// UART
+interface UartBridgeRequest;
+  method Action put (Bit#(8) data);
+  method Action setDivisor(Bit#(16) divisor);
+endinterface
+interface UartBridgeIndication;
+  method Action get(Bit#(8) data);
+  method Action setDivisorDone;
+endinterface
 // PerfMonitor interfaces defined in PerfMonitor package
 // ExternalMMIO
 interface ExternalMMIOResponse;
@@ -91,6 +104,7 @@ interface ProcConnectal;
     interface ProcControlRequest procControlRequest;
     interface PlatformRequest platformRequest;
     interface PerfMonitorRequest perfMonitorRequest;
+    interface UartBridgeRequest uartBridgeRequest;
     interface ExternalMMIOResponse externalMMIOResponse;
     interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
     interface Vector#(1, MemWriteClient#(DataBusWidth)) dmaWriteClient;
@@ -105,6 +119,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
                                  PlatformIndication platformIndication,
                                  VerificationIndication verificationIndication,
                                  PerfMonitorIndication perfMonitorIndication,
+                                 UartBridgeIndication uartBridgeIndication,
                                  ExternalMMIORequest externalMMIORequest)
                                 (ProcConnectal);
     Bool verbose = False;
@@ -136,6 +151,18 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         let resp <- proc.extmem.response.get;
         extMemRespFIFO.enq(resp);
     endrule
+
+// Put the actual flag for Config Simulation
+`ifdef CONFIG_RS232
+`ifdef SIMULATION
+    Reg#(Bit#(16)) uartDivisor <- mkReg(10000);
+    UART#(16) simUart <- mkUART(8, NONE, STOP_1, uartDivisor);
+    Reg#(Maybe#(Bit#(8))) simUartTxCache <- mkReg(tagged Invalid);
+    Reg#(Maybe#(Bit#(8))) simUartRxCache <- mkReg(tagged Invalid);
+    let uartSimToFPGABridge <- mkConnection(proc.pins.uart.sin, simUart.rs232.sout);
+    let uartFPGAToSimBridge <- mkConnection(simUart.rs232.sin, proc.pins.uart.sout);
+`endif
+`endif
 
 `ifdef CONFIG_ACCELERATOR
 `ifdef CONFIG_STR_LEN_PINS
@@ -262,6 +289,20 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     endrule
 `endif
 
+`ifdef SIMULATION
+    // Put and Get rules for Sim Uart
+    rule doPut (isValid(simUartTxCache));
+      simUart.rx.put(fromMaybe(?, simUartTxCache));
+      simUartTxCache <= tagged Invalid;
+    endrule
+    rule getData (!isValid(simUartRxCache));
+      let data <- simUart.tx.get;
+      simUartRxCache <= Valid(data);
+      uartBridgeIndication.get(fromMaybe(?, simUartRxCache));
+      simUartRxCache <= tagged Invalid;
+    endrule
+`endif
+
     // request interfaces
     interface ProcControlRequest procControlRequest;
         method Action reset() if (!resetSent);
@@ -328,6 +369,29 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         endmethod
     endinterface
 `endif
+
+`ifdef SIMULATION
+    interface UartBridgeRequest uartBridgeRequest;
+      method Action put (Bit#(8) data);
+        if (!isValid(simUartTxCache)) begin
+          simUart.rx.put(data);
+        end
+      endmethod
+      method Action setDivisor (Bit#(16) divisor);
+        uartDivisor <= divisor;
+        uartBridgeIndication.setDivisorDone;
+      endmethod
+    endinterface
+  `else
+    interface UartBridgeRequest uartBridgeRequest;
+      method Action put (Bit#(8) data);
+        noAction;
+      endmethod
+      method Action setDivisor (Bit#(16) divisor);
+        noAction;
+      endmethod
+    endinterface
+  `endif
 
     // dma interfaces
     interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);

@@ -198,7 +198,7 @@ module mkProc(Proc#(DataSz));
     interface ProcPins pins;
         // no other pins connected at the moment
         `ifdef CONFIG_RS232
-          interface RS232 uart = uart_module.rs232;
+          interface RS232 uart = uart_module.uart_pins;
         `endif
         interface Clock deleteme_unused_clock = clock;
     endinterface
