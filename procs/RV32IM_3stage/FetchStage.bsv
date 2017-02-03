@@ -1,4 +1,3 @@
-import ClientServer::*;
 import RVTypes::*;
 import CoreStates::*;
 import GetPut::*;
@@ -9,13 +8,11 @@ endinterface
 typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
-    Server#(Addr, Instruction) ifetch;
+    Put#(Addr) ifetchreq;
 } FetchRegs;
 
 module mkFetchStage#(FetchRegs fr)(FetchStage);
-    //let fs = fr.fs;
-    //let es = fr.es;
-    let ifetch = fr.ifetch;
+    let ifetchreq = fr.ifetchreq;
 
     rule doFetch(fr.fs matches tagged Valid .fetchState
                     &&& fr.es == tagged Invalid);
@@ -24,7 +21,7 @@ module mkFetchStage#(FetchRegs fr)(FetchStage);
         fr.fs <= tagged Invalid;
 
         // request instruction
-        ifetch.request.put(pc);
+        ifetchreq.put(pc);
 
         // pass to execute state
         fr.es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };

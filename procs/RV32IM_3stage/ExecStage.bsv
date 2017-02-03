@@ -1,6 +1,5 @@
 import CoreStates::*;
 
-import ClientServer::*;
 import GetPut::*;
 
 import Abstraction::*;
@@ -28,8 +27,8 @@ typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
     Reg#(Maybe#(WriteBackState)) ws;
-    Server#(Addr, Instruction) ifetch;
-    Server#(RVDMemReq, RVDMemResp) dmem;
+    Get#(Instruction) ifetchres;
+    Put#(RVDMemReq) dmemreq;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -45,8 +44,8 @@ typedef struct {
 
 module mkExecStage#(ExecRegs er)(ExecStage);
 
-    let ifetch = er.ifetch;
-    let dmem = er.dmem;
+    let ifetchres = er.ifetchres;
+    let dmemreq = er.dmemreq;
     let csrf = er.csrf;
     let rf = er.rf;
 `ifdef CONFIG_M
@@ -62,7 +61,7 @@ module mkExecStage#(ExecRegs er)(ExecStage);
         er.es <= tagged Invalid;
 
         // get the instruction
-        let inst <- ifetch.response.get;
+        let inst <- ifetchres.get;
 
         if (!poisoned) begin
             // check for interrupts
@@ -111,7 +110,7 @@ module mkExecStage#(ExecRegs er)(ExecStage);
                                 endcase);
                 if (aligned) begin
                     // send the request to the memory
-                    dmem.request.put( RVDMemReq {
+                    dmemreq.put( RVDMemReq {
                         op: dInst.execFunc.Mem.op,
                         size: dInst.execFunc.Mem.size,
                         isUnsigned: dInst.execFunc.Mem.isUnsigned,

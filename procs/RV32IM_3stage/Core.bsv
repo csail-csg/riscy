@@ -29,11 +29,11 @@ import ExecStage::*;
 import WriteBackStage::*;
 
 import ClientServer::*;
+import GetPut::*;
 import Connectable::*;
 import DefaultValue::*;
 import FIFO::*;
 import GetPut::*;
-import Vector::*;
 
 import Ehr::*;
 
@@ -45,13 +45,9 @@ import RVCsrFile::*;
 `else
 import RVCsrFileMCU::*;
 `endif
-import RVExec::*;
 import RVTypes::*;
 import VerificationPacket::*;
 
-import RVAlu::*;
-import RVControl::*;
-import RVDecode::*;
 import RVMemory::*;
 `ifdef CONFIG_M
 import RVMulDiv::*;
@@ -95,15 +91,15 @@ module mkThreeStageCore#(
     let fetchRegs = FetchRegs{
             fs: fetchStateEhr[2],
             es: executeStateEhr[2],
-            ifetch: ifetch};
+            ifetchreq: ifetch.request};
     FetchStage f <- mkFetchStage(fetchRegs);
 
     let execRegs = ExecRegs{
         fs: fetchStateEhr[1],
         es: executeStateEhr[1],
         ws: writeBackStateEhr[1],
-        ifetch: ifetch,
-        dmem: dmem,
+        ifetchres: ifetch.response,
+        dmemreq: dmem.request,
 `ifdef CONFIG_M
         mulDiv: mulDiv,
 `endif
@@ -115,7 +111,7 @@ module mkThreeStageCore#(
         fs: fetchStateEhr[0],
         es: executeStateEhr[0],
         ws: writeBackStateEhr[0],
-        dmem: dmem,
+        dmemres: dmem.response,
 `ifdef CONFIG_M
         mulDiv: mulDiv,
 `endif

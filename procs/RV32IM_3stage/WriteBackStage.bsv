@@ -1,6 +1,5 @@
 import CoreStates::*;
 
-import ClientServer::*;
 import FIFO::*;
 import GetPut::*;
 
@@ -26,7 +25,7 @@ typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
     Reg#(Maybe#(WriteBackState)) ws;
-    Server#(RVDMemReq, RVDMemResp) dmem;
+    Get#(RVDMemResp) dmemres;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -42,7 +41,7 @@ typedef struct {
 } WriteBackRegs;
 
 module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
-    let dmem = wr.dmem;
+    let dmemres = wr.dmemres;
     let csrf = wr.csrf;
     let rf = wr.rf;
 `ifdef CONFIG_M
@@ -68,7 +67,7 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
 
         if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
             if (getsResponse(memInst.op)) begin
-                data <- dmem.response.get;
+                data <- dmemres.get;
             end
         end
 
