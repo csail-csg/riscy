@@ -45,6 +45,7 @@
 #include "ExternalMMIO.hpp"
 #include "DeviceTree.hpp"
 #include "Devices.hpp"
+#include "UartBridge.hpp"
 
 #include "NullTandemVerifier.hpp"
 #include "SpikeTandemVerifier.hpp"
@@ -67,6 +68,7 @@ static ProcControl *procControl = NULL;
 static Verification *verification = NULL;
 static PerfMonitor *perfMonitor = NULL;
 static ExternalMMIO *externalMMIO = NULL;
+static UartBridge *externalUart = NULL;
 
 // devices
 static emulated_uart_t *uart = NULL;
@@ -152,6 +154,7 @@ int main(int argc, char * const *argv) {
     }
     perfMonitor = new PerfMonitor(IfcNames_PerfMonitorIndicationH2S, IfcNames_PerfMonitorRequestS2H);
     externalMMIO = new ExternalMMIO(IfcNames_ExternalMMIORequestH2S, IfcNames_ExternalMMIOResponseS2H);
+    externalUart = new UartBridge(IfcNames_UartBridgeIndicationH2S, IfcNames_UartBridgeRequestS2H);
 
     // add some devices to externalMMIO
     uart = new emulated_uart_t();
