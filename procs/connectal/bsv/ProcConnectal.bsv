@@ -24,7 +24,7 @@
 `include "ProcConfig.bsv"
 
 // ProcConnectal.bsv
-// This is a wrapper to ttagged Invalidranslate the generic Proc interface to an interface
+// This is a wrapper to translate the generic Proc interface to an interface
 // that is accepted by connectal.
 
 import ConnectalConfig::*;
