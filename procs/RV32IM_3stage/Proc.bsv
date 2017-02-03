@@ -67,7 +67,7 @@ module mkProc(Proc#(DataSz));
 
     //   9600 baud: divisor = 26042
     // 115200 baud: divisor = 134
-    RVUart#(1) uart_module <- mkRVUart_RV32(26042);
+    RVUart#(1) uart_module <- mkRVUart_RV32(17);
 
 
     Bool timer_interrupt = rtc.timerInterrupt[0];
@@ -198,7 +198,7 @@ module mkProc(Proc#(DataSz));
     interface ProcPins pins;
         // no other pins connected at the moment
         `ifdef CONFIG_RS232
-          interface RS232 uart = uart_module.rs232;
+          interface RS232 uart = uart_module.uart_pins;
         `endif
         interface Clock deleteme_unused_clock = clock;
     endinterface

@@ -66,6 +66,7 @@ CPPFILES += \
 	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/PrintTrace.cpp \
 	$(RISCY_HOME)/procs/connectal/cpp/ElfLoader.cpp \
+	$(RISCY_HOME)/procs/connectal/cpp/UartBridge.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 
@@ -73,6 +74,7 @@ S2H_INTERFACES = \
 	ProcControlRequest:ProcConnectal.procControlRequest \
 	PerfMonitorRequest:ProcConnectal.perfMonitorRequest \
 	PlatformRequest:ProcConnectal.platformRequest \
+	UartBridgeRequest:ProcConnectal.uartBridgeRequest \
 	ExternalMMIOResponse:ProcConnectal.externalMMIOResponse \
 
 H2S_INTERFACES = \
@@ -80,6 +82,7 @@ H2S_INTERFACES = \
 	ProcConnectal:PlatformIndication \
 	ProcConnectal:VerificationIndication \
 	ProcConnectal:PerfMonitorIndication \
+	ProcConnectal:UartBridgeIndication \
 	ProcConnectal:ExternalMMIORequest \
 
 MEM_READ_INTERFACES = \
@@ -173,4 +176,3 @@ exe.%: gen.%
 	$(MAKE) -C $* --no-print-directory exe
 
 include $(CONNECTALDIR)/Makefile.connectal
-
