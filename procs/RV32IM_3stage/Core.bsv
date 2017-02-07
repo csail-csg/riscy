@@ -84,7 +84,6 @@ module mkThreeStageCore#(
     Ehr#(4, Maybe#(FetchState)) fetchStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(ExecuteState)) executeStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(WriteBackState)) writeBackStateEhr <- mkEhr(tagged Invalid);
-    Ehr#(4, Bool) epoch <- mkEhr(False);
 
     FIFO#(VerificationPacket) verificationPackets <- mkFIFO;
     
