@@ -113,16 +113,16 @@ module mkSPIMaster(SPIMaster);
         end
     endrule
 
-    method Action setSclkDiv(Bit#(16) d) if (ncsReg == 1);
+    method Action setSclkDiv(Bit#(16) d);
         sclkDiv <= d;
     endmethod
     method Action setNcs(Bit#(1) new_ncs);
         ncsReg <= new_ncs;
     endmethod
-    method Action setCpol(Bit#(1) new_cpol) if (ncsReg == 1);
+    method Action setCpol(Bit#(1) new_cpol);
         cpol <= new_cpol;
     endmethod
-    method Action setCpha(Bit#(1) new_cpha) if (ncsReg == 1);
+    method Action setCpha(Bit#(1) new_cpha);
         cpha <= new_cpha;
     endmethod
 
