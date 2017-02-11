@@ -42,6 +42,8 @@ import MemoryMappedCSRs::*;
 import ProcPins::*;
 import RTC::*;
 import RVUart::*;
+import SPI::*;
+import RVSPI::*;
 import RVTypes::*;
 import VerificationPacket::*;
 import VerificationPacketFilter::*;
@@ -69,6 +71,7 @@ module mkProc(Proc#(DataSz));
     // 115200 baud: divisor = 134
     RVUart#(1) uart_module <- mkRVUart_RV32(17);
 
+    RVSPI spi_module <- mkRVSPI();
 
     Bool timer_interrupt = rtc.timerInterrupt[0];
     Bit#(64) timer_value = rtc.timerValue;
@@ -87,8 +90,9 @@ module mkProc(Proc#(DataSz));
     let mmio_client = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
 
     // address decoding the dmem port of the sram for the RTC and MMIO
-    function Bit#(2) whichServer(UncachedMemReq r);
-        if (r.addr >= 'h4000_0000) return 3;
+    function Bit#(3) whichServer(UncachedMemReq r);
+        if (r.addr >= 'h4000_0000) return 4;
+        else if (r.addr >= 'h3001_0000) return 3;
         else if (r.addr >= 'h3000_0000) return 2;
         else if (r.addr >= 'h2000_0000) return 1;
         else return 0;
@@ -97,7 +101,7 @@ module mkProc(Proc#(DataSz));
         // currently all UncachedMemReq's get a response
         return True;
     endfunction
-    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, uart_module.memifc, mmio_server));
+    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, uart_module.memifc, spi_module.memifc, mmio_server));
 
     // mkUncachedConverter converts UncachedMemServer to Server#(RVDMemReq, RVDMemResp)
     let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
@@ -198,7 +202,10 @@ module mkProc(Proc#(DataSz));
     interface ProcPins pins;
         // no other pins connected at the moment
         `ifdef CONFIG_RS232
-          interface RS232 uart = uart_module.uart_pins;
+            interface RS232 uart = uart_module.uart_pins;
+        `endif
+        `ifdef CONFIG_SPI
+            interface SPIMasterPins spi = spi_module.spi_pins;
         `endif
         interface Clock deleteme_unused_clock = clock;
     endinterface

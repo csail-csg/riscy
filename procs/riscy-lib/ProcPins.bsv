@@ -24,13 +24,18 @@
 `include "ProcConfig.bsv"
 
 import RS232::*;
+import SPI::*;
 
+export SPIMasterPins(..);
 export RS232(..);
 export ProcPins(..);
 
 interface ProcPins;
 `ifdef CONFIG_RS232
     interface RS232 uart;
+`endif
+`ifdef CONFIG_SPI
+    interface SPIMasterPins spi;
 `endif
     // This is to avoid BSV errors
     interface Clock deleteme_unused_clock;
