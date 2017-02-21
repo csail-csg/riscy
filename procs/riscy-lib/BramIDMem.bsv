@@ -133,7 +133,9 @@ typedef struct {
 
 module mkBramIDMem(BramIDMem);
     BRAM_Configure cfg = defaultValue;
-    BRAM2PortBE#(Bit#(12), Data, TDiv#(XLEN,8)) bram <- mkBRAM2ServerBE(cfg);
+    // if XLEN=32, bram is 64 KB
+    // if XLEN=64, bram is 128 KB
+    BRAM2PortBE#(Bit#(14), Data, TDiv#(XLEN,8)) bram <- mkBRAM2ServerBE(cfg);
 
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingIReq <- mkEhr(tagged Invalid);
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingDReq <- mkEhr(tagged Invalid);
