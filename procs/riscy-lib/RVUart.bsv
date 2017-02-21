@@ -46,6 +46,8 @@ endinterface
 
 module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1))
     provisos (NumAlias#(internalAddrSize, 8));
+  Bool verbose = False;
+
   // Layout of memory interface (mostly derived by SiFive Freedom E300)
   // Address   Name     Description
   // 0x0000    txData   Transmit data register
@@ -104,7 +106,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1))
     interface Put request;
       method Action put(UncachedMemReq req) if (!isValid(pendingReq[1]));
         if (req.write) begin
-          $display("memory write: %h, data: %h", req.addr, req.data);
+          if (verbose) $display("memory write: %h, data: %h", req.addr, req.data);
           case (truncate(req.addr))
             txDataAddr: begin
                           txDataReg <= tagged Valid(truncate(req.data));
@@ -126,7 +128,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1))
         Bool write = tpl_1(reqTuple);
         Bit#(internalAddrSize) addr = tpl_2(reqTuple);
         Bit#(32) retVal = 0;
-        $display("memory read: %h", addr);
+        if (verbose) $display("memory read: %h", addr);
         case (truncate(addr))
           txDataAddr: begin
                         retVal = 0;
