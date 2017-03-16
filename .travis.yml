@@ -4,8 +4,8 @@ cache:
 env:
   global:
     # Bluespec
-    - BLUESPECDIR=$PWD/Bluespec-2015.09.beta2/lib
-    - PATH=$PATH:$PWD/Bluespec-2015.09.beta2/bin
+    - BLUESPECDIR=$PWD/Bluespec-2016.07.beta1/lib
+    - PATH=$PATH:$PWD/Bluespec-2016.07.beta1/bin
     - LD_LIBRARY_PATH=$PWD/lib
     # Riscy
     - RISCY_HOME=$PWD
@@ -27,7 +27,7 @@ before_script:
   - travis_wait 45 ./build.sh
   - cd ..
   # download and install bluespec
-  - if [ -d Bluespec-2015.09.beta2 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2015.09.beta2.tar.gz | tar -zxf - ; fi
+  - if [ -d Bluespec-2016.07.beta1 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2016.07.beta1.tar.gz | tar -zxf - ; fi
   - mkdir -p lib
   - ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
   # download and install ply
@@ -35,7 +35,7 @@ before_script:
   - ln -s ../ply-3.9/ply scripts
   - ls -l scripts/ply
 script:
-  - ls Bluespec-2015.09.beta2
+  - ls Bluespec-2016.07.beta1
   - ls riscv
   - export PYTHONPATH=$PWD/scripts; cd $RISCY_HOME/procs/$TRAVIS_PROC && make build.$TRAVIS_TARGET && make isatest.$TRAVIS_TARGET
 sudo: no
