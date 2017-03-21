@@ -49,7 +49,7 @@ module mkMemoryMappedServer#(Vector#(n, Reg#(Bit#(XLEN))) regs)(Server#(Uncached
         method Action put(UncachedMemReq req) if (!isValid(pendingReq[1]));
             Bit#(TLog#(n)) index = truncate(req.addr >> valueOf(TLog#(TDiv#(XLEN,8))));
             // do write here
-            if (req.write && (index < fromInteger(valueOf(n)))) begin
+            if (req.write && (index <= fromInteger(valueOf(n)-1))) begin
                 regs[index] <= req.data;
             end
             pendingReq[1] <= tagged Valid tuple2(req.write, index);
@@ -59,7 +59,7 @@ module mkMemoryMappedServer#(Vector#(n, Reg#(Bit#(XLEN))) regs)(Server#(Uncached
         method ActionValue#(UncachedMemResp) get if (pendingReq[0] matches tagged Valid {.write, .index});
             // do read here
             Bit#(XLEN) read_data = 0;
-            if (!write && (index < fromInteger(valueOf(n)))) begin
+            if (!write && (index <= fromInteger(valueOf(n)-1))) begin
                 read_data = regs[index];
             end
             pendingReq[0] <= tagged Invalid;
