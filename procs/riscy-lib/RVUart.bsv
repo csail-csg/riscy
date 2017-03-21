@@ -42,10 +42,8 @@ interface RVUart#(numeric type cores);
     // external connections for rx/tx (to be connected to a UART
     (* prefix = "" *)
     interface RS232 uart_pins;
-    //method Action rx (Bit#(1) x);
-    // method Bit#(1) tx;
     method Bit#(16) divisor;
-    method Vector#(cores, Bool) receiveInterrupt;
+    method Bool interrupt;
 endinterface
 
 module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
@@ -70,8 +68,6 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
 
     UART#(16) uart <- mkUART(8, NONE, STOP_1, divReg);
 
-    Ehr#(2, Bool) interruptReg <- mkEhr(False);
-
     rule doTxData (txDataReg matches tagged Valid .x);
         // There is an implicit guard on the Fifo for uart.put
         uart.rx.put(x);
@@ -82,12 +78,11 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
         // There is an implicit guard on the Fifo for uart.get
         let data <- uart.tx.get;
         rxDataReg <= Valid(data);
-        interruptReg[0] <= True;
     endrule
 
     interface UncachedMemServer memifc = memoryMappedIfc;
 
     interface RS232 uart_pins = uart.rs232;
     method Bit#(16) divisor = divReg;
-    method Vector#(1, Bool) receiveInterrupt = vec(interruptReg[0]);
+    method Bool interrupt = isValid(rxDataReg);
 endmodule
