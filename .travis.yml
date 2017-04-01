@@ -33,7 +33,7 @@ before_script:
   # download and install ply
   - curl http://www.dabeaz.com/ply/ply-3.9.tar.gz | tar -zxf -
   - ln -s ../ply-3.9/ply connectal/scripts
-  - ls -l scripts/ply
+  - ls -l connectal/scripts/ply
 script:
   - ls Bluespec-2016.07.beta1
   - ls riscv
