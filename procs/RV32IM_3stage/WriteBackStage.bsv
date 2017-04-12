@@ -64,7 +64,7 @@ typedef struct {
     RVCsrFileMCU csrf;
 `endif
     ArchRFile rf;
-    FIFO#(VerificationPacket) verificationPackets;
+    Reg#(Maybe#(VerificationPacket)) verificationPackets;
 } WriteBackRegs;
 
 module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
@@ -146,7 +146,7 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
                     trapCause = pack(x);
                 end
         endcase
-        wr.verificationPackets.enq( VerificationPacket {
+        wr.verificationPackets <= tagged Valid VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
                 data: signExtend(fromMaybe(data, maybeData)),
@@ -155,7 +155,7 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
                 dst: {pack(dInst.dst), getInstFields(inst).rd},
                 exception: isException,
                 interrupt: isInterrupt,
-                cause: trapCause } );
+                cause: trapCause };
 
         if (maybeNextPc matches tagged Valid .replayPc) begin
             // This instruction is not writing to the register file

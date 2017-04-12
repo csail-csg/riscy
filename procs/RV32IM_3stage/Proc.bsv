@@ -112,11 +112,8 @@ module mkProc(Proc#(DataSz));
                     extInterruptWire, // external interrupt
                     0); // hart ID
 
-    // Verification Packet Connection
-    VerificationPacketFilter verificationPacketFilter <- mkVerificationPacketFilter(core.getVerificationPacket);
-
     // Processor Control
-    method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
+    method Action start(Bit#(64) startPc);
         if (startPc != 0) begin
             // This processor does not have the same memory layout as spike,
             // so for now we are assuming this processor has rstvec = 0
@@ -124,16 +121,14 @@ module mkProc(Proc#(DataSz));
             $fflush(stderr);
         end
         core.start(truncate(startPc));
-        verificationPacketFilter.init(verificationPacketsToIgnore, sendSynchronizationPackets);
     endmethod
     method Action stop();
         core.stop;
     endmethod
 
     // Verification
-    method ActionValue#(VerificationPacket) getVerificationPacket;
-        let verificationPacket <- verificationPacketFilter.getPacket;
-        return verificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
+        return core.currVerificationPacket;
     endmethod
 
     // Main Memory Connection

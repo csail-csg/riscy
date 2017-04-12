@@ -57,7 +57,7 @@ import RVMulDiv::*;
 interface Core;
     method Action start(Addr startPc);
     method Action stop;
-    method ActionValue#(VerificationPacket) getVerificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
 endinterface
 
 module mkThreeStageCore#(
@@ -85,8 +85,7 @@ module mkThreeStageCore#(
     Ehr#(4, Maybe#(FetchState)) fetchStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(ExecuteState)) executeStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(WriteBackState)) writeBackStateEhr <- mkEhr(tagged Invalid);
-
-    FIFO#(VerificationPacket) verificationPackets <- mkFIFO;
+    Ehr#(2, Maybe#(VerificationPacket)) verificationPacketEhr <- mkEhr(tagged Invalid);
     
     let fetchRegs = FetchRegs{
             fs: fetchStateEhr[2],
@@ -117,8 +116,12 @@ module mkThreeStageCore#(
 `endif
         csrf: csrf,
         rf: rf,
-        verificationPackets: verificationPackets};
+        verificationPackets: verificationPacketEhr[1]};
     WriteBackStage w <- mkWriteBackStage(writeBackRegs);
+
+    rule clearVerificationPacketEhr;
+        verificationPacketEhr[0] <= tagged Invalid;
+    endrule
 
     method Action start(Addr startPc);
         fetchStateEhr[3] <= tagged Valid FetchState { pc: startPc };
@@ -131,9 +134,7 @@ module mkThreeStageCore#(
         writeBackStateEhr[3] <= tagged Invalid;
     endmethod
 
-    method ActionValue#(VerificationPacket) getVerificationPacket;
-        let verificationPacket = verificationPackets.first;
-        verificationPackets.deq;
-        return verificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
+        return verificationPacketEhr[0];
     endmethod
 endmodule

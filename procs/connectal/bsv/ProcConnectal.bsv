@@ -52,6 +52,7 @@ import Port::*;
 import Proc::*;
 import Vector::*;
 import VerificationPacket::*;
+import VerificationPacketFilter::*;
 import MemTypes::*;
 import ProcPins::*;
 import RVTypes::*;
@@ -142,6 +143,13 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     FIFO#(GenericMemReq#(DataSz)) extMemReqFIFO <- mkFIFO;
     FIFO#(GenericMemResp#(DataSz)) extMemRespFIFO <- mkFIFO;
     FIFO#(ExtMemUser) extMemUserFIFO <- mkFIFO;
+
+    FIFO#(VerificationPacket) verificationPacketFIFO <- mkFIFO;
+    VerificationPacketFilter verificationPacketFilter <- mkVerificationPacketFilter(toGet(verificationPacketFIFO).get);
+
+    rule getVerificationPackets(proc.currVerificationPacket matches tagged Valid .packet);
+        verificationPacketFIFO.enq(packet);
+    endrule
 
     rule connectExtMemReq;
         let req = extMemReqFIFO.first;
@@ -275,9 +283,10 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         platformIndication.memResponse(resp.write, zeroExtend(resp.data));
     endrule
     rule connectVerificationIndication;
-        let msg <- proc.getVerificationPacket;
+        let msg <- verificationPacketFilter.getPacket;
         verificationIndication.getVerificationPacket(msg);
     endrule
+
 `ifndef CONFIG_ACCELERATOR
     rule connectExternalMMIORequest;
         let msg = proc.mmio.request.first;
@@ -316,7 +325,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             resetSent <= True;
         endmethod
         method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
-            proc.start(startPc, verificationPacketsToIgnore, sendSynchronizationPackets);
+            proc.start(startPc);
+            verificationPacketFilter.init(verificationPacketsToIgnore, sendSynchronizationPackets);
         endmethod
         method Action stop();
             proc.stop;

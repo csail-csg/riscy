@@ -205,11 +205,11 @@ typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric 
 
 interface Proc#(numeric type mainMemoryWidth);
     // Processor Control
-    method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
+    method Action start(Bit#(64) startPc);
     method Action stop();
 
     // Verification
-    method ActionValue#(VerificationPacket) getVerificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
 
     // Cached Connections
     interface GenericMemClientPort#(mainMemoryWidth) ram;
