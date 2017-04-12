@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -26,6 +26,8 @@ import Connectable::*;
 import DefaultValue::*;
 import GetPut::*;
 import Vector::*;
+
+import Port::*;
 
 import ProcPins::*;
 import RVTypes::*;
@@ -116,6 +118,8 @@ typedef struct {
 } GenericMemResp#(numeric type dataWidth) deriving (Bits, Eq, FShow);
 typedef Client#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemClient#(numeric type dataWidth);
 typedef Server#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemServer#(numeric type dataWidth);
+typedef ClientPort#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemClientPort#(numeric type dataWidth);
+typedef ServerPort#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemServerPort#(numeric type dataWidth);
 
 // main memory ports
 typedef enum {IMMU, ICache, DMMU, DCache} MemoryClientType deriving (Bits, Eq, FShow);
@@ -127,6 +131,10 @@ typedef Client#(MainMemReq,MainMemResp) MainMemoryClient;
 typedef Server#(MainMemReq,MainMemResp) MainMemoryServer;
 typedef MainMemoryServer MainMemServer;
 typedef MainMemoryClient MainMemClient;
+typedef ClientPort#(MainMemReq,MainMemResp) MainMemoryClientPort;
+typedef ServerPort#(MainMemReq,MainMemResp) MainMemoryServerPort;
+typedef MainMemoryServerPort MainMemServerPort;
+typedef MainMemoryClientPort MainMemClientPort;
 
 // uncached memory port
 typedef struct {
@@ -141,6 +149,8 @@ typedef struct {
 } UncachedMemResp deriving (Bits, Eq, FShow);
 typedef Client#(UncachedMemReq, UncachedMemResp) UncachedMemClient;
 typedef Server#(UncachedMemReq, UncachedMemResp) UncachedMemServer;
+typedef ClientPort#(UncachedMemReq, UncachedMemResp) UncachedMemClientPort;
+typedef ServerPort#(UncachedMemReq, UncachedMemResp) UncachedMemServerPort;
 
 interface FrontEnd#(type epochType);
     // To Front-End
@@ -185,10 +195,10 @@ endinterface
 interface MulticoreMemorySystem#(numeric type numCores, numeric type mainMemWidth);
     interface Vector#(numCores, MemorySystem) core;
     // To main memory and devices
-    interface GenericMemClient#(mainMemWidth) cachedMemory;
-    interface UncachedMemClient uncachedMemory;
+    interface GenericMemClientPort#(mainMemWidth) cachedMemory;
+    interface UncachedMemClientPort uncachedMemory;
     // Memory requests from external devices
-    interface GenericMemServer#(XLEN) extMemory;
+    interface GenericMemServerPort#(XLEN) extMemory;
 endinterface
 
 typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric type mainMemWidth);
@@ -202,12 +212,12 @@ interface Proc#(numeric type mainMemoryWidth);
     method ActionValue#(VerificationPacket) getVerificationPacket;
 
     // Cached Connections
-    interface GenericMemClient#(mainMemoryWidth) ram;
-    interface GenericMemClient#(mainMemoryWidth) rom;
+    interface GenericMemClientPort#(mainMemoryWidth) ram;
+    interface GenericMemClientPort#(mainMemoryWidth) rom;
     // Uncached Connections
-    interface UncachedMemClient mmio;
+    interface UncachedMemClientPort mmio;
     // External Connections
-    interface GenericMemServer#(XLEN) extmem;
+    interface GenericMemServerPort#(XLEN) extmem;
     // Interrupts
     method Action triggerExternalInterrupt;
 

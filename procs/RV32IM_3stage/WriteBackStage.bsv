@@ -23,10 +23,10 @@
 
 `include "ProcConfig.bsv"
 
-import CoreStates::*;
-
 import FIFO::*;
 import GetPut::*;
+
+import Port::*;
 
 import Abstraction::*;
 import RVRFile::*;
@@ -43,6 +43,8 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
+import CoreStates::*;
+
 interface WriteBackStage;
 endinterface
 
@@ -50,7 +52,7 @@ typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
     Reg#(Maybe#(WriteBackState)) ws;
-    Get#(RVDMemResp) dmemres;
+    OutputPort#(RVDMemResp) dmemres;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -92,7 +94,8 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
 
         if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
             if (getsResponse(memInst.op)) begin
-                data <- dmemres.get;
+                data = dmemres.first;
+                dmemres.deq;
             end
         end
 

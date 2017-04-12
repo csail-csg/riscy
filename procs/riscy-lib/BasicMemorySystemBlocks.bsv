@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -30,6 +30,8 @@ import GetPut::*;
 import Vector::*;
 
 import Ehr::*;
+import FIFOG::*;
+import Port::*;
 
 import Abstraction::*;
 import RVAmo::*;
@@ -483,14 +485,15 @@ typedef struct {
     Bool isUnsigned;
 } PendingUncachedReqInfo deriving (Bits, Eq, FShow);
 // probably should be called mkUncachedBridge
-module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RVDMemResp));
+module mkUncachedConverter#(UncachedMemServerPort uncachedMem)(ServerPort#(RVDMemReq, RVDMemResp));
     // this assumes there are no RMW operations to uncached memory
-    FIFOF#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFOF;
+    FIFOG#(PendingUncachedReqInfo) bookkeepingFIFO <- mkFIFOG;
 
     Ehr#(2, Maybe#(RVDMemResp)) respEhr <- mkEhr(tagged Invalid);
 
     rule handleResp(!isValid(respEhr[0]));
-        let resp <- uncachedMem.response.get;
+        let resp = uncachedMem.response.first;
+        uncachedMem.response.deq;
         if (bookkeepingFIFO.notEmpty) begin
             let reqInfo = bookkeepingFIFO.first;
             if (reqInfo.isWrite != resp.write) begin
@@ -518,9 +521,9 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
         end
     endrule
 
-    interface Put request;
-        method Action put(RVDMemReq r);
-            uncachedMem.request.put( UncachedMemReq {
+    interface InputPort request;
+        method Action enq(RVDMemReq r);
+            uncachedMem.request.enq( UncachedMemReq {
                     write: r.op == tagged Mem St,
                     size: r.size,
                     addr: r.addr,
@@ -528,11 +531,19 @@ module mkUncachedConverter#(UncachedMemServer uncachedMem)(Server#(RVDMemReq, RV
                 } );
             bookkeepingFIFO.enq(PendingUncachedReqInfo {isWrite: r.op == tagged Mem St, size: r.size, isUnsigned: r.isUnsigned});
         endmethod
+        method Bool canEnq;
+            return uncachedMem.request.canEnq && bookkeepingFIFO.canEnq;
+        endmethod
     endinterface
-    interface Get response;
-        method ActionValue#(RVDMemResp) get if (respEhr[1] matches tagged Valid .resp);
-            respEhr[1] <= tagged Invalid;
+    interface OutputPort response;
+        method RVDMemResp first if (respEhr[1] matches tagged Valid .resp);
             return resp;
+        endmethod
+        method Action deq if (respEhr[1] matches tagged Valid .resp);
+            respEhr[1] <= tagged Invalid;
+        endmethod
+        method Bool canDeq;
+            return isValid(respEhr[1]);
         endmethod
     endinterface
 endmodule
@@ -646,6 +657,210 @@ module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool g
                 pendingReq[1] <= tagged Invalid;
                 readyResp[1] <= tagged Invalid;
                 return resp;
+            endmethod
+        endinterface
+    endinterface
+endmodule
+
+typedef struct {
+    Addr addr_mask;
+    Addr addr_match;
+    UncachedMemServerPort ifc;
+} MemoryBusItem;
+
+typedef struct {
+    Bool isExt;
+    Bit#(TLog#(n)) serverIndex;
+} MemoryBusV2PendingReq#(numeric type n) deriving (Bits, Eq, FShow);
+
+interface MemoryBusV2;
+    interface UncachedMemServerPort procIfc;
+    interface UncachedMemServerPort extIfc;
+endinterface
+
+function MemoryBusItem busItemFromAddrRange( Addr low, Addr high, UncachedMemServerPort ifc );
+    let addr_mask = ~(low ^ high);
+    let addr_match = low & addr_mask;
+    // mask should be a contiguous region of upper bits,
+    // low should be the lowest valid address for mask/match combination,
+    // and high should be the highest valid address for mask/match combination,
+    Bool valid = ((addr_mask & ((~addr_mask) >> 1)) == 0)
+                    && ((low & ~addr_mask) == 0)
+                    && ((high & ~addr_mask) == ~addr_mask);
+    if (valid) begin
+        return MemoryBusItem {
+            addr_mask: addr_mask,
+            addr_match: addr_match,
+            ifc: ifc
+        };
+    end else begin
+        return error("busItemFromAddrRange compilation error: Address range (%x-%x) cannot be expressed as match/mask", ?);
+    end
+endfunction
+
+module mkMemoryBusV2#(Vector#(n, MemoryBusItem ) bus_items)(MemoryBusV2);
+    // check for consistency of addr_mask and addr_match in bus_items
+    for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
+        if ((bus_items[i].addr_mask & bus_items[i].addr_match) != bus_items[i].addr_match) begin
+            errorM("mkMemoryBusV2 compilation error: Illegal addr_mask addr_match combination");
+        end
+        for (Integer j = 0 ; j < valueOf(n) ; j = j+1) begin
+            if (i != j) begin
+                Addr shared_mask = bus_items[i].addr_mask & bus_items[j].addr_mask;
+                Addr different_match = bus_items[i].addr_match ^ bus_items[j].addr_match;
+                if ((shared_mask & different_match) == 0) begin
+                    errorM("mkMemoryBusV2 compilation error: Overlapping address regions in bus_items");
+                end
+            end
+        end
+    end
+
+    Ehr#(4, Maybe#(UncachedMemReq)) procReqEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(UncachedMemReq)) extReqEhr <- mkEhr(tagged Invalid);
+
+    // pendingReq says which client gets the next response and which server is sending it
+    Ehr#(4, Maybe#(MemoryBusV2PendingReq#(n))) pendingReq <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(Bool)) currReqIsExt <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(UncachedMemResp)) readyResp <- mkEhr(tagged Invalid);
+
+    Reg#(Bool) extReqWasPreempted <- mkReg(False);
+
+    // request priority:
+    // old procIfc.request
+    // old extIfc.request
+    // current procIfc.request
+    // current extIfc.request
+
+    rule forwardRequest if (!isValid(pendingReq[3])
+                            && (isValid(procReqEhr[3])
+                                || isValid(extReqEhr[3])));
+        Bool isExt = False;
+        Bit#(TLog#(n)) serverIndx = 0;
+
+        if (procReqEhr[3] matches tagged Valid .req &&& !extReqWasPreempted) begin
+            // get serverIndex from the request address
+            Integer serverIndex = valueOf(n);
+            for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
+                if ((truncate(req.addr) & bus_items[i].addr_mask) == bus_items[i].addr_match) begin
+                    serverIndex = i;
+                end
+            end
+
+            procReqEhr[3] <= tagged Invalid;
+            if (serverIndex == valueOf(n)) begin
+                // illegal address
+                readyResp[3] <= tagged Valid UncachedMemResp{ write: req.write, data: 0 };
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: False, serverIndex: 0 };
+            end else begin
+                // legal address
+                bus_items[serverIndex].ifc.request.enq(req);
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: False, serverIndex: fromInteger(serverIndex) };
+            end
+
+            // record if an external request was preempted
+            if (!isValid(extReqEhr[3])) begin
+                extReqWasPreempted <= False;
+            end else begin
+                extReqWasPreempted <= True;
+            end
+        end else if (extReqEhr[3] matches tagged Valid .req) begin
+            // get serverIndex from the request address
+            Integer serverIndex = valueOf(n);
+            for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
+                if ((truncate(req.addr) & bus_items[i].addr_mask) == bus_items[i].addr_match) begin
+                    serverIndex = i;
+                end
+            end
+
+            extReqEhr[3] <= tagged Invalid;
+            if (serverIndex == valueOf(n)) begin
+                // illegal address
+                readyResp[3] <= tagged Valid UncachedMemResp{ write: req.write, data: 0 };
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: True, serverIndex: 0 };
+            end else begin
+                // legal address
+                bus_items[serverIndex].ifc.request.enq(req);
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: True, serverIndex: fromInteger(serverIndex) };
+            end
+
+            extReqWasPreempted <= False;
+        end else begin
+            // Due to the guard of this rule, the only way this can happen is
+            // if extWasPreempted is true but extReqEhr was invalid.
+            $fdisplay(stderr, "[ERROR] mkMemoryBus: extReqWasPreempted == True, but there is no valid extReq");
+            extReqWasPreempted <= False;
+        end
+    endrule
+
+    rule forwardResponse if (pendingReq[0] matches tagged Valid .req
+                                &&& !isValid(readyResp[0]));
+        // get response
+        let resp = bus_items[req.serverIndex].ifc.response.first;
+        bus_items[req.serverIndex].ifc.response.deq;
+        readyResp[0] <= tagged Valid resp;
+    endrule
+
+    interface UncachedMemServerPort procIfc;
+        interface InputPort request;
+            method Action enq(UncachedMemReq req) if (!isValid(procReqEhr[2]));
+                procReqEhr[2] <= tagged Valid req;
+            endmethod
+            method Bool canEnq;
+                return !isValid(procReqEhr[2]);
+            endmethod
+        endinterface
+        interface OutputPort response;
+            method UncachedMemResp first if (pendingReq[1] matches tagged Valid.req
+                                                &&& readyResp[1] matches tagged Valid .resp
+                                                &&& (req.isExt == False));
+                return resp;
+            endmethod
+            method Action deq if (pendingReq[1] matches tagged Valid.req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& (req.isExt == False));
+                pendingReq[1] <= tagged Invalid;
+                readyResp[1] <= tagged Invalid;
+            endmethod
+            method Bool canDeq;
+                // This interface method is not currently supported
+                if (pendingReq[1] matches tagged Valid.req
+                        &&& readyResp[1] matches tagged Valid .resp) begin
+                    return req.isExt == False;
+                end else begin
+                    return False;
+                end
+            endmethod
+        endinterface
+    endinterface
+    interface UncachedMemServerPort extIfc;
+        interface InputPort request;
+            method Action enq(UncachedMemReq req) if (!isValid(extReqEhr[2]));
+                extReqEhr[2] <= tagged Valid req;
+            endmethod
+            method Bool canEnq;
+                return !isValid(extReqEhr[2]);
+            endmethod
+        endinterface
+        interface OutputPort response;
+            method UncachedMemResp first if (pendingReq[1] matches tagged Valid.req
+                                                &&& readyResp[1] matches tagged Valid .resp
+                                                &&& (req.isExt == True));
+                return resp;
+            endmethod
+            method Action deq if (pendingReq[1] matches tagged Valid.req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& (req.isExt == True));
+                pendingReq[1] <= tagged Invalid;
+                readyResp[1] <= tagged Invalid;
+            endmethod
+            method Bool canDeq;
+                // This interface method is not currently supported
+                if (pendingReq[1] matches tagged Valid.req
+                        &&& readyResp[1] matches tagged Valid .resp) begin
+                    return req.isExt == True;
+                end else begin
+                    return False;
+                end
             endmethod
         endinterface
     endinterface

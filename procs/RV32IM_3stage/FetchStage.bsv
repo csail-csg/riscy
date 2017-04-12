@@ -21,9 +21,12 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import GetPut::*;
+
+import Port::*;
+
 import RVTypes::*;
 import CoreStates::*;
-import GetPut::*;
 
 interface FetchStage;
 endinterface
@@ -31,7 +34,7 @@ endinterface
 typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
-    Put#(Addr) ifetchreq;
+    InputPort#(Addr) ifetchreq;
 } FetchRegs;
 
 module mkFetchStage#(FetchRegs fr)(FetchStage);
@@ -44,7 +47,7 @@ module mkFetchStage#(FetchRegs fr)(FetchStage);
         fr.fs <= tagged Invalid;
 
         // request instruction
-        ifetchreq.put(pc);
+        ifetchreq.enq(pc);
 
         // pass to execute state
         fr.es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };

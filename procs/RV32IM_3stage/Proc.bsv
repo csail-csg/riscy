@@ -32,6 +32,8 @@ import GetPut::*;
 import Vector::*;
 
 import ClientServerUtil::*;
+import FIFOG::*;
+import Port::*;
 import ServerUtil::*;
 
 import Abstraction::*;
@@ -84,26 +86,21 @@ module mkProc(Proc#(DataSz));
     let sram <- mkBramIDMem;
 
     // This is the new way:
-    FIFO#(UncachedMemReq) uncachedReqFIFO <- mkFIFO;
-    FIFO#(UncachedMemResp) uncachedRespFIFO <- mkFIFO;
-    let mmio_server = toGPServer(uncachedReqFIFO, uncachedRespFIFO);
-    let mmio_client = toGPClient(uncachedReqFIFO, uncachedRespFIFO);
+    FIFOG#(UncachedMemReq) uncachedReqFIFO <- mkFIFOG;
+    FIFOG#(UncachedMemResp) uncachedRespFIFO <- mkFIFOG;
+    let mmio_server = toServerPort(uncachedReqFIFO, uncachedRespFIFO);
+    let mmio_client = toClientPort(uncachedReqFIFO, uncachedRespFIFO);
 
-    // address decoding the dmem port of the sram for the RTC and MMIO
-    function Bit#(3) whichServer(UncachedMemReq r);
-        if (r.addr >= 'h4000_0000) return 4;
-        else if (r.addr >= 'h3001_0000) return 3;
-        else if (r.addr >= 'h3000_0000) return 2;
-        else if (r.addr >= 'h2000_0000) return 1;
-        else return 0;
-    endfunction
-    function Bool getsResponse(UncachedMemReq r);
-        // currently all UncachedMemReq's get a response
-        return True;
-    endfunction
-    MemoryBus#(UncachedMemReq, UncachedMemResp) memoryBus <- mkMemoryBus(whichServer, getsResponse, vec(sram.dmem, rtc.memifc, uart_module.memifc, spi_module.memifc, mmio_server));
+    MemoryBusV2 memoryBus <- mkMemoryBusV2(vec(
+                                busItemFromAddrRange( 'h0000_0000, 'h1FFF_FFFF, sram.dmem ),
+                                busItemFromAddrRange( 'h2000_0000, 'h2FFF_FFFF, rtc.memifc ),
+                                busItemFromAddrRange( 'h3000_0000, 'h3000_FFFF, uart_module.memifc ),
+                                busItemFromAddrRange( 'h3001_0000, 'h3001_FFFF, spi_module.memifc ),
+                                // split into two ranges to fit mask/match formatting that mkMemoryBusV2 uses
+                                busItemFromAddrRange( 'h4000_0000, 'h7FFF_FFFF, mmio_server ),
+                                busItemFromAddrRange( 'h8000_0000, 'hFFFF_FFFF, mmio_server )));
 
-    // mkUncachedConverter converts UncachedMemServer to Server#(RVDMemReq, RVDMemResp)
+    // mkUncachedConverter converts UncachedMemServerPort to ServerPort#(RVDMemReq, RVDMemResp)
     let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
 
     Core core <- mkThreeStageCore(
@@ -141,55 +138,42 @@ module mkProc(Proc#(DataSz));
 
     // Main Memory Connection
     // XXX: Currently unattached
-    interface MainMemClient ram;
-        interface Get request;
-            method ActionValue#(MainMemReq) get if (False);
-                return ?;
-            endmethod
-        endinterface
-        interface Put response;
-            method Action put(MainMemResp resp);
-                noAction;
-            endmethod
-        endinterface
-    endinterface
+    interface MainMemClientPort ram = nullClientPort;
     // XXX: Currently unattached
-    interface MainMemClient rom;
-        interface Get request;
-            method ActionValue#(MainMemReq) get if (False);
-                return ?;
-            endmethod
-        endinterface
-        interface Put response;
-            method Action put(MainMemResp resp);
-                noAction;
-            endmethod
-        endinterface
-    endinterface
+    interface MainMemClientPort rom = nullClientPort;
 
-    interface UncachedMemClient mmio = mmio_client;
+    interface UncachedMemClientPort mmio = mmio_client;
 
-    interface GenericMemServer extmem;
-        interface Put request;
-            method Action put(GenericMemReq#(XLEN) x);
+    interface GenericMemServerPort extmem;
+        interface InputPort request;
+            method Action enq(GenericMemReq#(XLEN) x);
                 if (x.byteen != '1) begin
                     $fdisplay(stderr, "[ERROR] mkProc.extmem : expecting byteen to be all 1's, but byteen = ", fshow(x.byteen));
                 end
-                memoryBus.extIfc.request.put(UncachedMemReq {
+                memoryBus.extIfc.request.enq(UncachedMemReq {
                         write:  x.write,
                         size:   (valueOf(XLEN) == 64 ? D : W),
                         addr:   x.addr,
                         data:   x.data
                     } );
             endmethod
+            method Bool canEnq;
+                return memoryBus.extIfc.request.canEnq;
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(GenericMemResp#(XLEN)) get();
-                let x <- memoryBus.extIfc.response.get;
+        interface OutputPort response;
+            method GenericMemResp#(XLEN) first;
+                let x = memoryBus.extIfc.response.first;
                 return GenericMemResp {
                         write: x.write,
                         data:  x.data
                     };
+            endmethod
+            method Action deq;
+                memoryBus.extIfc.response.deq;
+            endmethod
+            method Bool canDeq;
+                return memoryBus.extIfc.response.canDeq;
             endmethod
         endinterface
     endinterface

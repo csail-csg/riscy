@@ -36,6 +36,7 @@ import FIFO::*;
 import GetPut::*;
 
 import Ehr::*;
+import Port::*;
 
 import Abstraction::*;
 import RegUtil::*;
@@ -60,8 +61,8 @@ interface Core;
 endinterface
 
 module mkThreeStageCore#(
-            Server#(Addr, Instruction) ifetch,
-            Server#(RVDMemReq, RVDMemResp) dmem,
+            ServerPort#(Addr, Instruction) ifetch,
+            ServerPort#(RVDMemReq, RVDMemResp) dmem,
             Bool ipi,
             Bool timerInterrupt,
             Bit#(64) timer,

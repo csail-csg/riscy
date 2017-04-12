@@ -24,18 +24,23 @@
 // This is a wrapper for SPI.bsv to provide a memory-mapped interface for
 // integration with the Riscy processors.
 
+import BuildVector::*;
 import ClientServer::*;
 import Vector::*;
 import GetPut::*;
 import Vector::*;
+
+import ConcatReg::*;
 import Ehr::*;
+import RegUtil::*;
 
 import Abstraction::*;
+import MemoryMappedServer::*;
 import SPI::*;
 
 interface RVSPI;
     // Memory mapped interface
-    interface UncachedMemServer memifc;
+    interface UncachedMemServerPort memifc;
 
     // Pins
     (* prefix = "" *)
@@ -50,18 +55,37 @@ module mkRVSPI(RVSPI) provisos (NumAlias#(internalAddrSize, 4));
     // 0x0008    enable   Chip select enable register
     //                      bit 0 - set to enable SD card
     // 0x000C    div      Sclk divider
-    Bit#(internalAddrSize) txDataAddr = 'h00;
-    Bit#(internalAddrSize) rxDataAddr = 'h04;
-    Bit#(internalAddrSize) enableAddr = 'h08;
-    Bit#(internalAddrSize) divAddr    = 'h0C;
-
-    Ehr#(2, Maybe#(Tuple2#(Bool, Bit#(internalAddrSize)))) pendingReq <- mkEhr(tagged Invalid);
 
     SPIMaster spi <- mkSPIMaster;
 
-    // Data registers
     Reg#(Maybe#(Bit#(8))) txDataReg <- mkReg(tagged Invalid);
     Reg#(Maybe#(Bit#(8))) rxDataReg <- mkReg(tagged Invalid);
+    Reg#(Bit#(32)) enableReg =
+        (interface Reg;
+            method Action _write(Bit#(32) x);
+                spi.setNcs(~x[0]);
+            endmethod
+            method Bit#(32) _read;
+                return {0, pack(spi.isChipSelectEnabled())};
+            endmethod
+        endinterface);
+    Reg#(Bit#(32)) divReg =
+        (interface Reg;
+            method Action _write(Bit#(32) x);
+                spi.setSclkDiv(truncate(x));
+            endmethod
+            method Bit#(32) _read;
+                return 0;
+            endmethod
+        endinterface);
+
+    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec(
+            concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fromMaybeReg(0, txDataReg)),
+            concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fromMaybeReg(0, rxDataReg)),
+            enableReg,
+            divReg);
+
+    UncachedMemServerPort memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
 
     rule doTxData (txDataReg matches tagged Valid .x);
         spi.put(x);
@@ -70,59 +94,10 @@ module mkRVSPI(RVSPI) provisos (NumAlias#(internalAddrSize, 4));
 
     rule doRxData (rxDataReg matches tagged Invalid .x);
         let data <- spi.get;
-        rxDataReg <= Valid(data);
+        rxDataReg <= tagged Valid data;
     endrule
 
-    interface UncachedMemServer memifc;
-        interface Put request;
-            method Action put(UncachedMemReq req) if (!isValid(pendingReq[1]));
-                if (req.write) begin
-                    case (truncate(req.addr))
-                        txDataAddr: begin
-                                        txDataReg <= tagged Valid(truncate(req.data));
-                                    end
-                        rxDataAddr: begin
-                                        rxDataReg <= tagged Invalid;
-                                    end
-                        enableAddr: begin
-                                        spi.setNcs(~req.data[0]);
-                                    end
-                        divAddr:    spi.setSclkDiv(truncate(req.data));
-                        default:    noAction;
-                    endcase
-                    pendingReq[1] <= tagged Valid tuple2(True, truncate(req.addr));
-                end else begin
-                    pendingReq[1] <= tagged Valid tuple2(False, truncate(req.addr));
-                end
-            endmethod
-        endinterface
-        interface Get response;
-            method ActionValue#(UncachedMemResp) get if (pendingReq[0] matches tagged Valid .reqTuple);
-                Bool write = tpl_1(reqTuple);
-                Bit#(internalAddrSize) addr = tpl_2(reqTuple);
-                Bit#(32) retVal = 0;
-                $display("memory read: %h", addr);
-                case (truncate(addr))
-                    txDataAddr: begin
-                                    if (txDataReg matches tagged Valid .x) begin
-                                        retVal = {1'b1, '0, x};
-                                    end
-                                end
-                    rxDataAddr: begin
-                                    if (rxDataReg matches tagged Valid .x) begin
-                                        retVal = {1'b1, '0, x};
-                                        rxDataReg <= tagged Invalid;
-                                    end
-                                end
-                    enableAddr: retVal = {0, pack(spi.isChipSelectEnabled())};
-                    divAddr:    retVal = 0;
-                    default:    retVal = 0;
-                endcase
-                pendingReq[0] <= tagged Invalid;
-                return UncachedMemResp{ write: write, data: write? 0: retVal };
-            endmethod
-        endinterface
-    endinterface
+    interface UncachedMemServerPort memifc = memoryMappedIfc;
 
     interface SPIMasterPins spi_pins = spi.pins;
 endmodule

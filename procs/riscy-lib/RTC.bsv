@@ -30,7 +30,7 @@ import BuildVector::*;
 import Ehr::*;
 
 import Abstraction::*;
-// import RVTypes::*;
+import MemoryMappedServer::*;
 
 interface RTC#(numeric type cores);
     // memory-mapped interface
@@ -38,7 +38,7 @@ interface RTC#(numeric type cores);
     // 0x0008 = timecmp0
     // 0x0010 = timecmp1
     //  ...
-    interface UncachedMemServer memifc;
+    interface UncachedMemServerPort memifc;
     method Bit#(64) timerValue;
     method Vector#(cores, Bool) timerInterrupt;
 endinterface
@@ -46,22 +46,21 @@ endinterface
 `ifdef CONFIG_RV32
 // This is only supported on RV32 systems
 // Only supports full-word memory accesses
-module mkRTC_RV32(RTC#(1))
-        provisos (NumAlias#(internalAddrSize, 4));
-    // Address space:
-    Bit#(internalAddrSize) timerLoAddr   = 'h0;
-    Bit#(internalAddrSize) timerHiAddr   = 'h4;
-    Bit#(internalAddrSize) timeCmpLoAddr = 'h8;
-    Bit#(internalAddrSize) timeCmpHiAddr = 'hC;
-
+module mkRTC_RV32(RTC#(1));
+    // memory mapped registers
     Reg#(Bit#(32)) timeRegLo <- mkReg(0);
     Reg#(Bit#(32)) timeRegHi <- mkReg(0);
     Reg#(Bit#(32)) timeCmpLo <- mkReg(0);
     Reg#(Bit#(32)) timeCmpHi <- mkReg(0);
 
-    Ehr#(2, Maybe#(Tuple2#(Bool, Bit#(internalAddrSize)))) pendingReq <- mkEhr(tagged Invalid);
-
     Bool timerInterruptEn = {timeRegHi, timeRegLo} >= {timeCmpHi, timeCmpLo};
+
+    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec(
+        asReg(timeRegLo),
+        asReg(timeRegHi),
+        asReg(timeCmpLo),
+        asReg(timeCmpHi));
+    UncachedMemServerPort memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
 
     rule incrementTimer;
         Bit#(64) timeValue = {timeRegHi, timeRegLo};
@@ -70,40 +69,7 @@ module mkRTC_RV32(RTC#(1))
         timeRegHi <= newTimeValue[63:32];
     endrule
 
-    interface UncachedMemServer memifc;
-        interface Put request;
-            method Action put(UncachedMemReq req) if (!isValid(pendingReq[1]));
-                if (req.write) begin
-                    case (truncate(req.addr))
-                        timerLoAddr:    timeRegLo <= req.data;
-                        timerHiAddr:    timeRegHi <= req.data;
-                        timeCmpLoAddr:  timeCmpLo <= req.data;
-                        timeCmpHiAddr:  timeCmpHi <= req.data;
-                        default:        noAction;
-                    endcase
-                    pendingReq[1] <= tagged Valid tuple2(True, truncate(req.addr));
-                end else begin
-                    pendingReq[1] <= tagged Valid tuple2(False, truncate(req.addr));
-                end
-            endmethod
-        endinterface
-        interface Get response;
-            method ActionValue#(UncachedMemResp) get if (pendingReq[0] matches tagged Valid .reqTuple);
-                Bool write = tpl_1(reqTuple);
-                Bit#(internalAddrSize) addr = tpl_2(reqTuple);
-                Bit#(32) retVal = 0;
-                case (truncate(addr))
-                    timerLoAddr:    retVal = timeRegLo;
-                    timerHiAddr:    retVal = timeRegHi;
-                    timeCmpLoAddr:  retVal = timeCmpLo;
-                    timeCmpHiAddr:  retVal = timeCmpHi;
-                    default:        retVal = 0;
-                endcase
-                pendingReq[0] <= tagged Invalid;
-                return UncachedMemResp{ write: write, data: write ? 0 : retVal };
-            endmethod
-        endinterface
-    endinterface
+    interface UncachedMemServerPort memifc = memoryMappedIfc;
     method Bit#(64) timerValue = {timeRegHi, timeRegLo};
     method Vector#(1, Bool) timerInterrupt = vec(timerInterruptEn);
 endmodule

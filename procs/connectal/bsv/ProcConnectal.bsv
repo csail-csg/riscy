@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -48,6 +48,7 @@ import Clocks::*;
 import Connectable::*;
 import FIFO::*;
 import GetPut::*;
+import Port::*;
 import Proc::*;
 import Vector::*;
 import VerificationPacket::*;
@@ -145,10 +146,11 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     rule connectExtMemReq;
         let req = extMemReqFIFO.first;
         extMemReqFIFO.deq;
-        proc.extmem.request.put(req);
+        proc.extmem.request.enq(req);
     endrule
     rule connectExtMemResp;
-        let resp <- proc.extmem.response.get;
+        let resp = proc.extmem.response.first;
+        proc.extmem.response.deq;
         extMemRespFIFO.enq(resp);
     endrule
 
@@ -177,7 +179,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     FIFO#(MemData#(32)) writeDataFIFO <- mkFIFO;
 
     rule connectAcceleratorRequest;
-        let req <- proc.mmio.request.get;
+        let req = proc.mmio.request.first;
+        proc.mmio.request.deq;
         if (req.write) begin
             if (verbose) $fdisplay(stderr, "[Accelerator Write] addr = 0x%0x, data = 0x%0x", req.addr, req.data);
             accelerator.slave.write_server.writeReq.put(
@@ -220,7 +223,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             if (verbose) $fdisplay(stderr, "[Accelerator Read] response data = 0x%0x", data);
         end
         pendingAcceleratorReq.deq;
-        proc.mmio.response.put(
+        proc.mmio.response.enq(
                 UncachedMemResp{
                     write: pendingAcceleratorReq.first == 1,
                     data: data
@@ -277,7 +280,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     endrule
 `ifndef CONFIG_ACCELERATOR
     rule connectExternalMMIORequest;
-        let msg <- proc.mmio.request.get;
+        let msg = proc.mmio.request.first;
+        proc.mmio.request.deq;
         Bit#(4) length = (case (msg.size)
                 B: 1;
                 H: 2;
@@ -360,7 +364,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     interface ExternalMMIOResponse externalMMIOResponse;
         method Action response(Bool write, Bit#(64) data);
             // truncate data in case XLEN is not 64
-            proc.mmio.response.put( UncachedMemResp{write: write, data: truncate(data)} );
+            proc.mmio.response.enq( UncachedMemResp{write: write, data: truncate(data)} );
         endmethod
         method Action triggerExternalInterrupt;
             proc.triggerExternalInterrupt;
