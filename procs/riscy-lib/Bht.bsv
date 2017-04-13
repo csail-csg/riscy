@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -34,7 +34,7 @@ endinterface
 typedef 64 BhtEntries;
 typedef Bit#(TLog#(BhtEntries)) BhtIndex;
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBht(DirPred);
     // Read and Write ordering doesn't matter since this is a predictor
     // mkRegFileWCF is the RegFile version of mkConfigReg

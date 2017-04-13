@@ -35,6 +35,7 @@ import DefaultValue::*;
 import FIFO::*;
 import GetPut::*;
 
+import ClockGate::*;
 import Ehr::*;
 import Port::*;
 
@@ -86,6 +87,8 @@ module mkThreeStageCore#(
     Ehr#(4, Maybe#(ExecuteState)) executeStateEhr <- mkEhr(tagged Invalid);
     Ehr#(4, Maybe#(WriteBackState)) writeBackStateEhr <- mkEhr(tagged Invalid);
     Ehr#(2, Maybe#(VerificationPacket)) verificationPacketEhr <- mkEhr(tagged Invalid);
+
+    Bool clock_gate <- exposeCurrentClockGate();
     
     let fetchRegs = FetchRegs{
             fs: fetchStateEhr[2],
@@ -135,6 +138,6 @@ module mkThreeStageCore#(
     endmethod
 
     method Maybe#(VerificationPacket) currVerificationPacket;
-        return verificationPacketEhr[0];
+        return clock_gate ? verificationPacketEhr[0] : tagged Invalid;
     endmethod
 endmodule

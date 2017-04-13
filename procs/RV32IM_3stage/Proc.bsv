@@ -26,6 +26,7 @@
 import BuildVector::*;
 import DefaultValue::*;
 import ClientServer::*;
+import Clocks::*;
 import Connectable::*;
 import FIFO::*;
 import GetPut::*;
@@ -53,6 +54,8 @@ import VerificationPacketFilter::*;
 // This is used by ProcConnectal
 typedef DataSz MainMemoryWidth;
 
+// Multiple devices in mkProc can't be clock gated, so the mkProc module
+// should not have the gate_all_clocks attribute.
 (* synthesize *)
 module mkProc(Proc#(DataSz));
     // Address map (some portions hard-coded in memory system
@@ -62,6 +65,8 @@ module mkProc(Proc#(DataSz));
     // 0x4000_0000 - 0xFFFF_FFFF : mmio
 
     let clock <- exposeCurrentClock();
+
+    let pipelineClock <- mkGatedClockFromCC(True);
 
 `ifdef CONFIG_RV32
     RTC#(1) rtc <- mkRTC_RV32;
@@ -110,7 +115,8 @@ module mkProc(Proc#(DataSz));
                     timer_interrupt, // timer interrupt
                     timer_value, // timer value
                     extInterruptWire, // external interrupt
-                    0); // hart ID
+                    0, // hart ID
+                    clocked_by pipelineClock.new_clk);
 
     // Processor Control
     method Action start(Bit#(64) startPc);
@@ -176,6 +182,10 @@ module mkProc(Proc#(DataSz));
     // Interrupts
     method Action triggerExternalInterrupt;
         extInterruptWire <= True;
+    endmethod
+
+    method Action stallPipeline(Bool stall);
+        pipelineClock.setGateCond(!stall);
     endmethod
 
     interface ProcPins pins;

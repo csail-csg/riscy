@@ -150,6 +150,12 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     rule getVerificationPackets(proc.currVerificationPacket matches tagged Valid .packet);
         verificationPacketFIFO.enq(packet);
     endrule
+    rule stallProcessor(verificationPacketFilter.nearFull);
+        proc.stallPipeline(True);
+    endrule
+    rule unstallProcessor(verificationPacketFilter.nearEmpty);
+        proc.stallPipeline(False);
+    endrule
 
     rule connectExtMemReq;
         let req = extMemReqFIFO.first;

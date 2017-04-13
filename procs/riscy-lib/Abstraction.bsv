@@ -221,6 +221,8 @@ interface Proc#(numeric type mainMemoryWidth);
     // Interrupts
     method Action triggerExternalInterrupt;
 
+    method Action stallPipeline(Bool stall);
+
     // Pins
     (* prefix = "" *)
     interface ProcPins pins;

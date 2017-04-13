@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -34,7 +34,7 @@ interface ArchRFile;
 endinterface
 
 // This is a merged GPR/FPU register file
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkArchRFile( ArchRFile );
     let verbose = False;
     File fout = stdout;
@@ -73,7 +73,7 @@ endmodule
 import RegUtil::*;
 
 // wr < {rd1, rd2, rd3}
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBypassArchRFile( ArchRFile );
     let verbose = False;
     File fout = stdout;

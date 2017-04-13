@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -34,7 +34,7 @@ endinterface
 typedef 8 RasEntries;
 typedef Bit#(TLog#(RasEntries)) RasIndex;
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkRas( ReturnAddrStack );
     Vector#(RasEntries, Reg#(Addr)) stack <- replicateM(mkReg(0));
 
