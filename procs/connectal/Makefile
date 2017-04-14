@@ -94,7 +94,7 @@ MEM_WRITE_INTERFACES = \
 
 NUMBER_OF_MASTERS = 1
 
-PINOUT_FILE += $(RISCY_HOME)/procs/pin_translation.json
+PINOUT_FILE += $(RISCY_HOME)/procs/connectal/pin_translation.json
 PIN_TYPE = ProcPins
 PIN_TYPE_INCLUDE = ProcPins
 AUTOTOP = --interface pins:ProcConnectal.pins
