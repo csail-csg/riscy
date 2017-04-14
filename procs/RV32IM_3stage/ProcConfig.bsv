@@ -51,7 +51,19 @@
 //   CONFIG_D -    "D" ISA Extension - Double-Precision Floating Point
 // To see which macros are defined in this project, and to make modifications,
 // see the project's Makefile
+`ifdef CONNECTAL
 `include "ConnectalProjectConfig.bsv"
+`else
+`define CONFIG_RV32
+`define CONFIG_M
+`define CONFIG_S
+`define CONFIG_U
+`define CONFIG_PLATFORM_MCU
+`define CONFIG_RS232
+`define CONFIG_SPI
+`endif
+
+
 
 // Debugging infrastructure
 `define VERIFICATION_PACKETS
