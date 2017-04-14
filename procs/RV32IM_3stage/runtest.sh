@@ -28,7 +28,7 @@ elif [ -d $RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa ] ; then
     TEST_DIR="$RISCY_TOOLS/riscv64-unknown-elf/share/riscv-tests/isa"
 else
     echo "[ERROR] Can't find tests in \"$RISCY_TOOLS/riscv[32|64]-unknown-elf/share/riscv-tests/isa"
-    return 1
+    exit 1
 fi
 
 if [ "$#" -eq 0 ] ; then
@@ -50,6 +50,7 @@ else
     OPTION=$1
 fi
 
+TRACEEXE="./verilator/bin/ubuntu.exe --just-trace"
 RUNEXE="./verilator/bin/ubuntu.exe --just-run"
 
 rm -rf out/
@@ -61,7 +62,7 @@ case "$OPTION" in
        files="$files "`find $TEST_DIR/rv32mi-mcu-* -type f ! -name "*.*"`
        files="$files "`find $TEST_DIR/rv32si-mcu-* -type f ! -name "*.*"`
        ;;
-    1) $RUNEXE $TEST_DIR/rv32ui-mcu-add
+    1) $TRACEEXE $TEST_DIR/rv32ui-mcu-add
        files=
        ;;
     2) files=`find $TEST_DIR/rv32ui-mcu-* -type f ! -name "*.*"`
