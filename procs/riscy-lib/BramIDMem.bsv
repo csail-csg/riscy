@@ -135,6 +135,10 @@ typedef struct {
 
 module mkBramIDMem(BramIDMem);
     BRAM_Configure cfg = defaultValue;
+`ifdef CONFIG_IDMEM_INIT_HEX_FILE
+    cfg.loadFormat = tagged Hex `CONFIG_IDMEM_INIT_HEX_FILE;
+`endif
+
     // if XLEN=32, bram is 64 KB
     // if XLEN=64, bram is 128 KB
     BRAM2PortBE#(Bit#(14), Data, TDiv#(XLEN,8)) bram <- mkBRAM2ServerBE(cfg);
