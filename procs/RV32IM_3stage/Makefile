@@ -51,7 +51,7 @@ CONNECTALFLAGS += -D CONFIG_SPI
 # CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
 
 ifdef RISCY_HOME
-include $(RISCY_HOME)/procs/Makefile.procs
+include $(RISCY_HOME)/procs/connectal/Makefile
 else
 $(error RISCY_HOME is undefined)
 endif
