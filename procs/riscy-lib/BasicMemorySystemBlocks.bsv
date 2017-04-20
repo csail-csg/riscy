@@ -41,9 +41,9 @@ import RVTypes::*;
 // Dummy DCache
 // This module has no internal storage. It just takes care of converting
 // between RISC-V memory requests and main memory requests.
-module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq, RVDMemResp));
-    FIFOF#(RVDMemReq) procMemReq <- mkFIFOF;
-    FIFOF#(RVDMemResp) procMemResp <- mkFIFOF;
+module mkDummyRVDCache#(GenericMemServerPort#(DataSz) mainMemory)(ServerPort#(RVDMemReq, RVDMemResp));
+    FIFOG#(RVDMemReq) procMemReq <- mkFIFOG;
+    FIFOG#(RVDMemResp) procMemResp <- mkFIFOG;
 
     // True if this dummy cache is currently handling the "modify-write" part
     // of a read-modify-write operation.
@@ -54,16 +54,15 @@ module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq,
     Reg#(Bool) writePending <- mkReg(False);
     Reg#(Bool) readPending <- mkReg(False);
 
-    FIFOF#(Tuple3#(DataByteSel,RVMemSize,Bool)) outstanding <- mkFIFOF;
+    FIFOG#(Tuple3#(DataByteSel,RVMemSize,Bool)) outstanding <- mkFIFOG;
 
     function Bool requiresRMW(RVDMemReq r);
         // The AxiSharedMemoryBridge can't handle byte enables, so we are handling it here
         return ((isStore(r.op) && r.size != D) || isAmo(r.op));
     endfunction
 
-    rule ignoreWriteResps;
-        let _x <- mainMemory.response.get();
-        when(_x.write == True, noAction);
+    rule ignoreWriteResps(mainMemory.response.first.write);
+        mainMemory.response.deq;
         writePending <= False;
     endrule
 
@@ -74,11 +73,11 @@ module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq,
         if (isLoad(r.op) || requiresRMW(r)) begin
             // send read request
             // this handles all store request with size < D
-            mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: r.addr, data: ?});
+            mainMemory.request.enq(GenericMemReq{write: False, byteen: '1, addr: r.addr, data: ?});
             readPending <= True;
         end else if (isStore(r.op)) begin
             // send write request (only when size == D)
-            mainMemory.request.put(GenericMemReq{write: True, byteen: '1, addr: r.addr, data: r.data});
+            mainMemory.request.enq(GenericMemReq{write: True, byteen: '1, addr: r.addr, data: r.data});
             writePending <= True;
             if (r.op == tagged Mem Sc) begin
                 // successful
@@ -92,18 +91,18 @@ module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq,
         end
     endrule
 
-    rule finishRMW(rmw && !writePending);
+    rule finishRMW(rmw && !writePending && !mainMemory.response.first.write);
         let r = procMemReq.first;
         // get read data
-        let memResp <- mainMemory.response.get;
-        when(memResp.write == False, noAction);
+        let memResp = mainMemory.response.first;
+        mainMemory.response.deq;
         readPending <= False;
         let currData = memResp.data;
         // amoExec also handles plain stores with byte enables
         // If r.op is not an AMO operation, use Swap to perform stores with byte enables
         let {permutedDataByteEn, permutedStData} = scatterStore(truncate(r.addr), r.size, r.data);
         let newData = amoExec(r.op matches tagged Amo .amoFunc ? amoFunc : Swap, permutedDataByteEn, currData, permutedStData);
-        mainMemory.request.put(GenericMemReq{write: True, byteen: '1, addr: r.addr, data: newData});
+        mainMemory.request.enq(GenericMemReq{write: True, byteen: '1, addr: r.addr, data: newData});
         writePending <= True;
         if (r.op == tagged Mem Sc) begin
             // Successful
@@ -116,15 +115,15 @@ module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq,
         procMemReq.deq;
     endrule
 
-    rule handleRVDMemResp(!rmw);
-        let memResp <- mainMemory.response.get;
-        when(memResp.write == False, noAction);
+    rule handleRVDMemResp(!rmw && !mainMemory.response.first.write);
+        let memResp = mainMemory.response.first;
+        mainMemory.response.deq;
         procMemResp.enq(memResp.data);
         readPending <= False;
     endrule
 
-    interface Put request;
-        method Action put(RVDMemReq r);
+    interface InputPort request;
+        method Action enq(RVDMemReq r);
             if (isLoad(r.op) || isAmo(r.op)) begin
                 DataByteSel addrByteSel = truncate(r.addr);
                 outstanding.enq(tuple3(addrByteSel, r.size, r.isUnsigned));
@@ -133,52 +132,68 @@ module mkDummyRVDCache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVDMemReq,
             end
             procMemReq.enq(r);
         endmethod
+        method Bool canEnq;
+            return procMemReq.canEnq && outstanding.canEnq;
+        endmethod
     endinterface
-    interface Get response;
-        method ActionValue#(RVDMemResp) get;
+    interface OutputPort response;
+        method RVDMemResp first;
             let {addrByteSel, size, isUnsigned} = outstanding.first;
+            return gatherLoad(addrByteSel, size, isUnsigned, procMemResp.first);
+        endmethod
+        method Action deq;
             outstanding.deq;
             procMemResp.deq;
-            return gatherLoad(addrByteSel, size, isUnsigned, procMemResp.first);
+        endmethod
+        method Bool canDeq;
+            return outstanding.canDeq && procMemResp.canDeq;
         endmethod
     endinterface
 endmodule
 
-module mkRVIMemWrapper#(Server#(RVDMemReq, RVDMemResp) dMem)(Server#(RVIMemReq, RVIMemResp));
-    interface Put request;
-        method Action put(RVIMemReq req);
+module mkRVIMemWrapper#(ServerPort#(RVDMemReq, RVDMemResp) dMem)(ServerPort#(RVIMemReq, RVIMemResp));
+    interface InputPort request;
+        method Action enq(RVIMemReq req);
             let dReq = RVDMemReq {
                     op: tagged Mem Ld,
                     size: W,
                     isUnsigned: False,
                     addr: req,
                     data: 0 };
-            dMem.request.put(dReq);
+            dMem.request.enq(dReq);
+        endmethod
+        method Bool canEnq;
+            return dMem.request.canEnq;
         endmethod
     endinterface
-    interface Get response;
-        method ActionValue#(RVIMemResp) get;
-            let resp <- dMem.response.get;
-            return truncate(resp);
+    interface OutputPort response;
+        method RVIMemResp first;
+            return truncate(dMem.response.first);
+        endmethod
+        method Action deq;
+            dMem.response.deq;
+        endmethod
+        method Bool canDeq;
+            return dMem.response.canDeq;
         endmethod
     endinterface
 endmodule
 
-module mkDummyRVICache#(GenericMemServer#(DataSz) mainMemory)(Server#(RVIMemReq, RVIMemResp));
+module mkDummyRVICache#(GenericMemServerPort#(DataSz) mainMemory)(ServerPort#(RVIMemReq, RVIMemResp));
     let _dMem <- mkDummyRVDCache(mainMemory);
     let _iMem <- mkRVIMemWrapper(_dMem);
     return _iMem;
 endmodule
 
 interface RVDMMU;
-    interface Put#(RVDMMUReq) request;
-    interface Get#(RVDMMUResp) response;
+    interface InputPort#(RVDMMUReq) request;
+    interface OutputPort#(RVDMMUResp) response;
     method Action updateVMInfo(VMInfo vm);
 endinterface
 
 interface RVIMMU;
-    interface Put#(RVIMMUReq) request;
-    interface Get#(RVIMMUResp) response;
+    interface InputPort#(RVIMMUReq) request;
+    interface OutputPort#(RVIMMUResp) response;
     method Action updateVMInfo(VMInfo vm);
 endinterface
 
@@ -187,9 +202,9 @@ endinterface
 
 // This does not support any paged virtual memory modes
 // TODO: add support for getPMA
-module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RVDMMU);
-    FIFOF#(RVDMMUReq) procMMUReq <- mkFIFOF;
-    FIFOF#(RVDMMUResp) procMMUResp <- mkFIFOF;
+module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServerPort#(DataSz) mainMemory)(RVDMMU);
+    FIFOG#(RVDMMUReq) procMMUReq <- mkFIFOG;
+    FIFOG#(RVDMMUResp) procMMUResp <- mkFIFOG;
 
     // TODO: This should be defaultValue
     Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
@@ -232,32 +247,31 @@ module mkBasicDummyRVDMMU#(Bool isInst, GenericMemServer#(DataSz) mainMemory)(RV
         procMMUResp.enq(RVDMMUResp{addr: paddr, exception: exception});
     endrule
 
-    interface Put request;
-        method Action put(RVDMMUReq r);
-            procMMUReq.enq(r);
-        endmethod
-    endinterface
-    interface Get response;
-        method ActionValue#(RVDMMUResp) get;
-            procMMUResp.deq;
-            return procMMUResp.first;
-        endmethod
-    endinterface
+    interface InputPort request = toInputPort(procMMUReq);
+    interface OutputPort response = toOutputPort(procMMUResp);
     method Action updateVMInfo(VMInfo vm);
         vmInfo <= vm;
     endmethod
 endmodule
 
 module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
-    interface Put request;
-        method Action put(RVIMMUReq req);
-            dMMU.request.put(RVDMMUReq{addr: req, size: W, op: Ld}); // XXX: Should this type include AMO instructions too?
+    interface InputPort request;
+        method Action enq(RVIMMUReq req);
+            dMMU.request.enq(RVDMMUReq{addr: req, size: W, op: Ld}); // XXX: Should this type include AMO instructions too?
+        endmethod
+        method Bool canEnq;
+            return dMMU.request.canEnq;
         endmethod
     endinterface
-    interface Get response;
-        method ActionValue#(RVIMMUResp) get;
-            let resp <- dMMU.response.get;
-            return resp;
+    interface OutputPort response;
+        method RVIMMUResp first;
+            return dMMU.response.first;
+        endmethod
+        method Action deq;
+            dMMU.response.deq;
+        endmethod
+        method Bool canDeq;
+            return dMMU.response.canDeq;
         endmethod
     endinterface
     method Action updateVMInfo(VMInfo vm);
@@ -265,15 +279,15 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
     endmethod
 endmodule
 
-module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), GenericMemServer#(DataSz) mainMemory)(RVIMMU);
+module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), GenericMemServerPort#(DataSz) mainMemory)(RVIMMU);
     let _dMMU <- mkDummyRVDMMU(True, getPMA, mainMemory);
     let _iMMU <- mkRVIMMUWrapper(_dMMU);
     return _iMMU;
 endmodule
 
-module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemServer#(DataSz) mainMemory)(RVDMMU);
-    FIFOF#(RVDMMUReq) procMMUReq <- mkFIFOF;
-    FIFOF#(RVDMMUResp) procMMUResp <- mkFIFOF;
+module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemServerPort#(DataSz) mainMemory)(RVDMMU);
+    FIFOG#(RVDMMUReq) procMMUReq <- mkFIFOG;
+    FIFOG#(RVDMMUResp) procMMUResp <- mkFIFOG;
 
     // TODO: This should be defaultValue
     Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
@@ -289,15 +303,13 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
     Reg#(Bit#(12)) pageoffset <- mkReg(0);
 
     // if the response from main memory is for a write, drop it
-    // XXX: this does not work if mainMemory has a synthesize boundary
-    rule ignoreWriteResps;
-        let _x <- mainMemory.response.get();
-        when(_x.write == True, noAction);
+    rule ignoreWriteResps(mainMemory.response.first.write);
+        mainMemory.response.deq();
     endrule
 
-    rule doPageTableWalk(walking);
-        let memResp <- mainMemory.response.get();
-        when(memResp.write == False, noAction);
+    rule doPageTableWalk(walking && !mainMemory.response.first.write);
+        let memResp = mainMemory.response.first;
+        mainMemory.response.deq;
 
         PTE_Sv39 pte = unpack(memResp.data);
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
@@ -382,13 +394,13 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
                         pte.d = True;
                     end
                     // send write request
-                    mainMemory.request.put(GenericMemReq{write: True, byteen: '1, addr: a, data: pack(pte)});
+                    mainMemory.request.enq(GenericMemReq{write: True, byteen: '1, addr: a, data: pack(pte)});
                 end
             end
         end else begin
             // go to next level
             PAddr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
-            mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
+            mainMemory.request.enq(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
             a <= newA;
             i <= i - 1;
         end
@@ -439,7 +451,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
                             // PAddr newA = vmInfo.base + (zeroExtend(vpn[2]) << 3);
                             Vector#(3, Bit#(9)) newvpn = unpack(vaddr[38:12]);
                             PAddr newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
-                            mainMemory.request.put(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
+                            mainMemory.request.enq(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
                             walking <= True;
                             pageTableWalk = True;
                             a <= newA;
@@ -460,17 +472,8 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
         end
     endrule
 
-    interface Put request;
-        method Action put(RVDMMUReq r);
-            procMMUReq.enq(r);
-        endmethod
-    endinterface
-    interface Get response;
-        method ActionValue#(RVDMMUResp) get;
-            procMMUResp.deq;
-            return procMMUResp.first;
-        endmethod
-    endinterface
+    interface InputPort request = toInputPort(procMMUReq);
+    interface OutputPort response = toOutputPort(procMMUResp);
     method Action updateVMInfo(VMInfo vm);
         vmInfo <= vm;
     endmethod
@@ -553,8 +556,8 @@ endmodule
 // The processor port has priority, but if the external interface is preempted
 // it will have the higher priority in the next cycle.
 interface MemoryBus#(type reqT, type respT);
-    interface Server#(reqT, respT) procIfc;
-    interface Server#(reqT, respT) extIfc;
+    interface ServerPort#(reqT, respT) procIfc;
+    interface ServerPort#(reqT, respT) extIfc;
 endinterface
 
 typedef struct {
@@ -563,7 +566,7 @@ typedef struct {
     Bool getsResp;
 } MemoryBusPendingReq#(numeric type n) deriving (Bits, Eq, FShow);
 
-module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool getsResponse(reqT x), Vector#(n, Server#(reqT, respT)) servers)(MemoryBus#(reqT, respT)) provisos (Bits#(reqT, reqTsz), Bits#(respT, respTsz));
+module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool getsResponse(reqT x), Vector#(n, ServerPort#(reqT, respT)) servers)(MemoryBus#(reqT, respT)) provisos (Bits#(reqT, reqTsz), Bits#(respT, respTsz));
     // ordering:
     // response < forwardResponse < request < forwardRequest
 
@@ -590,7 +593,7 @@ module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool g
         if (procReqEhr[3] matches tagged Valid .req &&& !extReqWasPreempted) begin
             procReqEhr[3] <= tagged Invalid;
             serverIndx = whichServer(req);
-            servers[serverIndx].request.put(req);
+            servers[serverIndx].request.enq(req);
             pendingReq[3] <= tagged Valid MemoryBusPendingReq { isExt: False, server: serverIndx, getsResp: getsResponse(req) };
 
             if (!isValid(extReqEhr[3])) begin
@@ -601,7 +604,7 @@ module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool g
         end else if (extReqEhr[3] matches tagged Valid .req) begin
             extReqEhr[3] <= tagged Invalid;
             serverIndx = whichServer(req);
-            servers[serverIndx].request.put(req);
+            servers[serverIndx].request.enq(req);
             pendingReq[3] <= tagged Valid MemoryBusPendingReq { isExt: True, server: serverIndx, getsResp: getsResponse(req) };
 
             extReqWasPreempted <= False;
@@ -616,7 +619,8 @@ module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool g
     rule forwardResponse if (pendingReq[0] matches tagged Valid .req
                                 &&& !isValid(readyResp[0]));
         // get response
-        let resp <- servers[req.server].response.get();
+        let resp = servers[req.server].response.first();
+        servers[req.server].response.deq;
         if (req.getsResp) begin
             readyResp[0] <= tagged Valid resp;
         end else begin
@@ -626,37 +630,69 @@ module mkMemoryBus#(function Bit#(TLog#(n)) whichServer(reqT x), function Bool g
 
 
     // Internal interface
-    interface Server procIfc;
-        interface Put request;
-            method Action put(reqT r) if (!isValid(procReqEhr[2]));
+    interface ServerPort procIfc;
+        interface InputPort request;
+            method Action enq(reqT r) if (!isValid(procReqEhr[2]));
                 procReqEhr[2] <= tagged Valid r;
             endmethod
+            method Bool canEnq;
+                return !isValid(procReqEhr[2]);
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(respT) get if (pendingReq[1] matches tagged Valid .req
-                                                    &&& readyResp[1] matches tagged Valid .resp
-                                                    &&& req.isExt == False);
+        interface OutputPort response;
+            method respT first if (pendingReq[1] matches tagged Valid .req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& req.isExt == False);
+                return resp;
+            endmethod
+            method Action deq if (pendingReq[1] matches tagged Valid .req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& req.isExt == False);
                 pendingReq[1] <= tagged Invalid;
                 readyResp[1] <= tagged Invalid;
-                return resp;
+            endmethod
+            method Bool canDeq;
+                if (pendingReq[1] matches tagged Valid .req
+                        &&& readyResp[1] matches tagged Valid .resp
+                        &&& req.isExt == False) begin
+                    return True;
+                end else begin
+                    return False;
+                end
             endmethod
         endinterface
     endinterface
 
     // External interface
-    interface Server extIfc;
-        interface Put request;
-            method Action put(reqT r) if (!isValid(extReqEhr[2]));
+    interface ServerPort extIfc;
+        interface InputPort request;
+            method Action enq(reqT r) if (!isValid(extReqEhr[2]));
                 extReqEhr[2] <= tagged Valid r;
             endmethod
+            method Bool canEnq;
+                return (!isValid(extReqEhr[2]));
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(respT) get if (pendingReq[1] matches tagged Valid .req
-                                                    &&& readyResp[1] matches tagged Valid .resp
-                                                    &&& req.isExt == True);
+        interface OutputPort response;
+            method respT first if (pendingReq[1] matches tagged Valid .req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& req.isExt == True);
+                return resp;
+            endmethod
+            method Action deq if (pendingReq[1] matches tagged Valid .req
+                                    &&& readyResp[1] matches tagged Valid .resp
+                                    &&& req.isExt == True);
                 pendingReq[1] <= tagged Invalid;
                 readyResp[1] <= tagged Invalid;
-                return resp;
+            endmethod
+            method Bool canDeq;
+                if (pendingReq[1] matches tagged Valid .req
+                        &&& readyResp[1] matches tagged Valid .resp
+                        &&& req.isExt == True) begin
+                    return True;
+                end else begin
+                    return False;
+                end
             endmethod
         endinterface
     endinterface
@@ -725,6 +761,16 @@ module mkMemoryBusV2#(Vector#(n, MemoryBusItem ) bus_items)(MemoryBusV2);
 
     Reg#(Bool) extReqWasPreempted <- mkReg(False);
 
+    function Maybe#(Bit#(TLog#(n))) getServerIndex(PAddr addr);
+        Maybe#(Bit#(TLog#(n))) serverIndex = tagged Invalid;
+        for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
+            if ((truncate(addr) & bus_items[i].addr_mask) == bus_items[i].addr_match) begin
+                serverIndex = tagged Valid fromInteger(i);
+            end
+        end
+        return serverIndex;
+    endfunction
+
     // request priority:
     // old procIfc.request
     // old extIfc.request
@@ -739,22 +785,16 @@ module mkMemoryBusV2#(Vector#(n, MemoryBusItem ) bus_items)(MemoryBusV2);
 
         if (procReqEhr[3] matches tagged Valid .req &&& !extReqWasPreempted) begin
             // get serverIndex from the request address
-            Integer serverIndex = valueOf(n);
-            for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
-                if ((truncate(req.addr) & bus_items[i].addr_mask) == bus_items[i].addr_match) begin
-                    serverIndex = i;
-                end
-            end
-
+            let maybeServerIndex = getServerIndex(req.addr);
             procReqEhr[3] <= tagged Invalid;
-            if (serverIndex == valueOf(n)) begin
+            if (maybeServerIndex matches tagged Valid .serverIndex) begin
+                // legal address
+                bus_items[serverIndex].ifc.request.enq(req);
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: False, serverIndex: serverIndex };
+            end else begin
                 // illegal address
                 readyResp[3] <= tagged Valid UncachedMemResp{ write: req.write, data: 0 };
                 pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: False, serverIndex: 0 };
-            end else begin
-                // legal address
-                bus_items[serverIndex].ifc.request.enq(req);
-                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: False, serverIndex: fromInteger(serverIndex) };
             end
 
             // record if an external request was preempted
@@ -765,22 +805,16 @@ module mkMemoryBusV2#(Vector#(n, MemoryBusItem ) bus_items)(MemoryBusV2);
             end
         end else if (extReqEhr[3] matches tagged Valid .req) begin
             // get serverIndex from the request address
-            Integer serverIndex = valueOf(n);
-            for (Integer i = 0 ; i < valueOf(n) ; i = i+1) begin
-                if ((truncate(req.addr) & bus_items[i].addr_mask) == bus_items[i].addr_match) begin
-                    serverIndex = i;
-                end
-            end
-
+            let maybeServerIndex = getServerIndex(req.addr);
             extReqEhr[3] <= tagged Invalid;
-            if (serverIndex == valueOf(n)) begin
+            if (maybeServerIndex matches tagged Valid .serverIndex) begin
+                // legal address
+                bus_items[serverIndex].ifc.request.enq(req);
+                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: True, serverIndex: serverIndex };
+            end else begin
                 // illegal address
                 readyResp[3] <= tagged Valid UncachedMemResp{ write: req.write, data: 0 };
                 pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: True, serverIndex: 0 };
-            end else begin
-                // legal address
-                bus_items[serverIndex].ifc.request.enq(req);
-                pendingReq[3] <= tagged Valid MemoryBusV2PendingReq{ isExt: True, serverIndex: fromInteger(serverIndex) };
             end
 
             extReqWasPreempted <= False;
