@@ -49,7 +49,7 @@ import SimRam::*;
 
 interface ProcVerilator;
     // Processor Control
-    method Action start(Bit#(64) startPc);
+    method Action start();
     method Action stop();
     method Action stallPipeline(Bool stall);
 
@@ -73,10 +73,13 @@ module mkProcVerilator(ProcVerilator);
     // connect the processor to the simRam
     mkConnection(proc.ram, simRam);
 
+`ifdef CONFIG_SPI
     rule tieOff;
         proc.pins.spi.miso(0);
     endrule
+`endif
 
+`ifdef CONFIG_RS232
     Reg#(Bit#(16)) uartDivisor <- mkReg(17);
     UART#(16) simUart <- mkUART(8, NONE, STOP_1, uartDivisor);
     let uartSimToFPGABridge <- mkConnection(toPut(proc.pins.uart.sin), toGet(simUart.rs232.sout));
@@ -86,10 +89,11 @@ module mkProcVerilator(ProcVerilator);
         let x <- simUart.tx.get();
         $write("%c", x);
     endrule
+`endif
 
     // Processor Control
-    method Action start(Bit#(64) startPc);
-        proc.start(startPc);
+    method Action start;
+        proc.start;
     endmethod
     method Action stop();
         proc.stop;
@@ -110,6 +114,7 @@ module mkProcVerilator(ProcVerilator);
     // Interrupts
     method Action triggerExternalInterrupt = proc.triggerExternalInterrupt;
 
+`ifdef CONFIG_RS232
     method Action sendUartChar(Bit#(8) x);
         simUart.rx.put(x);
     endmethod
@@ -117,4 +122,12 @@ module mkProcVerilator(ProcVerilator);
         let x <- simUart.tx.get;
         return x;
     endmethod
+`else
+    method Action sendUartChar(Bit#(8) x) if (False);
+        noAction;
+    endmethod
+    method ActionValue#(Bit#(8)) receiveUartChar if (False);
+        return ?;
+    endmethod
+`endif
 endmodule
