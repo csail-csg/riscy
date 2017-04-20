@@ -119,14 +119,8 @@ module mkProc(Proc#(DataSz));
                     clocked_by pipelineClock.new_clk);
 
     // Processor Control
-    method Action start(Bit#(64) startPc);
-        if (startPc != 0) begin
-            // This processor does not have the same memory layout as spike,
-            // so for now we are assuming this processor has rstvec = 0
-            $fdisplay(stderr, "[WARNING] startPc != 0");
-            $fflush(stderr);
-        end
-        core.start(truncate(startPc));
+    method Action start();
+        core.start(0);
     endmethod
     method Action stop();
         core.stop;

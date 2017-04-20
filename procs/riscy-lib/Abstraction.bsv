@@ -182,12 +182,12 @@ endinterface
 
 interface MemorySystem;
     // To Front-End
-    interface Server#(RVIMMUReq, RVIMMUResp) ivat;
-    interface Server#(RVIMemReq, RVIMemResp) ifetch;
+    interface ServerPort#(RVIMMUReq, RVIMMUResp) ivat;
+    interface ServerPort#(RVIMemReq, RVIMemResp) ifetch;
     // To Back-End
-    interface Server#(RVDMMUReq, RVDMMUResp) dvat;
-    interface Server#(RVDMemReq, RVDMemResp) dmem;
-    interface Server#(FenceReq, FenceResp) fence;
+    interface ServerPort#(RVDMMUReq, RVDMMUResp) dvat;
+    interface ServerPort#(RVDMemReq, RVDMemResp) dmem;
+    interface ServerPort#(FenceReq, FenceResp) fence;
     method Action updateVMInfoI(VMInfo vmI);
     method Action updateVMInfoD(VMInfo vmD);
 endinterface
@@ -205,7 +205,7 @@ typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric 
 
 interface Proc#(numeric type mainMemoryWidth);
     // Processor Control
-    method Action start(Bit#(64) startPc);
+    method Action start();
     method Action stop();
 
     // Verification

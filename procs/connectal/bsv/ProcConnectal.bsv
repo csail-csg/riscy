@@ -331,7 +331,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             resetSent <= True;
         endmethod
         method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
-            proc.start(startPc);
+            // startPc is ignored
+            proc.start;
             verificationPacketFilter.init(verificationPacketsToIgnore, sendSynchronizationPackets);
         endmethod
         method Action stop();
