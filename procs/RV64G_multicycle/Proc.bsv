@@ -40,6 +40,7 @@ import PrintTrace::*;
 
 import Abstraction::*;
 import BasicMemorySystemBlocks::*;
+import BootRom::*;
 import Core::*;
 import MemorySystem::*;
 import MemoryMappedCSRs::*;
@@ -89,6 +90,11 @@ module mkProc(Proc#(DataSz));
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
+    let bootrom <- mkBasicBootRom(BootRomConfig {
+                                    bootrom_addr: rstvec,
+                                    start_addr: dramBaseAddr,
+                                    config_string_addr: configStringPtr });
+
     SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
     MemoryMappedCSRs#(1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
     Core core <- mkMulticycleCore(
@@ -120,8 +126,9 @@ module mkProc(Proc#(DataSz));
     UncachedMemServerPort externalMMIOServer = toServerPort(externalMMIOReqFIFO, externalMMIORespFIFO);
     UncachedMemClientPort externalMMIOClient = toClientPort(externalMMIOReqFIFO, externalMMIORespFIFO);
     let memoryMappedIO <- mkMemoryBusV2(vec(
-                            busItemFromAddrRange( 'h0000_0000, 'h3FFF_FFFF, mmcsrs.memifc ),
-                            busItemFromAddrRange( 'h4000_0000, 'h7FFF_FFFF, externalMMIOServer ))); // was 'h6000_0000
+                            busItemFromAddrRange( 'h0000_1000, 'h0000_100F, bootrom ),
+                            busItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, mmcsrs.memifc ),
+                            busItemFromAddrRange( 'h6000_0000, 'h7FFF_FFFF, externalMMIOServer )));
     let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO.procIfc);
 
     // Cached Memory Connection

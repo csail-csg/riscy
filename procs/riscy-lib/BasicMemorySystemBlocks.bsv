@@ -551,6 +551,33 @@ module mkUncachedConverter#(UncachedMemServerPort uncachedMem)(ServerPort#(RVDMe
     endinterface
 endmodule
 
+module mkUncachedIMemConverter#(UncachedMemServerPort uncachedMem)(ServerPort#(RVIMemReq, RVIMemResp));
+    interface InputPort request;
+        method Action enq(RVIMemReq reqAddr);
+            uncachedMem.request.enq( UncachedMemReq {
+                    write: False,
+                    size: W,
+                    addr: reqAddr,
+                    data: 0
+                } );
+        endmethod
+        method Bool canEnq;
+            return uncachedMem.request.canEnq;
+        endmethod
+    endinterface
+    interface OutputPort response;
+        method RVIMemResp first;
+            return truncate(uncachedMem.response.first.data);
+        endmethod
+        method Action deq;
+            uncachedMem.response.deq;
+        endmethod
+        method Bool canDeq;
+            return uncachedMem.response.canDeq;
+        endmethod
+    endinterface
+endmodule
+
 // Memory bus takes in a vector of Servers and produces two server interfaces,
 // one for a processor to attach to and one for an external interface to use.
 // The processor port has priority, but if the external interface is preempted

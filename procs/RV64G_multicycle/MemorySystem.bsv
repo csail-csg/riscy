@@ -49,21 +49,31 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
     let uncachedMemClient = toClientPort(uncachedReqFIFO, uncachedRespFIFO);
 
     // splits cached memory port for itlb, imem, dtlb, and dmem
-    Vector#(5, ServerPort#(MainMemReq, MainMemResp)) mainMemorySplitServer <- mkFixedPriorityServerPortSplitter(constFn(True), 8, mainMemoryServer);
+    Vector#(5, ServerPort#(MainMemReq, MainMemResp)) mainMemorySplitServer <- mkFixedPriorityServerPortSplitter(constFn(True), 2, mainMemoryServer);
+
+    Vector#(2, UncachedMemServerPort) uncachedMemSplitServer <- mkFixedPriorityServerPortSplitter(constFn(True), 2, uncachedMemServer);
 
     // extMemServer -- works on 64-bit words
     let extMemServer = mainMemorySplitServer[4];
 
     let itlb <- mkDummyRVIMMU(getPMA, mainMemorySplitServer[3]);
+    // two different paths for imem request to take: cached and uncached
     let icache <- mkDummyRVICache(mainMemorySplitServer[2]);
+    let iuncached <- mkUncachedIMemConverter(uncachedMemSplitServer[1]);
     let dtlb <- mkDummyRVDMMU(False, getPMA, mainMemorySplitServer[1]);
     // two different paths for dmem request to take: cached and uncached
     let dcache <- mkDummyRVDCache(mainMemorySplitServer[0]);
-    let duncached <- mkUncachedConverter(uncachedMemServer);
+    let duncached <- mkUncachedConverter(uncachedMemSplitServer[0]);
     // join cached and uncached paths to make a unified dmem interface
-    function Bit#(1) whichServer(RVDMemReq r);
+    function Bit#(1) whichServerData(RVDMemReq r);
         return (case (getPMA(r.addr))
-                    MainMemory, IORom: 0; // cached
+                    MainMemory: 0; // cached
+                    default: 1; // uncached
+                endcase);
+    endfunction
+    function Bit#(1) whichServerInst(RVIMemReq r);
+        return (case (getPMA(r))
+                    MainMemory: 0; // cached
                     default: 1; // uncached
                 endcase);
     endfunction
@@ -73,7 +83,8 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
                 default: True;
             endcase);
     endfunction
-    let dmem <- mkServerPortJoiner(whichServer, getsResponse, 4, vec(dcache, duncached));
+    let dmem <- mkServerPortJoiner(whichServerData, getsResponse, 2, vec(dcache, duncached));
+    let imem <- mkServerPortJoiner(whichServerInst, constFn(True), 2, vec(icache, iuncached));
 
     Vector#(numCores, MemorySystem) onecore;
     onecore[0] = (interface MemorySystem;
@@ -81,7 +92,7 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
                                         interface InputPort request = itlb.request;
                                         interface OutputPort response = itlb.response;
                                     endinterface);
-            interface ServerPort ifetch = icache;
+            interface ServerPort ifetch = imem;
             interface ServerPort dvat = (interface ServerPort;
                                         interface InputPort request = dtlb.request;
                                         interface OutputPort response = dtlb.response;
