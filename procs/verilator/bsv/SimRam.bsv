@@ -85,7 +85,8 @@ module mkSimRam#(String hex_file_name)(GenericMemServerPort#(data_sz)) provisos 
                 byteEnShiftRegister.parallel.request.enq(byteEn_vec);
             end
             pendingReqIsStore <= tagged Valid req.write;
-            currAddr <= req.addr;
+            let addr_mask = ~fromInteger((valueOf(num_words) * 4) - 1);
+            currAddr <= req.addr & addr_mask;
             wordsLeft <= fromInteger(valueOf(num_words));
         endmethod
         method Bool canEnq;
