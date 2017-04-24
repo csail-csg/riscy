@@ -41,7 +41,14 @@ CONNECTALFLAGS += -D CONFIG_D
 # CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
 
 ifdef RISCY_HOME
+ifeq ($(MAKECMDGOALS),verilator)
+include $(RISCY_HOME)/procs/verilator/Makefile
+else ifeq ($(MAKECMDGOALS),verilog)
+include $(RISCY_HOME)/procs/verilator/Makefile
+else
+# connectal backend
 include $(RISCY_HOME)/procs/connectal/Makefile
+endif
 else
 $(error RISCY_HOME is undefined)
 endif

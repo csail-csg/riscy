@@ -23,9 +23,7 @@
 
 # PROC should be defined in another makefile
 ifndef PROC
-# $(error PROC is not set)
-$(warning PROC is not set)
-PROC=RV32IM_3stage
+$(error PROC is not set)
 endif
 
 ifndef RISCY_HOME
