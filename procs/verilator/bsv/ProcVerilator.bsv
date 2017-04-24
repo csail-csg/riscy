@@ -73,6 +73,16 @@ module mkProcVerilator(ProcVerilator);
     // connect the processor to the simRam
     mkConnection(proc.ram, simRam);
 
+    // some of our processors write to a certain location when finished executing:
+    rule checkForFinish if ((proc.mmio.request.first.addr == 'h6000_0000) && proc.mmio.request.first.write);
+        if (proc.mmio.request.first.data == 0) begin
+            $display("PASSED");
+        end else begin
+            $display("FAILED %0d", proc.mmio.request.first.data);
+        end
+        $finish;
+    endrule
+
 `ifdef CONFIG_SPI
     rule tieOff;
         proc.pins.spi.miso(0);
