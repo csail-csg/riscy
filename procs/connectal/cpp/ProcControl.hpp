@@ -38,7 +38,7 @@ class ProcControl : public ProcControlIndicationWrapper {
         void reset();
         void start(const uint64_t startPc);
         void stop();
-        void configure(const uint32_t sharedMemRefPointer, const uint32_t romRefPointer, const uint64_t romBaseAddr, const uint64_t externalMMIOBaseAddr);
+        void configure(const uint32_t sharedMemRefPointer, const uint64_t externalMMIOBaseAddr);
 
         // this sets the verification packet settings for the next time start
         // is called

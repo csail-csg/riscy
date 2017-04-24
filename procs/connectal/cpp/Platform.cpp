@@ -31,80 +31,23 @@
 
 #include "Platform.hpp"
 
-Platform::Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn)
+Platform::Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn)
         : PlatformIndicationWrapper(indicationId),
           verbose(false),
           ramBaseAddr(ramBaseAddrIn),
           ramSz(ramSzIn),
-          ram(ramSzIn, false), // false == uncached
-          romBaseAddr(romBaseAddrIn),
-          romSz(romSzIn),
-          rom(romSzIn, false) { // false == uncached
-    // check if ram and rom overlap
-    bool overlap = false;
-    if (romBaseAddr < ramBaseAddr) {
-        // rom < ram
-        if (romBaseAddr + romSz > ramBaseAddr) {
-            overlap = true;
-        }
-    } else {
-        // ram <= rom
-        if (ramBaseAddr + ramSz > romBaseAddr) {
-            overlap = true;
-        }
-    }
-    if (overlap) {
-        std::cerr << "[WARNING] Platform::Platform : ROM and RAM regions overlap" << std::endl;
-    }
-
+          ram(ramSzIn, false) { // false == uncached
     ramBuffer = (uint64_t*) ram.buffer();
-    romBuffer = (uint64_t*) rom.buffer();
 
     platformRequest = new PlatformRequestProxy(requestId);
 
-    platformRequest->configure(ram.reference(), ramSz, rom.reference(), romSz);
+    platformRequest->configure(ram.reference(), ramSz);
 }
 
 void Platform::init() {
-    // Populate the ROM with the reset vector and config string
-    // TODO: make number of processors a variable (currently 1)
-    // TODO: make ISA string a variable
-    // This matches the reset vec and config string from Spike's processor
-    uint32_t reset_vec[8] = {
-        0x297 + (0x80000000 - 0x1000),  // reset vector
-        0x00028067,                     //   jump straight to DRAM_BASE
-        0x00000000,                     // reserved
-        0x00001020,                     // config string pointer
-        0, 0, 0, 0                      // trap vector
-    };
-    std::stringstream s;
-    s << std::hex <<
-          "platform {\n"
-          "  vendor ucb;\n"
-          "  arch spike;\n"
-          "};\n"
-          "rtc {\n"
-          "  addr 0x40000000;\n"
-          "};\n"
-          "ram {\n"
-          "  0 {\n"
-          "    addr 0x80000000;\n"
-          "    size 0x" << ramSz << ";\n"
-          "  };\n"
-          "};\n"
-          "core {\n"
-          "  0 {\n"
-          "    0 {\n"
-          "      isa " << "rv64imafd" << ";\n"
-          "      timecmp 0x40000008;\n"
-          "      ipi 0x40001000;\n"
-          "    };\n"
-          "  };\n"
-          "};\n";
-
-    // XXX: What is the "correct" way to do this?
-    memcpy( (void*) &((char*) romBuffer)[0x1000], (void*) reset_vec, 8 * sizeof(uint32_t) );
-    memcpy( (void*) &((char*) romBuffer)[0x1020], (void*) s.str().c_str(), s.str().size() );
+    // This used to populate the ROM with the reset vector and config string.
+    // Now that the ROM has been moved inside the processor, this function
+    // does nothing.
 }
 
 uint64_t Platform::memRead(uint64_t addr) {
@@ -194,15 +137,10 @@ void Platform::write_chunk_extIfc(uint64_t taddr, size_t len, const void* src) {
 }
 
 void Platform::read_chunk_sharedMem(uint64_t taddr, size_t len, void* dst) {
-    assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);
 
-    if ((taddr >= romBaseAddr) && (taddr + len <= romBaseAddr + romSz)) {
-        // rom address
-        if (verbose) fprintf(stderr, "Platform::read_chunk_sharedMem(taddr=0x%lx, len=%ld, dst=%p) from ROM address\n", (long)taddr, (long)len, dst);
-        memcpy(dst, &romBuffer[(taddr - romBaseAddr)/sizeof(uint64_t)], len);
-    } else if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
+    if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
         // ram address
         if (verbose) fprintf(stderr, "Platform::read_chunk_sharedMem(taddr=0x%lx, len=%ld, dst=%p) from RAM address\n", (long)taddr, (long)len, dst);
         memcpy(dst, &ramBuffer[(taddr - ramBaseAddr)/sizeof(uint64_t)], len);
@@ -213,15 +151,10 @@ void Platform::read_chunk_sharedMem(uint64_t taddr, size_t len, void* dst) {
 }
 
 void Platform::write_chunk_sharedMem(uint64_t taddr, size_t len, const void* src) {
-    assert(romBuffer != NULL);
     assert(ramBuffer != NULL);
     assert(taddr >= 0);
 
-    if ((taddr >= romBaseAddr) && (taddr + len <= romBaseAddr + romSz)) {
-        // rom address
-        if (verbose) fprintf(stderr, "Platform::write_chunk_sharedMem(taddr=0x%lx, len=%ld, src=%p) from ROM address\n", (long)taddr, (long)len, src);
-        memcpy(&romBuffer[(taddr - romBaseAddr)/sizeof(uint64_t)], src, len);
-    } else if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
+    if ((taddr >= ramBaseAddr) && (taddr + len <= ramBaseAddr + ramSz)) {
         // ram address
         if (verbose) fprintf(stderr, "Platform::write_chunk_sharedMem(taddr=0x%lx, len=%ld, src=%p) from RAM address\n", (long)taddr, (long)len, src);
         memcpy(&ramBuffer[(taddr - ramBaseAddr)/sizeof(uint64_t)], src, len);

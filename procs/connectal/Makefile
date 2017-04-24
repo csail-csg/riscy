@@ -87,7 +87,6 @@ H2S_INTERFACES = \
 
 MEM_READ_INTERFACES = \
 	lProcConnectal.dmaReadClient \
-	lProcConnectal.romReadClient \
 
 MEM_WRITE_INTERFACES = \
 	lProcConnectal.dmaWriteClient \

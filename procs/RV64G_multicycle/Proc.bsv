@@ -132,32 +132,16 @@ module mkProc(Proc#(DataSz));
     let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO.procIfc);
 
     // Cached Memory Connection
-    FIFOG#(MainMemReq) romReqFIFO <- mkFIFOG;
-    FIFOG#(MainMemResp) romRespFIFO <- mkFIFOG;
-    MainMemServerPort romServer = toServerPort(romReqFIFO, romRespFIFO);
-    MainMemClientPort romClient = toClientPort(romReqFIFO, romRespFIFO);
     FIFOG#(MainMemReq) ramReqFIFO <- mkFIFOG;
     FIFOG#(MainMemResp) ramRespFIFO <- mkFIFOG;
     MainMemServerPort ramServer = toServerPort(ramReqFIFO, ramRespFIFO);
     MainMemClientPort ramClient = toClientPort(ramReqFIFO, ramRespFIFO);
-    function Bit#(1) whichServer(MainMemReq r);
-        if (r.addr >= dramBaseAddr ) begin
-            return 1; // ram
-        end else begin
-            return 0; // rom
-        end
-    endfunction
     function MainMemReq adjustAddress(Addr a, MainMemReq r);
         r.addr = r.addr - a;
         return r;
     endfunction
     Integer maxPendingReq = 2;
-    let cachedMemBridge <- mkServerPortJoiner(
-                            whichServer,
-                            constFn(True), // if a given request gets a response
-                            maxPendingReq,
-                            vec( transformServerPortReq(adjustAddress(0), romServer),
-                                 transformServerPortReq(adjustAddress(dramBaseAddr), ramServer) ));
+    let cachedMemBridge = transformServerPortReq(adjustAddress(dramBaseAddr), ramServer);
     let cached_mem_connection <- mkConnection(memorySystem.cachedMemory, cachedMemBridge);
 
     // Processor Control
@@ -175,7 +159,6 @@ module mkProc(Proc#(DataSz));
 
     // Main Memory Connection
     interface MainMemClientPort ram = ramClient;
-    interface MainMemClientPort rom = romClient;
     interface UncachedMemClientPort mmio = externalMMIOClient;
     interface GenericMemServerPort extmem = memorySystem.extMemory;
 

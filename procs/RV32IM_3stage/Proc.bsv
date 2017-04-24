@@ -134,8 +134,6 @@ module mkProc(Proc#(DataSz));
     // Main Memory Connection
     // XXX: Currently unattached
     interface MainMemClientPort ram = nullClientPort;
-    // XXX: Currently unattached
-    interface MainMemClientPort rom = nullClientPort;
 
     interface UncachedMemClientPort mmio = mmio_client;
 

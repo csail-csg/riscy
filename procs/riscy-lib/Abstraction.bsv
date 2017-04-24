@@ -213,7 +213,6 @@ interface Proc#(numeric type mainMemoryWidth);
 
     // Cached Connections
     interface GenericMemClientPort#(mainMemoryWidth) ram;
-    interface GenericMemClientPort#(mainMemoryWidth) rom;
     // Uncached Connections
     interface UncachedMemClientPort mmio;
     // External Connections

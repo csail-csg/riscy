@@ -70,7 +70,7 @@ interface ProcControlIndication;
 endinterface
 // Platform
 interface PlatformRequest;
-    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
+    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize);
     method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
 endinterface
 interface PlatformIndication;
@@ -110,7 +110,6 @@ interface ProcConnectal;
     interface ExternalMMIOResponse externalMMIOResponse;
     interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
     interface Vector#(1, MemWriteClient#(DataBusWidth)) dmaWriteClient;
-    interface Vector#(1, MemReadClient#(DataBusWidth)) romReadClient;
     (* prefix = "" *)
     interface ProcPins pins;
 endinterface
@@ -131,10 +130,6 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     Reg#(Bool) resetSent <- mkReg(False);
 
     Proc#(MainMemoryWidth) proc <- mkProc(reset_by procReset.new_rst);
-
-    // Address space: 0 - romSz
-    SharedMemoryBridge#(MainMemoryWidth) romSharedMemoryBridge <- mkSharedMemoryBridge;
-    let romToSharedMem <- mkConnection(proc.rom, romSharedMemoryBridge.to_proc);
 
     // Address space: 0 - ramSz
     SharedMemoryBridge#(MainMemoryWidth) ramSharedMemoryBridge <- mkSharedMemoryBridge;
@@ -276,8 +271,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 
     // rules for connecting indications
     rule finishReset(resetSent && (!procReset.isAsserted)
-                               && (ramSharedMemoryBridge.numberFlyingOperations == 0)
-                               && (romSharedMemoryBridge.numberFlyingOperations == 0));
+                               && (ramSharedMemoryBridge.numberFlyingOperations == 0));
         // wait for procReset to finish
         resetSent <= False;
         procControlIndication.resetDone;
@@ -327,7 +321,6 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             procReset.assertReset();
             // flushes the pending memory requests
             ramSharedMemoryBridge.flushRespReqMem;
-            romSharedMemoryBridge.flushRespReqMem;
             resetSent <= True;
         endmethod
         method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
@@ -340,11 +333,9 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         endmethod
     endinterface
     interface PlatformRequest platformRequest;
-        method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
+        method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize);
             // configure shared memory
             ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
-            // configure ROM
-            romSharedMemoryBridge.initSharedMem(romSharedMemRefPointer, romSize);
         endmethod
         method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
             extMemReqFIFO.enq( GenericMemReq{
@@ -415,7 +406,6 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     // dma interfaces
     interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);
     interface MemWriteClient dmaWriteClient = vec(ramSharedMemoryBridge.to_host_write);
-    interface MemReadClient romReadClient = vec(romSharedMemoryBridge.to_host_read);
 
     // pins interface
     interface ProcPins pins = proc.pins;
