@@ -124,7 +124,6 @@ bool ElfFile::finishLoad() {
     }
     // loop through program header tables
     for (int i = 0 ; i < ehdr->e_phnum ; i++) {
-        std::cout << "phdr[" << i << "].p_type = " << phdr[i].p_type << std::endl;
         // only look at non-zero length PT_LOAD sections
         if ((phdr[i].p_type == PT_LOAD) && (phdr[i].p_memsz > 0)) {
             if (phdr[i].p_memsz < phdr[i].p_filesz) {

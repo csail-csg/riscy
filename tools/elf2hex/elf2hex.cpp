@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    // EVERYTHING IS PARSED AND READY TO GO
+    // Command line arguments are parsed and ready to go
 
     ElfFile elf_file;
     if (!elf_file.open(elf_filename)) {
@@ -89,10 +89,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<ElfFile::Section> sections = elf_file.getSections();
-    std::cout << "Elf section info:" << std::endl;
-    for (int i = 0 ; i < sections.size() ; i++) {
-        std::cout << i << ": base_addr = " << sections[i].base << ", mem_size = " << sections[i].section_size << ", data_size = " << sections [i].data_size << std::endl;
-    }
 
     // write output_buff to hex_filename in hex file format
     std::ofstream hex_file;
