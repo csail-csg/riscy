@@ -25,7 +25,7 @@ before_script:
   - mkdir -p lib
   - ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
   # download and install verilator
-  - curl -L http://www.veripool.org/ftp/verilator-3.888.tgz | tar -zxf -; cd verilator-3.888/; ./configure --prefix=`dirname $PWD`/verilator; make -j3; make install
+  - curl -L http://www.veripool.org/ftp/verilator-3.888.tgz | tar -zxf - ; cd verilator-3.888/ ; ./configure --prefix=`dirname $PWD`/verilator ; make -j3 ; make install ; cd ..
   # download and install ply
   - curl http://www.dabeaz.com/ply/ply-3.9.tar.gz | tar -zxf -
   - ln -s ../ply-3.9/ply connectal/scripts
