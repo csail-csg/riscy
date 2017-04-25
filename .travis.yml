@@ -5,7 +5,7 @@ env:
   global:
     # Bluespec
     - BLUESPECDIR=$PWD/Bluespec-2016.07.beta1/lib
-    - PATH=$PATH:$PWD/Bluespec-2016.07.beta1/bin
+    - PATH=$PATH:$PWD/Bluespec-2016.07.beta1/bin:$PWD/verilator/bin
     - LD_LIBRARY_PATH=$PWD/lib
   matrix:
     - TRAVIS_PROC=RV64G_multicycle  TRAVIS_ISA_SIZE=64
@@ -24,6 +24,8 @@ before_script:
   - if [ -d Bluespec-2016.07.beta1 ] ; then echo bluespec cached; else curl http://www.bluespec.com/downloads/Bluespec-2016.07.beta1.tar.gz | tar -zxf - ; fi
   - mkdir -p lib
   - ln -s /usr/lib/x86_64-linux-gnu/libgmp.so.10 lib/libgmp.so.3
+  # download and install verilator
+  - curl -L http://www.veripool.org/ftp/verilator-3.888.tgz | tar -zxf -; cd verilator-3.888/; ./configure --prefix=`dirname $PWD`/verilator; make -j3; make install
   # download and install ply
   - curl http://www.dabeaz.com/ply/ply-3.9.tar.gz | tar -zxf -
   - ln -s ../ply-3.9/ply connectal/scripts
