@@ -1,6 +1,14 @@
 Riscy Processors - Open-Sourced RISC-V Processors 
 =================================================
 
+This repository contains a collection of open-sourced RISC-V processors written in Bluespec System Verilog (BSV).
+
+These processors can be built with a variety of backends to use the processors in different simulation frameworks or FPGA.
+Currently the supported backends are Connectal and Verilator.
+Connectal is a generic framework that supports a variety of FPGAs and simulation targets.
+
+## Getting Started
+
 How to get started with this repository (tested in Ubuntu 14.04):
 
 1. Get all the submodules.
@@ -32,10 +40,10 @@ We use a PPA to provide a newer version of Verilator.
         $ sudo apt-get update
         $ sudo apt-get install verilator
 
-7. Build the multicycle processor.
+7. Build the multicycle processor using the connectal backend with its verilator target.
 
         $ cd procs/RV64G_multicycle
         $ make build.verilator
 
-8. Simulate tests by running `./runtests.sh` and then select which tests to run
+8. Simulate tests by running `./runtests.sh` and then select the `connectal (verilator)` backend and which tests to run
 
