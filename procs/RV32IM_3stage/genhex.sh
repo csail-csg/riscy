@@ -22,14 +22,19 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
+print_usage()
+{
     echo "Usage: $0 [<elf-file>]"
     echo ""
     echo "This script generates the necessary hex file from the provided ELF file."
     echo "If no elf file is provided, then this script uses the test rv64ui-p-add"
     echo "as a default program."
     echo ""
-    echo "Note: This script requires \$RISCY_HOME to be defined"
+    echo "Note: This script requires RISCY_HOME to be defined"
+}
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
+    print_usage
     exit 0
 fi
 
