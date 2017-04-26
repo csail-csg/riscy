@@ -75,4 +75,8 @@ fi
 export RISCY_TOOLS=$RISCY_HOME/tools/$TOOLCHAIN
 # Adding to path and ld library path
 export PATH=$RISCY_TOOLS/bin:$PATH
-export LD_LIBRARY_PATH=$RISCY_TOOLS/lib
+if [ "$LD_LIBRARY_PATH" == "" ] ; then
+    export LD_LIBRARY_PATH=$RISCY_TOOLS/lib
+else
+    export LD_LIBRARY_PATH=$RISCY_TOOLS/lib:$LD_LIBRARY_PATH
+fi

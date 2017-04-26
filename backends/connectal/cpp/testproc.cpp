@@ -76,8 +76,6 @@ static exit_code_reg_t *exit_code_reg = NULL;
 
 // The amount of RAM attached to the processor. 64 MB by default
 size_t ramSz = 64 * 1024 * 1024;
-// The size of the ROM attached to the uncached region. 64 KB by default
-size_t romSz = 64 * 1024;
 
 // What do we do with this?
 static void handle_signal(int sig) {
@@ -171,8 +169,7 @@ int main(int argc, char * const *argv) {
     // construct platform
     platform = new Platform(IfcNames_PlatformIndicationH2S,
                             IfcNames_PlatformRequestS2H,
-                            0x80000000, ramSz,  // ram base and size
-                            0,          romSz); // rom base and size
+                            0x80000000, ramSz); // ram base and size
     platform->init();
 
     // TODO: program processor using the provided elf file

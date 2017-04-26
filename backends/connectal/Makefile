@@ -48,25 +48,25 @@ endif
 BSVPATH += \
 	$(RISCY_HOME)/procs/riscy-lib \
 	$(RISCY_HOME)/procs/$(PROC) \
-	$(RISCY_HOME)/procs/connectal/bsv \
+	$(RISCY_HOME)/backends/connectal/bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv \
 
 BSVFILES += \
-	$(RISCY_HOME)/procs/connectal/bsv/ProcConnectal.bsv \
 	$(RISCY_HOME)/procs/riscy-lib/ProcPins.bsv \
 	$(RISCY_HOME)/procs/riscy-lib/VerificationPacket.bsv \
+	$(RISCY_HOME)/backends/connectal/bsv/ProcConnectal.bsv \
 	$(RISCY_HOME)/recycle-bsv-lib/src/bsv/PerfMonitorConnectal.bsv \
 
 CPPFILES += \
-	$(RISCY_HOME)/procs/connectal/cpp/testproc.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/Platform.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/ProcControl.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/Verification.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/ExternalMMIO.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/SpikeTandemVerifier.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/PrintTrace.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/ElfLoader.cpp \
-	$(RISCY_HOME)/procs/connectal/cpp/UartBridge.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/testproc.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/Platform.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/ProcControl.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/Verification.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/ExternalMMIO.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/SpikeTandemVerifier.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/PrintTrace.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/ElfLoader.cpp \
+	$(RISCY_HOME)/backends/connectal/cpp/UartBridge.cpp \
 	$(RISCY_HOME)/recycle-bsv-lib/src/cpp/PerfMonitor.cpp \
 	$(CONNECTALDIR)/cpp/DmaBuffer.cpp \
 
@@ -87,14 +87,13 @@ H2S_INTERFACES = \
 
 MEM_READ_INTERFACES = \
 	lProcConnectal.dmaReadClient \
-	lProcConnectal.romReadClient \
 
 MEM_WRITE_INTERFACES = \
 	lProcConnectal.dmaWriteClient \
 
 NUMBER_OF_MASTERS = 1
 
-PINOUT_FILE += $(RISCY_HOME)/procs/pin_translation.json
+PINOUT_FILE += $(RISCY_HOME)/backends/connectal/pin_translation.json
 PIN_TYPE = ProcPins
 PIN_TYPE_INCLUDE = ProcPins
 AUTOTOP = --interface pins:ProcConnectal.pins

@@ -29,6 +29,7 @@ import Vector::*;
 
 import ConcatReg::*;
 import Ehr::*;
+import Port::*;
 import RegUtil::*;
 
 import MemoryMappedServer::*;
@@ -37,7 +38,7 @@ import Abstraction::*;
 
 interface RVUart#(numeric type cores);
     // Internal connections
-    interface UncachedMemServer memifc;
+    interface UncachedMemServerPort memifc;
 
     // external connections for rx/tx (to be connected to a UART
     (* prefix = "" *)
@@ -64,7 +65,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
             rxCtrlReg,
             zeroExtendReg(divReg)
         );
-    Server#(UncachedMemReq, UncachedMemResp) memoryMappedIfc <- mkMemoryMappedServer(memoryMappedRegisters);
+    ServerPort#(UncachedMemReq, UncachedMemResp) memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
 
     UART#(16) uart <- mkUART(8, NONE, STOP_1, divReg);
 

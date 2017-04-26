@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -26,19 +26,25 @@
 import BuildVector::*;
 import DefaultValue::*;
 import ClientServer::*;
+import Clocks::*;
 import Connectable::*;
 import FIFO::*;
 import GetPut::*;
 import Vector::*;
 
 import ClientServerUtil::*;
+import FIFOG::*;
+import Port::*;
+import PortUtil::*;
 import PrintTrace::*;
-import ServerUtil::*;
 
 import Abstraction::*;
+import BasicMemorySystemBlocks::*;
+import BootRom::*;
 import Core::*;
 import MemorySystem::*;
 import MemoryMappedCSRs::*;
+import ProcPins::*;
 import RVTypes::*;
 import VerificationPacket::*;
 import VerificationPacketFilter::*;
@@ -67,6 +73,10 @@ module mkProc(Proc#(DataSz));
     // 0x8000_0000 - end of address space
     Addr dramBaseAddr           = 'h8000_0000;
 
+    let clock <- exposeCurrentClock;
+    let clockGating <- mkGatedClockFromCC(True);
+    let gated_clock = clockGating.new_clk;
+
     // This function assumes romBaseAddr < mmioBaseAddr < dramBaseAddr
     function PMA getPMA(Addr addr);
         if (addr < mmioBaseAddr) begin
@@ -80,6 +90,11 @@ module mkProc(Proc#(DataSz));
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
+    let bootrom <- mkBasicBootRom(BootRomConfig {
+                                    bootrom_addr: rstvec,
+                                    start_addr: dramBaseAddr,
+                                    config_string_addr: configStringPtr });
+
     SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
     MemoryMappedCSRs#(1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
     Core core <- mkMulticycleCore(
@@ -91,7 +106,8 @@ module mkProc(Proc#(DataSz));
                     mmcsrs.timerInterrupt[0], // timer interrupt
                     mmcsrs.timerValue,
                     extInterruptWire, // external interrupt
-                    0); // hart ID
+                    0, // hart ID
+                    clocked_by gated_clock);
 
     // +----------------+ +---------------+
     // |      Core      | | verification  |
@@ -105,84 +121,58 @@ module mkProc(Proc#(DataSz));
     let core_to_mem <- mkConnection(core, memorySystem.core[0]);
 
     // Memory Mapped IO connections
-    FIFO#(UncachedMemReq) externalMMIOReqFIFO <- mkFIFO;
-    FIFO#(UncachedMemResp) externalMMIORespFIFO <- mkFIFO;
-    UncachedMemServer externalMMIOServer = toGPServer(externalMMIOReqFIFO, externalMMIORespFIFO);
-    UncachedMemClient externalMMIOClient = toGPClient(externalMMIOReqFIFO, externalMMIORespFIFO);
-    function Bit#(1) whichMMIOServer(UncachedMemReq r);
-        if (r.addr >= externalMMIOBaseAddr ) begin
-            return 1; // external devices
-        end else begin
-            return 0; // internal devices (memory mapped CSRs)
-        end
-    endfunction
-    Integer maxPendingReq = 4;
-    function UncachedMemReq adjustMMIOAddress(Addr a, UncachedMemReq r);
-        r.addr = r.addr - a;
-        return r;
-    endfunction
-    let memoryMappedIO <- mkServerJoiner(
-                            whichMMIOServer,
-                            constFn(True), // if a given request gets a response
-                            maxPendingReq,
-                            vec(mmcsrs.memifc, transformReq(adjustMMIOAddress(externalMMIOBaseAddr), externalMMIOServer)));
-    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO);
+    FIFOG#(UncachedMemReq) externalMMIOReqFIFO <- mkFIFOG;
+    FIFOG#(UncachedMemResp) externalMMIORespFIFO <- mkFIFOG;
+    UncachedMemServerPort externalMMIOServer = toServerPort(externalMMIOReqFIFO, externalMMIORespFIFO);
+    UncachedMemClientPort externalMMIOClient = toClientPort(externalMMIOReqFIFO, externalMMIORespFIFO);
+    let memoryMappedIO <- mkMemoryBusV2(vec(
+                            busItemFromAddrRange( 'h0000_1000, 'h0000_100F, bootrom ),
+                            busItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, mmcsrs.memifc ),
+                            busItemFromAddrRange( 'h6000_0000, 'h7FFF_FFFF, externalMMIOServer )));
+    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO.procIfc);
 
     // Cached Memory Connection
-    FIFO#(MainMemReq) romReqFIFO <- mkFIFO;
-    FIFO#(MainMemResp) romRespFIFO <- mkFIFO;
-    MainMemServer romServer = toGPServer(romReqFIFO, romRespFIFO);
-    MainMemClient romClient = toGPClient(romReqFIFO, romRespFIFO);
-    FIFO#(MainMemReq) ramReqFIFO <- mkFIFO;
-    FIFO#(MainMemResp) ramRespFIFO <- mkFIFO;
-    MainMemServer ramServer = toGPServer(ramReqFIFO, ramRespFIFO);
-    MainMemClient ramClient = toGPClient(ramReqFIFO, ramRespFIFO);
-    function Bit#(1) whichServer(MainMemReq r);
-        if (r.addr >= dramBaseAddr ) begin
-            return 1; // ram
-        end else begin
-            return 0; // rom
-        end
-    endfunction
+    FIFOG#(MainMemReq) ramReqFIFO <- mkFIFOG;
+    FIFOG#(MainMemResp) ramRespFIFO <- mkFIFOG;
+    MainMemServerPort ramServer = toServerPort(ramReqFIFO, ramRespFIFO);
+    MainMemClientPort ramClient = toClientPort(ramReqFIFO, ramRespFIFO);
     function MainMemReq adjustAddress(Addr a, MainMemReq r);
         r.addr = r.addr - a;
         return r;
     endfunction
-    let cachedMemBridge <- mkServerJoiner(
-                            whichServer,
-                            constFn(True), // if a given request gets a response
-                            maxPendingReq,
-                            vec( transformReq(adjustAddress(0), romServer),
-                                 transformReq(adjustAddress(dramBaseAddr), ramServer) ));
+    Integer maxPendingReq = 2;
+    let cachedMemBridge = transformServerPortReq(adjustAddress(dramBaseAddr), ramServer);
     let cached_mem_connection <- mkConnection(memorySystem.cachedMemory, cachedMemBridge);
 
-    // Verification Packet Connection
-    VerificationPacketFilter verificationPacketFilter <- mkVerificationPacketFilter(core.getVerificationPacket);
-
     // Processor Control
-    method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
-        core.start(startPc);
-        verificationPacketFilter.init(verificationPacketsToIgnore, sendSynchronizationPackets);
+    method Action start();
+        core.start(rstvec);
     endmethod
     method Action stop();
         core.stop;
     endmethod
 
     // Verification
-    method ActionValue#(VerificationPacket) getVerificationPacket;
-        let verificationPacket <- verificationPacketFilter.getPacket;
-        return verificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
+        return core.currVerificationPacket;
     endmethod
 
     // Main Memory Connection
-    interface ram = ramClient;
-    interface rom = romClient;
-    interface UncachedMemClient mmio = externalMMIOClient;
-    interface GenericMemServer extmem = memorySystem.extMemory;
+    interface MainMemClientPort ram = ramClient;
+    interface UncachedMemClientPort mmio = externalMMIOClient;
+    interface GenericMemServerPort extmem = memorySystem.extMemory;
 
     // Interrupts
     method Action triggerExternalInterrupt;
         extInterruptWire <= True;
     endmethod
+
+    method Action stallPipeline(Bool stall);
+        clockGating.setGateCond(!stall);
+    endmethod
+
+    interface ProcPins pins;
+        interface Clock deleteme_unused_clock = clock;
+    endinterface
 endmodule
 

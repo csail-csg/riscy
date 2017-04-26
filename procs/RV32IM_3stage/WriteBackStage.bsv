@@ -23,10 +23,10 @@
 
 `include "ProcConfig.bsv"
 
-import CoreStates::*;
-
 import FIFO::*;
 import GetPut::*;
+
+import Port::*;
 
 import Abstraction::*;
 import RVRFile::*;
@@ -43,6 +43,8 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
+import CoreStates::*;
+
 interface WriteBackStage;
 endinterface
 
@@ -50,7 +52,7 @@ typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
     Reg#(Maybe#(WriteBackState)) ws;
-    Get#(RVDMemResp) dmemres;
+    OutputPort#(RVDMemResp) dmemres;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -62,7 +64,7 @@ typedef struct {
     RVCsrFileMCU csrf;
 `endif
     ArchRFile rf;
-    FIFO#(VerificationPacket) verificationPackets;
+    Reg#(Maybe#(VerificationPacket)) verificationPackets;
 } WriteBackRegs;
 
 module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
@@ -92,7 +94,8 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
 
         if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
             if (getsResponse(memInst.op)) begin
-                data <- dmemres.get;
+                data = dmemres.first;
+                dmemres.deq;
             end
         end
 
@@ -143,7 +146,7 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
                     trapCause = pack(x);
                 end
         endcase
-        wr.verificationPackets.enq( VerificationPacket {
+        wr.verificationPackets <= tagged Valid VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
                 data: signExtend(fromMaybe(data, maybeData)),
@@ -152,7 +155,7 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
                 dst: {pack(dInst.dst), getInstFields(inst).rd},
                 exception: isException,
                 interrupt: isInterrupt,
-                cause: trapCause } );
+                cause: trapCause };
 
         if (maybeNextPc matches tagged Valid .replayPc) begin
             // This instruction is not writing to the register file

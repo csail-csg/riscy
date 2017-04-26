@@ -23,9 +23,9 @@
 
 `include "ProcConfig.bsv"
 
-import CoreStates::*;
-
 import GetPut::*;
+
+import Port::*;
 
 import Abstraction::*;
 import RVRFile::*;
@@ -45,6 +45,8 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
+import CoreStates::*;
+
 interface ExecStage;
 endinterface
 
@@ -52,8 +54,8 @@ typedef struct {
     Reg#(Maybe#(FetchState)) fs;
     Reg#(Maybe#(ExecuteState)) es;
     Reg#(Maybe#(WriteBackState)) ws;
-    Get#(Instruction) ifetchres;
-    Put#(RVDMemReq) dmemreq;
+    OutputPort#(Instruction) ifetchres;
+    InputPort#(RVDMemReq) dmemreq;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -86,7 +88,8 @@ module mkExecStage#(ExecRegs er)(ExecStage);
         er.es <= tagged Invalid;
 
         // get the instruction
-        let inst <- ifetchres.get;
+        let inst = ifetchres.first;
+        ifetchres.deq;
 
         if (!poisoned) begin
             // check for interrupts
@@ -135,7 +138,7 @@ module mkExecStage#(ExecRegs er)(ExecStage);
                                 endcase);
                 if (aligned) begin
                     // send the request to the memory
-                    dmemreq.put( RVDMemReq {
+                    dmemreq.enq( RVDMemReq {
                         op: dInst.execFunc.Mem.op,
                         size: dInst.execFunc.Mem.size,
                         isUnsigned: dInst.execFunc.Mem.isUnsigned,

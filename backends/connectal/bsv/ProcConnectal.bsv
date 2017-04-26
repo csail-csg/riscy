@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -48,9 +48,11 @@ import Clocks::*;
 import Connectable::*;
 import FIFO::*;
 import GetPut::*;
+import Port::*;
 import Proc::*;
 import Vector::*;
 import VerificationPacket::*;
+import VerificationPacketFilter::*;
 import MemTypes::*;
 import ProcPins::*;
 import RVTypes::*;
@@ -68,7 +70,7 @@ interface ProcControlIndication;
 endinterface
 // Platform
 interface PlatformRequest;
-    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
+    method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize);
     method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
 endinterface
 interface PlatformIndication;
@@ -108,7 +110,6 @@ interface ProcConnectal;
     interface ExternalMMIOResponse externalMMIOResponse;
     interface Vector#(1, MemReadClient#(DataBusWidth)) dmaReadClient;
     interface Vector#(1, MemWriteClient#(DataBusWidth)) dmaWriteClient;
-    interface Vector#(1, MemReadClient#(DataBusWidth)) romReadClient;
     (* prefix = "" *)
     interface ProcPins pins;
 endinterface
@@ -130,10 +131,6 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 
     Proc#(MainMemoryWidth) proc <- mkProc(reset_by procReset.new_rst);
 
-    // Address space: 0 - romSz
-    SharedMemoryBridge#(MainMemoryWidth) romSharedMemoryBridge <- mkSharedMemoryBridge;
-    let romToSharedMem <- mkConnection(proc.rom, romSharedMemoryBridge.to_proc);
-
     // Address space: 0 - ramSz
     SharedMemoryBridge#(MainMemoryWidth) ramSharedMemoryBridge <- mkSharedMemoryBridge;
     let ramToSharedMem <- mkConnection(proc.ram, ramSharedMemoryBridge.to_proc);
@@ -142,13 +139,27 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     FIFO#(GenericMemResp#(DataSz)) extMemRespFIFO <- mkFIFO;
     FIFO#(ExtMemUser) extMemUserFIFO <- mkFIFO;
 
+    FIFO#(VerificationPacket) verificationPacketFIFO <- mkFIFO;
+    VerificationPacketFilter verificationPacketFilter <- mkVerificationPacketFilter(toGet(verificationPacketFIFO).get);
+
+    rule getVerificationPackets(proc.currVerificationPacket matches tagged Valid .packet);
+        verificationPacketFIFO.enq(packet);
+    endrule
+    rule stallProcessor(verificationPacketFilter.nearFull);
+        proc.stallPipeline(True);
+    endrule
+    rule unstallProcessor(verificationPacketFilter.nearEmpty);
+        proc.stallPipeline(False);
+    endrule
+
     rule connectExtMemReq;
         let req = extMemReqFIFO.first;
         extMemReqFIFO.deq;
-        proc.extmem.request.put(req);
+        proc.extmem.request.enq(req);
     endrule
     rule connectExtMemResp;
-        let resp <- proc.extmem.response.get;
+        let resp = proc.extmem.response.first;
+        proc.extmem.response.deq;
         extMemRespFIFO.enq(resp);
     endrule
 
@@ -177,7 +188,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     FIFO#(MemData#(32)) writeDataFIFO <- mkFIFO;
 
     rule connectAcceleratorRequest;
-        let req <- proc.mmio.request.get;
+        let req = proc.mmio.request.first;
+        proc.mmio.request.deq;
         if (req.write) begin
             if (verbose) $fdisplay(stderr, "[Accelerator Write] addr = 0x%0x, data = 0x%0x", req.addr, req.data);
             accelerator.slave.write_server.writeReq.put(
@@ -220,7 +232,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             if (verbose) $fdisplay(stderr, "[Accelerator Read] response data = 0x%0x", data);
         end
         pendingAcceleratorReq.deq;
-        proc.mmio.response.put(
+        proc.mmio.response.enq(
                 UncachedMemResp{
                     write: pendingAcceleratorReq.first == 1,
                     data: data
@@ -259,8 +271,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
 
     // rules for connecting indications
     rule finishReset(resetSent && (!procReset.isAsserted)
-                               && (ramSharedMemoryBridge.numberFlyingOperations == 0)
-                               && (romSharedMemoryBridge.numberFlyingOperations == 0));
+                               && (ramSharedMemoryBridge.numberFlyingOperations == 0));
         // wait for procReset to finish
         resetSent <= False;
         procControlIndication.resetDone;
@@ -272,12 +283,14 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
         platformIndication.memResponse(resp.write, zeroExtend(resp.data));
     endrule
     rule connectVerificationIndication;
-        let msg <- proc.getVerificationPacket;
+        let msg <- verificationPacketFilter.getPacket;
         verificationIndication.getVerificationPacket(msg);
     endrule
+
 `ifndef CONFIG_ACCELERATOR
     rule connectExternalMMIORequest;
-        let msg <- proc.mmio.request.get;
+        let msg = proc.mmio.request.first;
+        proc.mmio.request.deq;
         Bit#(4) length = (case (msg.size)
                 B: 1;
                 H: 2;
@@ -308,22 +321,21 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             procReset.assertReset();
             // flushes the pending memory requests
             ramSharedMemoryBridge.flushRespReqMem;
-            romSharedMemoryBridge.flushRespReqMem;
             resetSent <= True;
         endmethod
         method Action start(Bit#(64) startPc, Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
-            proc.start(startPc, verificationPacketsToIgnore, sendSynchronizationPackets);
+            // startPc is ignored
+            proc.start;
+            verificationPacketFilter.init(verificationPacketsToIgnore, sendSynchronizationPackets);
         endmethod
         method Action stop();
             proc.stop;
         endmethod
     endinterface
     interface PlatformRequest platformRequest;
-        method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize, Bit#(32) romSharedMemRefPointer, Bit#(64) romSize);
+        method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize);
             // configure shared memory
             ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
-            // configure ROM
-            romSharedMemoryBridge.initSharedMem(romSharedMemRefPointer, romSize);
         endmethod
         method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
             extMemReqFIFO.enq( GenericMemReq{
@@ -360,7 +372,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     interface ExternalMMIOResponse externalMMIOResponse;
         method Action response(Bool write, Bit#(64) data);
             // truncate data in case XLEN is not 64
-            proc.mmio.response.put( UncachedMemResp{write: write, data: truncate(data)} );
+            proc.mmio.response.enq( UncachedMemResp{write: write, data: truncate(data)} );
         endmethod
         method Action triggerExternalInterrupt;
             proc.triggerExternalInterrupt;
@@ -394,7 +406,6 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     // dma interfaces
     interface MemReadClient dmaReadClient = vec(ramSharedMemoryBridge.to_host_read);
     interface MemWriteClient dmaWriteClient = vec(ramSharedMemoryBridge.to_host_write);
-    interface MemReadClient romReadClient = vec(romSharedMemoryBridge.to_host_read);
 
     // pins interface
     interface ProcPins pins = proc.pins;

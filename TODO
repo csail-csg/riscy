@@ -8,7 +8,6 @@ What do we need to do:
     - Add perf counters in a clean way
     - Link performance counter txt file with android.exe so you don't have to
       copy over the txt file to the FPGA
-* Improve gitignore to ignore build folders
 * Figure out if this notation can be legal:
     - let {addr: .phyPc, exception: .exMMU} = mmuResp.first;
 * Cleanup BSV source (lib, etc.)

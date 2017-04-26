@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -74,19 +74,19 @@ endfunction
 `ifndef REUSE_FMA
 // If reusing the FMA, don't bother compiling these.
 // Hopefully this reduces compilation/synthesis time.
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkDoubleAdd(Server#(Tuple3#(Double, Double, RoundMode), Tuple2#(Double, Exception)));
     let fpu <- mkFloatingPointAdder;
     return fpu;
 endmodule
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkDoubleMult(Server#(Tuple3#(Double, Double, RoundMode), Tuple2#(Double, Exception)));
     let fpu <- mkFloatingPointMultiplier;
     return fpu;
 endmodule
 `endif
 `ifndef NO_FDIV
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkDoubleDiv(Server#(Tuple3#(Double, Double, RoundMode), Tuple2#(Double, Exception)));
     let int_div <- mkDivider(2);
     let fpu <- mkFloatingPointDivider(int_div);
@@ -94,32 +94,32 @@ module mkDoubleDiv(Server#(Tuple3#(Double, Double, RoundMode), Tuple2#(Double, E
 endmodule
 `endif
 `ifndef NO_FSQRT
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkDoubleSqrt(Server#(Tuple2#(Double, RoundMode), Tuple2#(Double, Exception)));
     let int_sqrt <- mkSquareRooter(3);
     let fpu <- mkFloatingPointSquareRooter(int_sqrt);
     return fpu;
 endmodule
 `endif
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkDoubleFMA(Server#(Tuple4#(Maybe#(Double), Double, Double, RoundMode), Tuple2#(Double, Exception)));
     let fpu <- mkFloatingPointFusedMultiplyAccumulate;
     return fpu;
 endmodule
 // Single Precision FPU Pipelines
 // These aren't used anymore, so don't synthesize them
-// (* synthesize *)
+// (* synthesize, gate_all_clocks *)
 module mkFloatAdd(Server#(Tuple3#(Float, Float, RoundMode), Tuple2#(Float, Exception)));
     let fpu <- mkFloatingPointAdder;
     return fpu;
 endmodule
-// (* synthesize *)
+// (* synthesize, gate_all_clocks *)
 module mkFloatMult(Server#(Tuple3#(Float, Float, RoundMode), Tuple2#(Float, Exception)));
     let fpu <- mkFloatingPointMultiplier;
     return fpu;
 endmodule
 `ifndef NO_FDIV
-// (* synthesize *)
+// (* synthesize, gate_all_clocks *)
 module mkFloatDiv(Server#(Tuple3#(Float, Float, RoundMode), Tuple2#(Float, Exception)));
     let int_div <- mkDivider(2);
     let fpu <- mkFloatingPointDivider(int_div);
@@ -127,14 +127,14 @@ module mkFloatDiv(Server#(Tuple3#(Float, Float, RoundMode), Tuple2#(Float, Excep
 endmodule
 `endif
 `ifndef NO_FSQRT
-// (* synthesize *)
+// (* synthesize, gate_all_clocks *)
 module mkFloatSqrt(Server#(Tuple2#(Float, RoundMode), Tuple2#(Float, Exception)));
     let int_sqrt <- mkSquareRooter(3);
     let fpu <- mkFloatingPointSquareRooter(int_sqrt);
     return fpu;
 endmodule
 `endif
-// (* synthesize *)
+// (* synthesize, gate_all_clocks *)
 module mkFloatFMA(Server#(Tuple4#(Maybe#(Float), Float, Float, RoundMode), Tuple2#(Float, Exception)));
     let fpu <- mkFloatingPointFusedMultiplyAccumulate;
     return fpu;
@@ -801,7 +801,7 @@ function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, D
     return fpu_result;
 endfunction
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkFpuExecPipeline(FpuExec);
     FIFO#(FpuResult) fpu_exec_fifo <- mkFIFO; // in parallel with pipelined FPUs
     FIFO#(FpuInst) fpu_func_fifo <- mkFIFO; // in parallel with pipelined FPUs
@@ -991,7 +991,7 @@ endmodule
 
 `else
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkFpuExecPipeline(FpuExec);
     FIFOF#(FpuResult) fpu_exec_fifo <- mkFIFOF;
 

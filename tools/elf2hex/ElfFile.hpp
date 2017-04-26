@@ -21,35 +21,31 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import GetPut::*;
+#include <vector>
 
-import Port::*;
+#include <elf.h>
 
-import RVTypes::*;
-import CoreStates::*;
+class ElfFile {
+public:
+    struct Section {
+        unsigned long long base;
+        unsigned long long section_size;
+        unsigned long long data_size;
+        char* data;
+    };
 
-interface FetchStage;
-endinterface
+    ElfFile();
+    bool open(char* filename);
+    const std::vector<Section>& getSections();
 
-typedef struct {
-    Reg#(Maybe#(FetchState)) fs;
-    Reg#(Maybe#(ExecuteState)) es;
-    InputPort#(Addr) ifetchreq;
-} FetchRegs;
+private:
+    template <typename Elf_Ehdr, typename Elf_Phdr>
+    bool finishLoad();
 
-module mkFetchStage#(FetchRegs fr)(FetchStage);
-    let ifetchreq = fr.ifetchreq;
+    char* elf_data;
+    size_t elf_size;
+    int elf_bit_width; // 32 or 64
 
-    rule doFetch(fr.fs matches tagged Valid .fetchState
-                    &&& fr.es == tagged Invalid);
-        // get and clear the fetch state
-        let pc = fetchState.pc;
-        fr.fs <= tagged Invalid;
+    std::vector<Section> sections;
+};
 
-        // request instruction
-        ifetchreq.enq(pc);
-
-        // pass to execute state
-        fr.es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };
-    endrule
-endmodule

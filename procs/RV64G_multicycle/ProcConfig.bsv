@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -51,7 +51,17 @@
 //   CONFIG_D -    "D" ISA Extension - Double-Precision Floating Point
 // To see which macros are defined in this project, and to make modifications,
 // see the project's Makefile
+`ifdef CONNECTAL
 `include "ConnectalProjectConfig.bsv"
+`else
+`define CONFIG_RV64
+`define CONFIG_S
+`define CONFIG_U
+`define CONFIG_M
+`define CONFIG_A
+`define CONFIG_F
+`define CONFIG_D
+`endif
 
 // BSV-only macros: These macros are only used within the BSV-project, so they
 // are defined here instead of in CONNECTALFLAGS

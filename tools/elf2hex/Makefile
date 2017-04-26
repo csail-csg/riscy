@@ -1,5 +1,5 @@
 
-# Copyright (c) 2016, 2017 Massachusetts Institute of Technology
+# Copyright (c) 2017 Massachusetts Institute of Technology
 
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -21,26 +21,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PROC=RV64G_multicycle_split
+elf2hex: elf2hex.cpp ElfFile.cpp
+	g++ -O --std=c++11 $^ -o $@
 
-CONNECTALFLAGS += -D CONFIG_RV64
-CONNECTALFLAGS += -D CONFIG_S
-CONNECTALFLAGS += -D CONFIG_U
-CONNECTALFLAGS += -D CONFIG_M
-CONNECTALFLAGS += -D CONFIG_A
-CONNECTALFLAGS += -D CONFIG_F
-CONNECTALFLAGS += -D CONFIG_D
-
-# Suppress "duplicate folder" and "unfolding over ... steps" warnings
-# CONNECTALFLAGS += --bscflags=" -suppress-warnings S0073:G0024 "
-
-# Attempt to optimize the generated Verilog. In a small test with part of the
-# decoder, this increased the post-synthesis area by 10% so we don't use these
-# flags by default.
-# CONNECTALFLAGS += --bscflags=" -opt-undetermined-vals -unspecified-to X "
-
-ifdef RISCY_HOME
-include $(RISCY_HOME)/procs/Makefile.procs
-else
-$(error RISCY_HOME is undefined)
-endif
+clean:
+	rm -rf elf2hex

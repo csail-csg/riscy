@@ -25,17 +25,20 @@
 import RVTypes::*;
 import VerificationPacket::*;
 import FIFO::*;
+import FIFOLevel::*;
 
 interface VerificationPacketFilter;
     method Action init(Bit#(64) verificationPacketsToIgnore, Bool sendSynchronizationPackets);
     method ActionValue#(VerificationPacket) getPacket;
+    method Bool nearFull; // full or one away from full
+    method Bool nearEmpty; // 0 or 1 elements
 endinterface
 
 module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) packetIn)(VerificationPacketFilter);
     Reg#(Bit#(64)) ignoreCounter <- mkReg(0);
     Reg#(Bit#(64)) skippedCounter <- mkReg(0);
     Reg#(Bool) sendSynchronization <- mkReg(False);
-    FIFO#(VerificationPacket) packets <- mkFIFO;
+    FIFOLevelIfc#(VerificationPacket, 4) packets <- mkFIFOLevel;
 
 `ifdef CONFIG_TEXTFILE_DEBUG
     Reg#(Bit#(64)) packet_count <- mkReg(1);
@@ -127,5 +130,11 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
     method ActionValue#(VerificationPacket) getPacket;
         packets.deq;
         return packets.first;
+    endmethod
+    method Bool nearFull;
+        return packets.isGreaterThan(2);
+    endmethod
+    method Bool nearEmpty;
+        return packets.isLessThan(2);
     endmethod
 endmodule

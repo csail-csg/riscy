@@ -31,6 +31,7 @@ import GetPut::*;
 import Vector::*;
 
 import Ehr::*;
+import Port::*;
 
 import Abstraction::*;
 import RVExec::*; // for scatterStore and gatherLoad
@@ -120,8 +121,9 @@ module mkCustomBRAM2ServerBE#(BRAM_Configure cfg)(BRAM2PortBE#(addrT, dataT, num
 endmodule
 
 interface BramIDMem;
-    interface Server#(Addr, Instruction) imem;
-    interface Server#(UncachedMemReq, UncachedMemResp) dmem;
+    interface ServerPort#(Addr, Instruction) imem;
+    // interface Server#(UncachedMemReq, UncachedMemResp) dmem;
+    interface ServerPort#(UncachedMemReq, UncachedMemResp) dmem;
 endinterface
 
 typedef struct {
@@ -133,6 +135,10 @@ typedef struct {
 
 module mkBramIDMem(BramIDMem);
     BRAM_Configure cfg = defaultValue;
+`ifdef CONFIG_IDMEM_INIT_HEX_FILE
+    cfg.loadFormat = tagged Hex `CONFIG_IDMEM_INIT_HEX_FILE;
+`endif
+
     // if XLEN=32, bram is 64 KB
     // if XLEN=64, bram is 128 KB
     BRAM2PortBE#(Bit#(14), Data, TDiv#(XLEN,8)) bram <- mkBRAM2ServerBE(cfg);
@@ -140,9 +146,21 @@ module mkBramIDMem(BramIDMem);
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingIReq <- mkEhr(tagged Invalid);
     Ehr#(2, Maybe#(BramDMemPendingReq)) pendingDReq <- mkEhr(tagged Invalid);
 
-    interface Server imem;
-        interface Put request;
-            method Action put(Addr addr) if (pendingIReq[1] == tagged Invalid);
+    Ehr#(2, Maybe#(Data)) pendingIResp <- mkEhr(tagged Invalid);
+    Ehr#(2, Maybe#(Data)) pendingDResp <- mkEhr(tagged Invalid);
+
+    rule getPendingIResp(!isValid(pendingIResp[0]));
+        let resp <- bram.portA.response.get;
+        pendingIResp[0] <= tagged Valid resp;
+    endrule
+    rule getPendingDResp(!isValid(pendingDResp[0]));
+        let resp <- bram.portB.response.get;
+        pendingDResp[0] <= tagged Valid resp;
+    endrule
+
+    interface ServerPort imem;
+        interface InputPort request;
+            method Action enq(Addr addr) if (pendingIReq[1] == tagged Invalid);
                 if (addr[1:0] != 0) begin
                     $fdisplay(stderr, "[ERROR] mkBramIDMem.imem.request.put() - address is not aligned to a word boundary");
                     $fdisplay(stderr, "[WARNING] mkBramIDMem - compressed ISA extension is currently unsupported");
@@ -160,20 +178,28 @@ module mkBramIDMem(BramIDMem);
                         isUnsigned: False
                     };
             endmethod
+            method Bool canEnq;
+                return pendingIReq[1] == tagged Invalid;
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(Instruction) get if (pendingIReq[0] matches tagged Valid .req);
-                let resp <- bram.portA.response.get;
+        interface OutputPort response;
+            method Instruction first if (pendingIReq[0] matches tagged Valid .req &&& pendingIResp[1] matches tagged Valid .resp);
                 Instruction inst = truncate(gatherLoad(req.addrByteSel, req.size, req.isUnsigned, resp));
-                pendingIReq[0] <= tagged Invalid;
                 return inst;
+            endmethod
+            method Action deq if (pendingIReq[0] matches tagged Valid .req &&& pendingIResp[1] matches tagged Valid .resp);
+                pendingIReq[0] <= tagged Invalid;
+                pendingIResp[1] <= tagged Invalid;
+            endmethod
+            method Bool canDeq;
+                return isValid(pendingIReq[0]) && isValid(pendingIResp[1]);
             endmethod
         endinterface
     endinterface
 
-    interface Server dmem;
-        interface Put request;
-            method Action put(UncachedMemReq r) if (pendingDReq[1] == tagged Invalid);
+    interface ServerPort dmem;
+        interface InputPort request;
+            method Action enq(UncachedMemReq r) if (pendingDReq[1] == tagged Invalid);
                 Bool isLd = !r.write;
                 let {permutedDataByteEn, permutedStData} = scatterStore(truncate(r.addr), r.size, r.data);
                 bram.portB.request.put( BRAMRequestBE {
@@ -189,13 +215,21 @@ module mkBramIDMem(BramIDMem);
                         isUnsigned: ? // not used
                     };
             endmethod
+            method Bool canEnq;
+                return pendingDReq[1] == tagged Invalid;
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(UncachedMemResp) get if (pendingDReq[0] matches tagged Valid .req);
-                let resp <- bram.portB.response.get;
+        interface OutputPort response;
+            method UncachedMemResp first if (pendingDReq[0] matches tagged Valid .req &&& pendingDResp[1] matches tagged Valid .resp);
                 let data = gatherLoad(req.addrByteSel, req.size, True /* was isUnsigned */, resp);
-                pendingDReq[0] <= tagged Invalid;
                 return UncachedMemResp{write: req.write, data: data};
+            endmethod
+            method Action deq if (pendingDReq[0] matches tagged Valid .req &&& pendingDResp[1] matches tagged Valid .resp);
+                pendingDReq[0] <= tagged Invalid;
+                pendingDResp[1] <= tagged Invalid;
+            endmethod
+            method Bool canDeq;
+                return isValid(pendingDReq[0]) && isValid(pendingDResp[1]);
             endmethod
         endinterface
     endinterface

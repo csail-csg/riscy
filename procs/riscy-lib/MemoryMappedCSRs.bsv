@@ -29,6 +29,7 @@ import Vector::*;
 
 import CompareProvisos::*;
 import Ehr::*;
+import Port::*;
 
 import Abstraction::*;
 import RVTypes::*;
@@ -42,7 +43,7 @@ interface MemoryMappedCSRs#(numeric type cores);
     // 0x1000 = ipi0
     // 0x2000 = ipi1
     //  ...
-    interface UncachedMemServer memifc;
+    interface UncachedMemServerPort memifc;
     method Bit#(64) timerValue;
     method Vector#(cores, Bool) timerInterrupt;
     method Vector#(cores, Bool) ipi;
@@ -74,9 +75,9 @@ module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(cores)) provisos (L
         newTimeEhr[1] <= tagged Invalid;
     endrule
 
-    interface UncachedMemServer memifc;
-        interface Put request;
-            method Action put(UncachedMemReq req) if (!isValid(resp));
+    interface UncachedMemServerPort memifc;
+        interface InputPort request;
+            method Action enq(UncachedMemReq req) if (!isValid(resp));
                 UncachedMemResp newResp = UncachedMemResp{write: req.write, data: 0};
                 Bit#(16) addr = truncate(req.addr - baseaddr);
                 if (addr < 16'h1000) begin
@@ -122,11 +123,19 @@ module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(cores)) provisos (L
                 end
                 resp <= tagged Valid newResp;
             endmethod
+            method Bool canEnq;
+                return !isValid(resp);
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(UncachedMemResp) get if (resp matches tagged Valid .validResp);
-                resp <= tagged Invalid;
+        interface OutputPort response;
+            method UncachedMemResp first if (resp matches tagged Valid .validResp);
                 return validResp;
+            endmethod
+            method Action deq if (resp matches tagged Valid .validResp);
+                resp <= tagged Invalid;
+            endmethod
+            method Bool canDeq;
+                return isValid(resp);
             endmethod
         endinterface
     endinterface

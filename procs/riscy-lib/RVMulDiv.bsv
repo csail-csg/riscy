@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -75,7 +75,7 @@ interface MulDivExec;
     method Action   result_deq;
 endinterface
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBluesimMultiplier(Multiplier);
   FIFOF#(Tuple2#(Data, Data)) result_fifo <- mkSizedFIFOF(4);
 
@@ -97,7 +97,7 @@ module mkBluesimMultiplier(Multiplier);
 endmodule
 
 // This is a radix-4 Booth multiplier was taken from the 6.175 Lab
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBoothMultiplier(Multiplier)
     provisos (
       NumAlias#(TAdd#(DataSz, 2),                         _InputSize), // This _could_ be DataSz+1 if we tried harder
@@ -148,7 +148,7 @@ endmodule
 
 
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBluesimDivider(Divider);
   FIFOF#(Tuple2#(Data, Data)) result_fifo <- mkSizedFIFOF(4);
 
@@ -174,7 +174,7 @@ module mkBluesimDivider(Divider);
 endmodule
 
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkRoughDivider(Divider)
     provisos (
       NumAlias#(TAdd#(DataSz, 1),               _InputSize),
@@ -337,7 +337,7 @@ module mkMulDivExec#(Multiplier mul_unit, Divider div_unit)(MulDivExec);
   endmethod
 endmodule
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBluesimMulDivExec(MulDivExec);
   Multiplier mul_unit <- mkBluesimMultiplier;
   Divider div_unit <- mkBluesimDivider;
@@ -345,7 +345,7 @@ module mkBluesimMulDivExec(MulDivExec);
   return ifc;
 endmodule
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkBoothRoughMulDivExec(MulDivExec);
   Multiplier mul_unit <- mkBoothMultiplier;
   Divider div_unit <- mkRoughDivider;
@@ -353,7 +353,7 @@ module mkBoothRoughMulDivExec(MulDivExec);
   return ifc;
 endmodule
 
-(* synthesize *)
+(* synthesize, gate_all_clocks *)
 module mkMulDivExecDummy(MulDivExec);
   FIFOF#(Data) muldiv_exec_fifo <- mkFIFOF;
 

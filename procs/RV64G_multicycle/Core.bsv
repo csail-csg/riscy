@@ -1,5 +1,5 @@
 
-// Copyright (c) 2016 Massachusetts Institute of Technology
+// Copyright (c) 2016, 2017 Massachusetts Institute of Technology
 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
@@ -24,9 +24,12 @@
 import ClientServer::*;
 import Connectable::*;
 import DefaultValue::*;
-import FIFO::*;
 import GetPut::*;
 import Vector::*;
+
+import ClockGate::*;
+import FIFOG::*;
+import Port::*;
 
 import Abstraction::*;
 import RegUtil::*;
@@ -48,7 +51,7 @@ interface Core;
     method Action start(Addr startPc);
     method Action stop;
 
-    method ActionValue#(VerificationPacket) getVerificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
     method ActionValue#(VMInfo) updateVMInfoI;
     method ActionValue#(VMInfo) updateVMInfoD;
 
@@ -77,10 +80,10 @@ typedef enum {
 } ProcState deriving (Bits, Eq, FShow);
 
 module mkMulticycleCore#(
-        Server#(RVIMMUReq, RVIMMUResp) ivat,
-        Server#(RVIMemReq, RVIMemResp) ifetch,
-        Server#(RVDMMUReq, RVDMMUResp) dvat,
-        Server#(RVDMemReq, RVDMemResp) dmem,
+        ServerPort#(RVIMMUReq, RVIMMUResp) ivat,
+        ServerPort#(RVIMemReq, RVIMemResp) ifetch,
+        ServerPort#(RVDMMUReq, RVDMMUResp) dvat,
+        ServerPort#(RVDMemReq, RVDMemResp) dmem,
         Bool ipi,
         Bool timerInterrupt,
         Data timer,
@@ -90,6 +93,8 @@ module mkMulticycleCore#(
         (Core);
     let verbose = False;
     File fout = stdout;
+
+    let curr_clock_gate <- exposeCurrentClockGate;
 
     ArchRFile rf <- mkArchRFile;
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
@@ -112,11 +117,11 @@ module mkMulticycleCore#(
     Reg#(Data) addr <- mkReg(0);
     Reg#(Data) nextPc <- mkReg(0);
 
-    FIFO#(VerificationPacket) verificationPackets <- mkFIFO1;
+    FIFOG#(VerificationPacket) verificationPackets <- mkLFIFOG;
 
     rule doInstMMU(running && state == IMMU);
         // request address translation from MMU
-        ivat.request.put(pc);
+        ivat.request.enq(pc);
         // reset states
         inst <= unpack(0);
         dInst <= unpack(0);
@@ -128,13 +133,14 @@ module mkMulticycleCore#(
     rule doInstFetch(state == IF);
         // I wanted notation like this:
         // let {addr: .phyPc, exception: .exMMU} = mmuResp.first;
-        let resp <- ivat.response.get;
+        let resp = ivat.response.first;
+        ivat.response.deq;
         let phyPc = resp.addr;
         let exMMU = resp.exception;
 
         if (!isValid(exMMU)) begin
             // no translation exception
-            ifetch.request.put(phyPc);
+            ifetch.request.enq(phyPc);
             // go to decode stage
             state <= Dec;
         end else begin
@@ -146,7 +152,8 @@ module mkMulticycleCore#(
     endrule
 
     rule doDecode(state == Dec);
-        let fInst <- ifetch.response.get;
+        let fInst = ifetch.response.first;
+        ifetch.response.deq;
 
         let decInst = decodeInst(fInst);
 
@@ -173,7 +180,7 @@ module mkMulticycleCore#(
         let execResult = basicExec(dInst, rVal1, rVal2, pc);
 
         case (dInst.execFunc) matches
-            tagged Mem    .memInst:    dvat.request.put(RVDMMUReq {addr: execResult.addr, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
+            tagged Mem    .memInst:    dvat.request.enq(RVDMMUReq {addr: execResult.addr, size: memInst.size, op: (memInst.op matches tagged Mem .memOp ? memOp : St)});
             tagged MulDiv .mulDivInst: mulDiv.exec(mulDivInst, rVal1, rVal2);
             tagged Fpu    .fpuInst:    fpu.exec(fpuInst, getInstFields(inst).rm, rVal1, rVal2, rVal3);
         endcase
@@ -186,13 +193,14 @@ module mkMulticycleCore#(
     endrule
 
     rule doMem(state == Mem);
-        let resp <- dvat.response.get;
+        let resp = dvat.response.first;
+        dvat.response.deq;
         let pAddr = resp.addr;
         let exMMU = resp.exception;
 
         // TODO: make this type safe! get rid of .Mem accesses to tagged union
         if (!isValid(exMMU)) begin
-            dmem.request.put( RVDMemReq {
+            dmem.request.enq( RVDMemReq {
                     op: dInst.execFunc.Mem.op,
                     size: dInst.execFunc.Mem.size,
                     isUnsigned: dInst.execFunc.Mem.isUnsigned,
@@ -226,7 +234,8 @@ module mkMulticycleCore#(
             tagged Mem .memInst:
                 begin
                     if (getsResponse(memInst.op)) begin
-                        dataWb <- dmem.response.get;
+                        dataWb = dmem.response.first;
+                        dmem.response.deq;
                     end
                 end
         endcase
@@ -391,6 +400,10 @@ module mkMulticycleCore#(
         state <= IMMU;
     endrule
 
+    rule deqVerificationPacket;
+        verificationPackets.deq;
+    endrule
+
     method Action start(Addr startPc);
         running <= True;
         pc <= startPc;
@@ -403,10 +416,12 @@ module mkMulticycleCore#(
         state <= Wait;
     endmethod
 
-    method ActionValue#(VerificationPacket) getVerificationPacket;
-        let verificationPacket = verificationPackets.first;
-        verificationPackets.deq;
-        return verificationPacket;
+    method Maybe#(VerificationPacket) currVerificationPacket;
+        if (verificationPackets.canDeq && curr_clock_gate) begin
+            return tagged Valid verificationPackets.first;
+        end else begin
+            return tagged Invalid;
+        end
     endmethod
 
     method ActionValue#(VMInfo) updateVMInfoI;

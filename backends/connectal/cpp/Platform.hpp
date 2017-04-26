@@ -31,7 +31,7 @@
 
 class Platform : PlatformIndicationWrapper {
     public:
-        Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn, size_t romBaseAddrIn, size_t romSzIn);
+        Platform(unsigned int indicationId, unsigned int requestId, size_t ramBaseAddrIn, size_t ramSzIn);
         virtual ~Platform() {}
 
         virtual void init();
@@ -67,12 +67,7 @@ class Platform : PlatformIndicationWrapper {
         size_t ramSz;
         DmaBuffer ram;
 
-        size_t romBaseAddr;
-        size_t romSz;
-        DmaBuffer rom;
-
         uint64_t* ramBuffer;
-        uint64_t* romBuffer;
 
         PlatformRequestProxy *platformRequest;
 
