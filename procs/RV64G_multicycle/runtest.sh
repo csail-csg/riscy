@@ -143,6 +143,8 @@ esac
 rm -rf out/
 mkdir -p out
 
+EXIT_CODE=0
+
 for hexfile in $files ; do
     basehexfile=$(basename "$hexfile")
 
@@ -177,6 +179,7 @@ for hexfile in $files ; do
         if [ $? -ne 0 ] ; then
             # neither PASSED nor FAILED were found in the output
             echo "$basehexfile ERROR (neither pass nor fail)"
+            EXIT_CODE=1
         else
             # This will print FAILED from the error code
             echo "$basehexfile $errorcode"
@@ -187,3 +190,5 @@ for hexfile in $files ; do
 done
 
 rm -f SOCK.*
+
+exit $EXIT_CODE

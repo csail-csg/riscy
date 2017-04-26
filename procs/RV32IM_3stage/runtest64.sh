@@ -131,6 +131,8 @@ esac
 rm -rf out/
 mkdir -p out
 
+EXIT_CODE=0
+
 for hexfile in $files ; do
     basehexfile=$(basename "$hexfile")
 
@@ -167,6 +169,7 @@ for hexfile in $files ; do
         else
             # This will print FAILED from the error code
             echo "$basehexfile $errorcode"
+            EXIT_CODE=1
         fi
     else
         echo "$basehexfile OK"
@@ -174,3 +177,5 @@ for hexfile in $files ; do
 done
 
 rm -f SOCK.*
+
+exit $EXIT_CODE
