@@ -33,7 +33,7 @@ endif
 VERILATOR_EXE=$(PROC).exe
 
 TOP_MODULE=mkProcVerilator
-TOP_BSV_FILE=$(RISCY_HOME)/procs/verilator/bsv/ProcVerilator.bsv
+TOP_BSV_FILE=$(RISCY_HOME)/backends/verilator/bsv/ProcVerilator.bsv
 
 # Build Directories
 BUILD_DIR=build
@@ -43,14 +43,14 @@ VERILATOR_DIR=$(BUILD_DIR)/verilator
 
 
 
-BSV_PATH = $(RISCY_HOME)/procs/riscy-lib:$(RISCY_HOME)/procs/$(PROC):$(RISCY_HOME)/procs/verilator/bsv:$(RISCY_HOME)/recycle-bsv-lib/src/bsv:+
+BSV_PATH = $(RISCY_HOME)/procs/riscy-lib:$(RISCY_HOME)/procs/$(PROC):$(RISCY_HOME)/backends/verilator/bsv:$(RISCY_HOME)/recycle-bsv-lib/src/bsv:+
 BSC_DEFINES += -D CONFIG_IDMEM_INIT_HEX_FILE=\"idmem.hex\"
 BSC_DEFINES += -D CONFIG_RAM_INIT_HEX_FILE=\"ram.hex\"
 BSC_FLAGS = -aggressive-conditions -keep-fires $(BSC_DEFINES) -p $(BSV_PATH) -bdir $(BSC_DIR) -fdir $(BSC_DIR) -info-dir $(BSC_DIR) -simdir $(BSC_DIR) -vdir $(VERILOG_DIR)
 
 VERILOG_PATH = -y $(BLUESPECDIR)/Verilog -y $(VERILOG_DIR)
 VERILATOR_FLAGS = -Mdir $(VERILATOR_DIR) -CFLAGS -O2 $(VERILOG_PATH) -Wno-fatal --trace
-VERILATOR_CPP = $(RISCY_HOME)/procs/verilator/cpp/verilator_top.cpp
+VERILATOR_CPP = $(RISCY_HOME)/backends/verilator/cpp/verilator_top.cpp
 
 .PHONY: verilator verilog clean
 

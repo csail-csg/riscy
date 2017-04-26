@@ -1,12 +1,16 @@
+# compiled toolchains
 /tools/RV*
 
-# generated directories and executables
+# generated directories and files
 verilator
-!/procs/verilator
+!/backends/verilator
+accelerator
+!/accelerator
 build
 out
 /tools/elf2hex/elf2hex
 *.exe
+generatedDesignInterfaceFile.json
 
 # hex files
 *.hex

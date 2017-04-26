@@ -42,12 +42,12 @@ CONNECTALFLAGS += -D CONFIG_D
 
 ifdef RISCY_HOME
 ifeq ($(MAKECMDGOALS),verilator)
-include $(RISCY_HOME)/procs/verilator/Makefile
+include $(RISCY_HOME)/backends/verilator/Makefile
 else ifeq ($(MAKECMDGOALS),verilog)
-include $(RISCY_HOME)/procs/verilator/Makefile
+include $(RISCY_HOME)/backends/verilator/Makefile
 else
 # connectal backend
-include $(RISCY_HOME)/procs/connectal/Makefile
+include $(RISCY_HOME)/backends/connectal/Makefile
 endif
 else
 $(error RISCY_HOME is undefined)
