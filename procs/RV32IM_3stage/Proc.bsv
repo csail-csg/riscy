@@ -69,8 +69,6 @@ module mkProc(Proc#(DataSz));
 
     let clock <- exposeCurrentClock();
 
-    let pipelineClock <- mkGatedClockFromCC(True);
-
 `ifdef CONFIG_RV32
     RTC#(1, ByteEnMemServerPort#(32,2)) rtc <- mkRTC_RV32;
 `else
@@ -120,8 +118,7 @@ module mkProc(Proc#(DataSz));
                     timer_interrupt, // timer interrupt
                     timer_value, // timer value
                     extInterruptWire, // external interrupt
-                    0, // hart ID
-                    clocked_by pipelineClock.new_clk);
+                    0); // hart ID
 
     // Processor Control
     method Action start();
@@ -149,7 +146,7 @@ module mkProc(Proc#(DataSz));
     endmethod
 
     method Action stallPipeline(Bool stall);
-        pipelineClock.setGateCond(!stall);
+        core.stallPipeline(stall);
     endmethod
 
     interface ProcPins pins;

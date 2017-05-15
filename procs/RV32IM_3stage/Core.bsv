@@ -35,7 +35,6 @@ import DefaultValue::*;
 import FIFO::*;
 import GetPut::*;
 
-import ClockGate::*;
 import Ehr::*;
 import MemUtil::*;
 import Port::*;
@@ -59,6 +58,7 @@ import RVMulDiv::*;
 interface Core;
     method Action start(Addr startPc);
     method Action stop;
+    method Action stallPipeline(Bool stall);
     method Maybe#(VerificationPacket) currVerificationPacket;
 endinterface
 
@@ -71,6 +71,8 @@ module mkThreeStageCore#(
             Bool externalInterrupt,
             Bit#(xlen) hartID
         )(Core) provisos (NumAlias#(xlen,32));
+
+    Reg#(Bool) stallReg <- mkReg(False);
 
     RVRegFile#(xlen) rf <- mkRVRegFileBypass(False); // make this true if you add an FPU
 
@@ -93,8 +95,6 @@ module mkThreeStageCore#(
     Ehr#(4, Maybe#(WriteBackState#(xlen))) writeBackStateEhr <- mkEhr(tagged Invalid);
 
     Ehr#(2, Maybe#(VerificationPacket)) verificationPacketEhr <- mkEhr(tagged Invalid);
-
-    Bool clock_gate <- exposeCurrentClockGate();
 
     let fetchRegs = FetchRegs{
             fs: fetchStateEhr[2],
@@ -126,7 +126,7 @@ module mkThreeStageCore#(
         csrf: csrf,
         rf: rf,
         verificationPackets: verificationPacketEhr[1]};
-    WriteBackStage w <- mkWriteBackStage(writeBackRegs);
+    WriteBackStage w <- mkWriteBackStage(writeBackRegs, stallReg);
 
     rule clearVerificationPacketEhr;
         verificationPacketEhr[0] <= tagged Invalid;
@@ -136,6 +136,7 @@ module mkThreeStageCore#(
         fetchStateEhr[3] <= tagged Valid FetchState { pc: startPc };
         executeStateEhr[3] <= tagged Invalid;
         writeBackStateEhr[3] <= tagged Invalid;
+        stallReg <= False;
     endmethod
     method Action stop;
         fetchStateEhr[3] <= tagged Invalid;
@@ -143,7 +144,11 @@ module mkThreeStageCore#(
         writeBackStateEhr[3] <= tagged Invalid;
     endmethod
 
+    method Action stallPipeline(Bool stall);
+        stallReg <= stall;
+    endmethod
+
     method Maybe#(VerificationPacket) currVerificationPacket;
-        return clock_gate ? verificationPacketEhr[0] : tagged Invalid;
+        return stallReg ? tagged Invalid : verificationPacketEhr[0];
     endmethod
 endmodule

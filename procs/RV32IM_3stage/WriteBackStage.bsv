@@ -69,7 +69,7 @@ typedef struct {
     Reg#(Maybe#(VerificationPacket)) verificationPackets;
 } WriteBackRegs#(numeric type xlen);
 
-module mkWriteBackStage#(WriteBackRegs#(xlen) wr)(WriteBackStage) provisos (NumAlias#(xlen, 32));
+module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
     let dmemres = wr.dmemres;
     let csrf = wr.csrf;
     let rf = wr.rf;
@@ -78,7 +78,8 @@ module mkWriteBackStage#(WriteBackRegs#(xlen) wr)(WriteBackStage) provisos (NumA
 `endif
 
     rule doWriteBack(wr.ws matches tagged Valid .writeBackState
-                        &&& (writeBackState.dInst.execFunc != tagged System WFI || csrf.wakeFromWFI()));
+                        &&& (writeBackState.dInst.execFunc != tagged System WFI || csrf.wakeFromWFI())
+                        &&& !stall);
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
         let dInst = writeBackState.dInst;
