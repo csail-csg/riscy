@@ -53,6 +53,7 @@ import MemorySystem::*;
 interface Core#(numeric type xlen);
     method Action start(Bit#(xlen) startPc);
     method Action stop;
+    method Action stallPipeline(Bool stall);
 
     method Maybe#(VerificationPacket) currVerificationPacket;
     method ActionValue#(VMInfo) updateVMInfoI;
@@ -96,10 +97,9 @@ module mkMulticycleCore#(
         Data hartID
     )
         (Core#(xlen)) provisos (NumAlias#(xlen, XLEN));
-    let verbose = False;
     File fout = stdout;
 
-    let curr_clock_gate <- exposeCurrentClockGate;
+    Reg#(Bool) stallReg <- mkReg(False);
 
     ArchRFile rf <- mkArchRFile;
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
@@ -133,7 +133,6 @@ module mkMulticycleCore#(
         exception <= tagged Invalid;
         // go to InstFetch stage
         state <= IF;
-        $fdisplay(stderr, "doInstMMU: pc = ", fshow(pc));
     endrule
 
     rule doInstFetch(state == IF);
@@ -155,7 +154,6 @@ module mkMulticycleCore#(
             // send instruction to backend
             state <= Trap;
         end
-        $fdisplay(stderr, "doInstFetch: pc = ", fshow(pc));
     endrule
 
     rule doDecode(state == Dec);
@@ -174,7 +172,6 @@ module mkMulticycleCore#(
 
         inst <= fInst;
         state <= isValid(decInst) ? RegRead : Trap;
-        $fdisplay(stderr, "doDecode: pc = ", fshow(pc), ", inst = ", fshow(fInst));
     endrule
 
     rule doRegRead(state == RegRead);
@@ -250,7 +247,7 @@ module mkMulticycleCore#(
         end
     endrule
 
-    rule doWB(state == WB);
+    rule doWB(!stallReg && state == WB);
         let dataWb = data;
         let addrWb = addr;
         let nextPcWb = nextPc;
@@ -377,7 +374,7 @@ module mkMulticycleCore#(
         end
     endrule
 
-    rule doTrap(state == Trap);
+    rule doTrap(!stallReg && state == Trap);
         // TODO: move this to WB
         let csrfResult <- csrf.wr(
                 pc,
@@ -446,7 +443,7 @@ module mkMulticycleCore#(
         state <= IMMU;
     endrule
 
-    rule deqVerificationPacket;
+    rule deqVerificationPacket(!stallReg);
         verificationPackets.deq;
     endrule
 
@@ -455,15 +452,17 @@ module mkMulticycleCore#(
         pc <= startPc;
         state <= IMMU;
         csrState <= defaultValue;
-        if (verbose) $fdisplay(fout, "[frontend] starting from pc = 0x%08x", startPc);
     endmethod
     method Action stop;
         running <= False;
         state <= Wait;
     endmethod
+    method Action stallPipeline(Bool stall);
+        stallReg <= stall;
+    endmethod
 
     method Maybe#(VerificationPacket) currVerificationPacket;
-        if (verificationPackets.canDeq && curr_clock_gate) begin
+        if (verificationPackets.canDeq) begin
             return tagged Valid verificationPackets.first;
         end else begin
             return tagged Invalid;

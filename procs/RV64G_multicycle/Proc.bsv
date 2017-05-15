@@ -75,8 +75,6 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
     Addr dramBaseAddr           = 'h8000_0000;
 
     let clock <- exposeCurrentClock;
-    let clockGating <- mkGatedClockFromCC(True);
-    let gated_clock = clockGating.new_clk;
 
     // This function assumes romBaseAddr < mmioBaseAddr < dramBaseAddr
     function PMA getPMA(Addr addr);
@@ -107,8 +105,7 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
                     mmcsrs.timerInterrupt[0], // timer interrupt
                     mmcsrs.timerValue,
                     extInterruptWire, // external interrupt
-                    0, // hart ID
-                    clocked_by gated_clock);
+                    0); // hart ID
 
     // +----------------+ +---------------+
     // |      Core      | | verification  |
@@ -165,7 +162,7 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
     endmethod
 
     method Action stallPipeline(Bool stall);
-        clockGating.setGateCond(!stall);
+        core.stallPipeline(stall);
     endmethod
 
     interface ProcPins pins;
