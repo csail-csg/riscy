@@ -37,11 +37,12 @@ import GetPut::*;
 
 import ClockGate::*;
 import Ehr::*;
+import MemUtil::*;
 import Port::*;
 
 import Abstraction::*;
 import RegUtil::*;
-import RVRFile::*;
+import RVRegFile::*;
 `ifdef CONFIG_U
 import RVCsrFile::*;
 `else
@@ -62,15 +63,18 @@ interface Core;
 endinterface
 
 module mkThreeStageCore#(
-            ServerPort#(Addr, Instruction) ifetch,
-            ServerPort#(RVDMemReq, RVDMemResp) dmem,
+            ReadOnlyMemServerPort#(xlen, 2) ifetch,
+            AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) dmem,
             Bool ipi,
             Bool timerInterrupt,
             Bit#(64) timer,
             Bool externalInterrupt,
-            Data hartID
-        )(Core);
-    ArchRFile rf <- mkBypassArchRFile;
+            Bit#(xlen) hartID
+        )(Core) provisos (NumAlias#(xlen,32));
+
+    RVRegFile#(xlen) rf <- mkRVRegFileBypass(False); // make this true if you add an FPU
+
+    // TODO: make this depend on a bool
 `ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
@@ -79,17 +83,19 @@ module mkThreeStageCore#(
     RVCsrFileMCU csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `endif
 
+    // TODO: make this depend on a bool
 `ifdef CONFIG_M
     MulDivExec mulDiv <- mkBoothRoughMulDivExec;
 `endif
 
-    Ehr#(4, Maybe#(FetchState)) fetchStateEhr <- mkEhr(tagged Invalid);
-    Ehr#(4, Maybe#(ExecuteState)) executeStateEhr <- mkEhr(tagged Invalid);
-    Ehr#(4, Maybe#(WriteBackState)) writeBackStateEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(FetchState#(xlen))) fetchStateEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(ExecuteState#(xlen))) executeStateEhr <- mkEhr(tagged Invalid);
+    Ehr#(4, Maybe#(WriteBackState#(xlen))) writeBackStateEhr <- mkEhr(tagged Invalid);
+
     Ehr#(2, Maybe#(VerificationPacket)) verificationPacketEhr <- mkEhr(tagged Invalid);
 
     Bool clock_gate <- exposeCurrentClockGate();
-    
+
     let fetchRegs = FetchRegs{
             fs: fetchStateEhr[2],
             es: executeStateEhr[2],
@@ -126,7 +132,7 @@ module mkThreeStageCore#(
         verificationPacketEhr[0] <= tagged Invalid;
     endrule
 
-    method Action start(Addr startPc);
+    method Action start(Bit#(xlen) startPc);
         fetchStateEhr[3] <= tagged Valid FetchState { pc: startPc };
         executeStateEhr[3] <= tagged Invalid;
         writeBackStateEhr[3] <= tagged Invalid;

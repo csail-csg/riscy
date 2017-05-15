@@ -24,6 +24,7 @@
 import GetPut::*;
 
 import Port::*;
+import MemUtil::*;
 
 import RVTypes::*;
 import CoreStates::*;
@@ -32,12 +33,12 @@ interface FetchStage;
 endinterface
 
 typedef struct {
-    Reg#(Maybe#(FetchState)) fs;
-    Reg#(Maybe#(ExecuteState)) es;
-    InputPort#(Addr) ifetchreq;
-} FetchRegs;
+    Reg#(Maybe#(FetchState#(xlen))) fs;
+    Reg#(Maybe#(ExecuteState#(xlen))) es;
+    InputPort#(ReadOnlyMemReq#(xlen, 2)) ifetchreq;
+} FetchRegs#(numeric type xlen);
 
-module mkFetchStage#(FetchRegs fr)(FetchStage);
+module mkFetchStage#(FetchRegs#(xlen) fr)(FetchStage);
     let ifetchreq = fr.ifetchreq;
 
     rule doFetch(fr.fs matches tagged Valid .fetchState
@@ -47,7 +48,7 @@ module mkFetchStage#(FetchRegs fr)(FetchStage);
         fr.fs <= tagged Invalid;
 
         // request instruction
-        ifetchreq.enq(pc);
+        ifetchreq.enq(ReadOnlyMemReq{ addr: pc });
 
         // pass to execute state
         fr.es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };

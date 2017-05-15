@@ -27,6 +27,7 @@ import DefaultValue::*;
 import GetPut::*;
 import Vector::*;
 
+import MemUtil::*;
 import Port::*;
 
 import ProcPins::*;
@@ -152,57 +153,6 @@ typedef Server#(UncachedMemReq, UncachedMemResp) UncachedMemServer;
 typedef ClientPort#(UncachedMemReq, UncachedMemResp) UncachedMemClientPort;
 typedef ServerPort#(UncachedMemReq, UncachedMemResp) UncachedMemServerPort;
 
-interface FrontEnd#(type epochType);
-    // To Front-End
-    method ActionValue#(FrontEndToBackEnd#(epochType)) instToBackEnd;
-    method Action redirect(Redirect#(epochType) r);
-    method Action train(TrainingData d);
-    // To Memory System
-    // interface Client#(RVIMMUReq, RVIMMUResp) ivat;
-    // interface Client#(RVIMemReq, RVIMemResp) ifetch;
-    // Debugging Interface
-    method Action start(Addr pc);
-    method Action stop;
-endinterface
-
-interface BackEnd#(type epochType);
-    // To Front-End
-    method Action instFromFrontEnd(FrontEndToBackEnd#(epochType) inst);
-    method ActionValue#(Redirect#(epochType)) getRedirect;
-    method ActionValue#(TrainingData) getTrain;
-    // To Memory System
-    // interface Client#(RVDMMUReq, RVDMMUResp) dvat;
-    // interface Client#(RVDMemReq, RVDMemResp) dmem;
-    interface Client#(FenceReq, FenceResp) fence;
-    method ActionValue#(VMInfo) updateVMInfoI;
-    method ActionValue#(VMInfo) updateVMInfoD;
-    // Debugging Interface
-    method ActionValue#(VerificationPacket) getVerificationPacket;
-endinterface
-
-interface MemorySystem;
-    // To Front-End
-    interface ServerPort#(RVIMMUReq, RVIMMUResp) ivat;
-    interface ServerPort#(RVIMemReq, RVIMemResp) ifetch;
-    // To Back-End
-    interface ServerPort#(RVDMMUReq, RVDMMUResp) dvat;
-    interface ServerPort#(RVDMemReq, RVDMemResp) dmem;
-    interface ServerPort#(FenceReq, FenceResp) fence;
-    method Action updateVMInfoI(VMInfo vmI);
-    method Action updateVMInfoD(VMInfo vmD);
-endinterface
-
-interface MulticoreMemorySystem#(numeric type numCores, numeric type mainMemWidth);
-    interface Vector#(numCores, MemorySystem) core;
-    // To main memory and devices
-    interface GenericMemClientPort#(mainMemWidth) cachedMemory;
-    interface UncachedMemClientPort uncachedMemory;
-    // Memory requests from external devices
-    interface GenericMemServerPort#(XLEN) extMemory;
-endinterface
-
-typedef MulticoreMemorySystem#(1, mainMemWidth) SingleCoreMemorySystem#(numeric type mainMemWidth);
-
 interface Proc#(numeric type mainMemoryWidth);
     // Processor Control
     method Action start();
@@ -212,11 +162,11 @@ interface Proc#(numeric type mainMemoryWidth);
     method Maybe#(VerificationPacket) currVerificationPacket;
 
     // Cached Connections
-    interface GenericMemClientPort#(mainMemoryWidth) ram;
+    interface CoarseMemClientPort#(XLEN, TLog#(TDiv#(mainMemoryWidth,8))) ram;
     // Uncached Connections
-    interface UncachedMemClientPort mmio;
+    interface CoarseMemClientPort#(XLEN, TLog#(TDiv#(XLEN,8))) mmio;
     // External Connections
-    interface GenericMemServerPort#(XLEN) extmem;
+    interface CoarseMemServerPort#(XLEN, TLog#(TDiv#(XLEN,8))) extmem;
     // Interrupts
     method Action triggerExternalInterrupt;
 
@@ -226,35 +176,3 @@ interface Proc#(numeric type mainMemoryWidth);
     (* prefix = "" *)
     interface ProcPins pins;
 endinterface
-
-instance Connectable#(FrontEnd#(epochType), BackEnd#(epochType));
-    module mkConnection#(FrontEnd#(epochType) fe, BackEnd#(epochType) be)(Empty);
-        rule connectInstToBackEnd;
-            let x <- fe.instToBackEnd;
-            be.instFromFrontEnd(x);
-        endrule
-        rule connectRedirectToFrontEnd;
-            let x <- be.getRedirect;
-            fe.redirect(x);
-        endrule
-        rule connectTrainToBackEnd;
-            let x <- be.getTrain;
-            fe.train(x);
-        endrule
-    endmodule
-endinstance
-instance Connectable#(FrontEnd#(epochType), MemorySystem);
-    module mkConnection#(FrontEnd#(epochType) fe, MemorySystem mem)(Empty);
-        // let ivatConnection <- mkConnection(fe.ivat, mem.ivat);
-        // let imemConnection <- mkConnection(fe.ifetch, mem.ifetch);
-    endmodule
-endinstance
-instance Connectable#(BackEnd#(epochType), MemorySystem);
-    module mkConnection#(BackEnd#(epochType) be, MemorySystem mem)(Empty);
-        // let dvatConnection <- mkConnection(be.dvat, mem.dvat);
-        // let dmemConnection <- mkConnection(be.dmem, mem.dmem);
-        let fenceConnection <- mkConnection(be.fence, mem.fence);
-        let ivmConnection <- mkConnection(toGet(be.updateVMInfoI), toPut(mem.updateVMInfoI));
-        let dvmConnection <- mkConnection(toGet(be.updateVMInfoD), toPut(mem.updateVMInfoD));
-    endmodule
-endinstance

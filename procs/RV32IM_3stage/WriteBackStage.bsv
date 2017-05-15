@@ -26,10 +26,11 @@
 import FIFO::*;
 import GetPut::*;
 
+import MemUtil::*;
 import Port::*;
 
 import Abstraction::*;
-import RVRFile::*;
+import RVRegFile::*;
 `ifdef CONFIG_U
 import RVCsrFile::*;
 `else
@@ -49,10 +50,11 @@ interface WriteBackStage;
 endinterface
 
 typedef struct {
-    Reg#(Maybe#(FetchState)) fs;
-    Reg#(Maybe#(ExecuteState)) es;
-    Reg#(Maybe#(WriteBackState)) ws;
-    OutputPort#(RVDMemResp) dmemres;
+    Reg#(Maybe#(FetchState#(xlen))) fs;
+    Reg#(Maybe#(ExecuteState#(xlen))) es;
+    Reg#(Maybe#(WriteBackState#(xlen))) ws;
+    // OutputPort#(RVDMemResp) dmemres;
+    OutputPort#(AtomicMemResp#(2)) dmemres;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -63,11 +65,11 @@ typedef struct {
     // Otherwise use the M-only CSR File designed for MCUs
     RVCsrFileMCU csrf;
 `endif
-    ArchRFile rf;
+    RVRegFile#(xlen) rf;
     Reg#(Maybe#(VerificationPacket)) verificationPackets;
-} WriteBackRegs;
+} WriteBackRegs#(numeric type xlen);
 
-module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
+module mkWriteBackStage#(WriteBackRegs#(xlen) wr)(WriteBackStage) provisos (NumAlias#(xlen, 32));
     let dmemres = wr.dmemres;
     let csrf = wr.csrf;
     let rf = wr.rf;
@@ -94,9 +96,15 @@ module mkWriteBackStage#(WriteBackRegs wr)(WriteBackStage);
 
         if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
             if (getsResponse(memInst.op)) begin
-                data = dmemres.first;
-                dmemres.deq;
+                data = dmemres.first.data >> {addr[1:0], 3'b0};
+                let extendFunc = memInst.isUnsigned ? zeroExtend : signExtend;
+                data = (case (memInst.size)
+                        B: extendFunc(data[7:0]);
+                        H: extendFunc(data[15:0]);
+                        W: extendFunc(data[31:0]);
+                    endcase);
             end
+            dmemres.deq;
         end
 
         let csrfResult <- csrf.wr(

@@ -29,6 +29,7 @@ import Vector::*;
 
 import ClockGate::*;
 import FIFOG::*;
+import MemUtil::*;
 import Port::*;
 
 import Abstraction::*;
@@ -46,9 +47,11 @@ import RVControl::*;
 import RVDecode::*;
 import RVMemory::*;
 
+import MemorySystem::*;
+
 // This interface is the combination of FrontEnd and BackEnd
-interface Core;
-    method Action start(Addr startPc);
+interface Core#(numeric type xlen);
+    method Action start(Bit#(xlen) startPc);
     method Action stop;
 
     method Maybe#(VerificationPacket) currVerificationPacket;
@@ -58,8 +61,8 @@ interface Core;
     interface Client#(FenceReq, FenceResp) fence;
 endinterface
 
-instance Connectable#(Core, MemorySystem);
-    module mkConnection#(Core core, MemorySystem mem)(Empty);
+instance Connectable#(Core#(xlen), MemorySystem#(xlen));
+    module mkConnection#(Core#(xlen) core, MemorySystem#(xlen) mem)(Empty);
         mkConnection(core.fence, mem.fence);
         mkConnection(toGet(core.updateVMInfoI), toPut(mem.updateVMInfoI));
         mkConnection(toGet(core.updateVMInfoD), toPut(mem.updateVMInfoD));
@@ -81,16 +84,18 @@ typedef enum {
 
 module mkMulticycleCore#(
         ServerPort#(RVIMMUReq, RVIMMUResp) ivat,
-        ServerPort#(RVIMemReq, RVIMemResp) ifetch,
+        // ServerPort#(RVIMemReq, RVIMemResp) ifetch,
+        ReadOnlyMemServerPort#(xlen, 2) ifetch,
         ServerPort#(RVDMMUReq, RVDMMUResp) dvat,
-        ServerPort#(RVDMemReq, RVDMemResp) dmem,
+        // ServerPort#(RVDMemReq, RVDMemResp) dmem,
+        AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) dmem,
         Bool ipi,
         Bool timerInterrupt,
         Data timer,
         Bool externalInterrupt,
         Data hartID
     )
-        (Core);
+        (Core#(xlen)) provisos (NumAlias#(xlen, XLEN));
     let verbose = False;
     File fout = stdout;
 
@@ -128,6 +133,7 @@ module mkMulticycleCore#(
         exception <= tagged Invalid;
         // go to InstFetch stage
         state <= IF;
+        $fdisplay(stderr, "doInstMMU: pc = ", fshow(pc));
     endrule
 
     rule doInstFetch(state == IF);
@@ -140,7 +146,7 @@ module mkMulticycleCore#(
 
         if (!isValid(exMMU)) begin
             // no translation exception
-            ifetch.request.enq(phyPc);
+            ifetch.request.enq(ReadOnlyMemReq{ addr: phyPc });
             // go to decode stage
             state <= Dec;
         end else begin
@@ -149,10 +155,11 @@ module mkMulticycleCore#(
             // send instruction to backend
             state <= Trap;
         end
+        $fdisplay(stderr, "doInstFetch: pc = ", fshow(pc));
     endrule
 
     rule doDecode(state == Dec);
-        let fInst = ifetch.response.first;
+        let fInst = ifetch.response.first.data;
         ifetch.response.deq;
 
         let decInst = decodeInst(fInst);
@@ -167,6 +174,7 @@ module mkMulticycleCore#(
 
         inst <= fInst;
         state <= isValid(decInst) ? RegRead : Trap;
+        $fdisplay(stderr, "doDecode: pc = ", fshow(pc), ", inst = ", fshow(fInst));
     endrule
 
     rule doRegRead(state == RegRead);
@@ -200,12 +208,41 @@ module mkMulticycleCore#(
 
         // TODO: make this type safe! get rid of .Mem accesses to tagged union
         if (!isValid(exMMU)) begin
-            dmem.request.enq( RVDMemReq {
-                    op: dInst.execFunc.Mem.op,
-                    size: dInst.execFunc.Mem.size,
-                    isUnsigned: dInst.execFunc.Mem.isUnsigned,
+            // physical addr should have same byte offset as virtual addr
+            Bit#(TLog#(TDiv#(xlen,8))) offset = truncate(addr);
+            Bit#(TDiv#(xlen,8)) byteen = (case(dInst.execFunc.Mem.size)
+                        B: 'b0001;
+                        H: 'b0011;
+                        W: 'b1111;
+                        D: '1;
+                    endcase) << offset;
+            AtomicMemOp atomic_op = None;
+            if (dInst.execFunc.Mem.op matches tagged Amo .rvamo) begin
+                atomic_op = (case (rvamo)
+                        Swap:    Swap;
+                        Add:     Add;
+                        Xor:     Xor;
+                        And:     And;
+                        Or:      Or;
+                        Min:     Min;
+                        Max:     Max;
+                        Minu:    Minu;
+                        Maxu:    Maxu;
+                        default: None;
+                    endcase);
+            end
+            dmem.request.enq( AtomicMemReq {
+                    write_en: ((dInst.execFunc.Mem.op == tagged Mem Ld) ? 0 : byteen),
+                    atomic_op: atomic_op,
                     addr: pAddr,
-                    data: data } );
+                    data: (data << {offset, 3'b0})
+                } );
+            //dmem.request.enq( RVDMemReq {
+            //        op: dInst.execFunc.Mem.op,
+            //        size: dInst.execFunc.Mem.size,
+            //        isUnsigned: dInst.execFunc.Mem.isUnsigned,
+            //        addr: pAddr,
+            //        data: data } );
             state <= WB;
         end else begin
             exception <= exMMU;
@@ -234,9 +271,18 @@ module mkMulticycleCore#(
             tagged Mem .memInst:
                 begin
                     if (getsResponse(memInst.op)) begin
-                        dataWb = dmem.response.first;
-                        dmem.response.deq;
+                        dataWb = dmem.response.first.data;
+                        Bit#(TLog#(TDiv#(xlen,8))) offset = truncate(addr);
+                        dataWb = dataWb >> {offset, 3'b0};
+                        let extendFunc = memInst.isUnsigned ? zeroExtend : signExtend;
+                        dataWb = (case(memInst.size)
+                                    B: extendFunc(dataWb[7:0]);
+                                    H: extendFunc(dataWb[15:0]);
+                                    W: extendFunc(dataWb[31:0]);
+                                    default: dataWb;
+                                endcase);
                     end
+                    dmem.response.deq;
                 end
         endcase
 

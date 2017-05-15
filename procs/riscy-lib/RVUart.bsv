@@ -29,6 +29,7 @@ import Vector::*;
 
 import ConcatReg::*;
 import Ehr::*;
+import PolymorphicMem::*;
 import Port::*;
 import RegUtil::*;
 
@@ -36,9 +37,9 @@ import MemoryMappedServer::*;
 
 import Abstraction::*;
 
-interface RVUart#(numeric type cores);
+interface RVUart#(type memIfcT);
     // Internal connections
-    interface UncachedMemServerPort memifc;
+    interface memIfcT memifc;
 
     // external connections for rx/tx (to be connected to a UART
     (* prefix = "" *)
@@ -47,7 +48,7 @@ interface RVUart#(numeric type cores);
     method Bool interrupt;
 endinterface
 
-module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
+module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromRegs#(reqT, respT, 5, 32));
     Bool verbose = False;
 
     // memory mapped registers
@@ -65,7 +66,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
             rxCtrlReg,
             zeroExtendReg(divReg)
         );
-    ServerPort#(UncachedMemReq, UncachedMemResp) memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
+    ServerPort#(reqT, respT) memoryMappedIfc <- mkPolymorphicMemFromRegs(memoryMappedRegisters);
 
     UART#(16) uart <- mkUART(8, NONE, STOP_1, divReg);
 
@@ -81,7 +82,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(1));
         rxDataReg <= Valid(data);
     endrule
 
-    interface UncachedMemServer memifc = memoryMappedIfc;
+    interface ServerPort memifc = memoryMappedIfc;
 
     interface RS232 uart_pins = uart.rs232;
     method Bit#(16) divisor = divReg;

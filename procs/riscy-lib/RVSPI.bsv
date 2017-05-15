@@ -32,22 +32,24 @@ import Vector::*;
 
 import ConcatReg::*;
 import Ehr::*;
+import PolymorphicMem::*;
+import Port::*;
 import RegUtil::*;
 
 import Abstraction::*;
 import MemoryMappedServer::*;
 import SPI::*;
 
-interface RVSPI;
+interface RVSPI#(type memIfcT);
     // Memory mapped interface
-    interface UncachedMemServerPort memifc;
+    interface memIfcT memifc;
 
     // Pins
     (* prefix = "" *)
     interface SPIMasterPins spi_pins;
 endinterface
 
-module mkRVSPI(RVSPI) provisos (NumAlias#(internalAddrSize, 4));
+module mkRVSPI(RVSPI#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromRegs#(reqT, respT, 4, 32));
     // Layout of memory interface
     // Address   Name     Description
     // 0x0000    txData   Transmit data register
@@ -85,7 +87,7 @@ module mkRVSPI(RVSPI) provisos (NumAlias#(internalAddrSize, 4));
             enableReg,
             divReg);
 
-    UncachedMemServerPort memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
+    ServerPort#(reqT, respT) memoryMappedIfc <- mkPolymorphicMemFromRegs(memoryMappedRegisters);
 
     rule doTxData (txDataReg matches tagged Valid .x);
         spi.put(x);

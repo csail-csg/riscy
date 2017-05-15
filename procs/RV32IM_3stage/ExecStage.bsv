@@ -25,10 +25,11 @@
 
 import GetPut::*;
 
+import MemUtil::*;
 import Port::*;
 
 import Abstraction::*;
-import RVRFile::*;
+import RVRegFile::*;
 `ifdef CONFIG_U
 import RVCsrFile::*;
 `else
@@ -51,11 +52,12 @@ interface ExecStage;
 endinterface
 
 typedef struct {
-    Reg#(Maybe#(FetchState)) fs;
-    Reg#(Maybe#(ExecuteState)) es;
-    Reg#(Maybe#(WriteBackState)) ws;
-    OutputPort#(Instruction) ifetchres;
-    InputPort#(RVDMemReq) dmemreq;
+    Reg#(Maybe#(FetchState#(xlen))) fs;
+    Reg#(Maybe#(ExecuteState#(xlen))) es;
+    Reg#(Maybe#(WriteBackState#(xlen))) ws;
+    OutputPort#(ReadOnlyMemResp#(2)) ifetchres;
+    InputPort#(AtomicMemReq#(32,2)) dmemreq;
+    // InputPort#(RVDMemReq) dmemreq;
 `ifdef CONFIG_M
     MulDivExec mulDiv;
 `endif
@@ -66,10 +68,10 @@ typedef struct {
     // Otherwise use the M-only CSR File designed for MCUs
     RVCsrFileMCU csrf;
 `endif
-    ArchRFile rf;
-} ExecRegs;
+    RVRegFile#(xlen) rf;
+} ExecRegs#(numeric type xlen);
 
-module mkExecStage#(ExecRegs er)(ExecStage);
+module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32));
 
     let ifetchres = er.ifetchres;
     let dmemreq = er.dmemreq;
@@ -79,7 +81,6 @@ module mkExecStage#(ExecRegs er)(ExecStage);
     let mulDiv = er.mulDiv;
 `endif
 
-
     rule doExecute(er.es matches tagged Valid .executeState
                     &&& er.ws == tagged Invalid);
         // get and clear the execute state
@@ -88,7 +89,7 @@ module mkExecStage#(ExecRegs er)(ExecStage);
         er.es <= tagged Invalid;
 
         // get the instruction
-        let inst = ifetchres.first;
+        let inst = ifetchres.first.data;
         ifetchres.deq;
 
         if (!poisoned) begin
@@ -138,12 +139,26 @@ module mkExecStage#(ExecRegs er)(ExecStage);
                                 endcase);
                 if (aligned) begin
                     // send the request to the memory
-                    dmemreq.enq( RVDMemReq {
-                        op: dInst.execFunc.Mem.op,
-                        size: dInst.execFunc.Mem.size,
-                        isUnsigned: dInst.execFunc.Mem.isUnsigned,
-                        addr: zeroExtend(addr),
-                        data: data } );
+                    // dmemreq.enq( RVDMemReq {
+                    //     op: dInst.execFunc.Mem.op,
+                    //     size: dInst.execFunc.Mem.size,
+                    //     isUnsigned: dInst.execFunc.Mem.isUnsigned,
+                    //     addr: zeroExtend(addr),
+                    //     data: data } );
+
+                    //// This assumes xlen == 32
+                    Bit#(32) aligned_data = data << {addr[1:0], 3'b0};
+                    Bit#(4) write_en = dInst.execFunc.Mem.op == tagged Mem Ld ? 0 : 
+                                        (case(memInst.size)
+                                            B: ('b0001 << addr[1:0]);
+                                            H: ('b0011 << addr[1:0]);
+                                            W: ('b1111);
+                                        endcase);
+                    dmemreq.enq( AtomicMemReq {
+                        write_en: write_en,
+                        atomic_op: None,
+                        addr: addr,
+                        data: aligned_data} );
                 end else begin
                     // misaligned address exception
                     if ((memInst.op == tagged Mem Ld) || (memInst.op == tagged Mem Lr)) begin

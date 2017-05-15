@@ -34,6 +34,7 @@ import Vector::*;
 
 import ClientServerUtil::*;
 import FIFOG::*;
+import MemUtil::*;
 import Port::*;
 import PortUtil::*;
 import PrintTrace::*;
@@ -53,7 +54,7 @@ import VerificationPacketFilter::*;
 typedef DataSz MainMemoryWidth;
 
 (* synthesize *)
-module mkProc(Proc#(DataSz));
+module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
     // ROM Addresses
     // 0x0000_0000 - 0x3FFF_FFFF
     Addr romBaseAddr            = 'h0000_0000;
@@ -90,14 +91,14 @@ module mkProc(Proc#(DataSz));
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
-    let bootrom <- mkBasicBootRom(BootRomConfig {
+    let bootrom <- mkBasicBootRom64(BootRomConfig {
                                     bootrom_addr: rstvec,
                                     start_addr: dramBaseAddr,
                                     config_string_addr: configStringPtr });
 
-    SingleCoreMemorySystem#(DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
+    SingleCoreMemorySystem#(xlen, DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
     MemoryMappedCSRs#(1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
-    Core core <- mkMulticycleCore(
+    Core#(xlen) core <- mkMulticycleCore(
                     memorySystem.core[0].ivat,
                     memorySystem.core[0].ifetch,
                     memorySystem.core[0].dvat,
@@ -121,28 +122,24 @@ module mkProc(Proc#(DataSz));
     let core_to_mem <- mkConnection(core, memorySystem.core[0]);
 
     // Memory Mapped IO connections
-    FIFOG#(UncachedMemReq) externalMMIOReqFIFO <- mkFIFOG;
-    FIFOG#(UncachedMemResp) externalMMIORespFIFO <- mkFIFOG;
-    UncachedMemServerPort externalMMIOServer = toServerPort(externalMMIOReqFIFO, externalMMIORespFIFO);
-    UncachedMemClientPort externalMMIOClient = toClientPort(externalMMIOReqFIFO, externalMMIORespFIFO);
-    let memoryMappedIO <- mkMemoryBusV2(vec(
-                            busItemFromAddrRange( 'h0000_1000, 'h0000_100F, bootrom ),
-                            busItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, mmcsrs.memifc ),
-                            busItemFromAddrRange( 'h6000_0000, 'h7FFF_FFFF, externalMMIOServer )));
-    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memoryMappedIO.procIfc);
+    FIFOG#(CoarseMemReq#(xlen, TLog#(TDiv#(xlen,8)))) externalMMIOReqFIFO <- mkFIFOG;
+    FIFOG#(CoarseMemResp#(TLog#(TDiv#(xlen,8)))) externalMMIORespFIFO <- mkFIFOG;
+    let externalMMIOServer = toServerPort(externalMMIOReqFIFO, externalMMIORespFIFO);
+    let externalMMIOClient = toClientPort(externalMMIOReqFIFO, externalMMIORespFIFO);
+
+    MixedAtomicMemBus#(1, xlen, TLog#(TDiv#(xlen,8))) memBus <- mkMixedAtomicMemBus(vec(
+            mixedMemBusItemFromAddrRange( 'h0000_1000, 'h0000_100F, tagged ReadOnly bootrom ),
+            //mixedMemBusItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, tagged Atomic mmcsrs.memifc ),
+            mixedMemBusItemFromAddrRange( 'h6000_0000, 'h7FFF_FFFF, tagged Coarse externalMMIOServer )));
+
+    let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memBus.clients[0]);
 
     // Cached Memory Connection
-    FIFOG#(MainMemReq) ramReqFIFO <- mkFIFOG;
-    FIFOG#(MainMemResp) ramRespFIFO <- mkFIFOG;
-    MainMemServerPort ramServer = toServerPort(ramReqFIFO, ramRespFIFO);
-    MainMemClientPort ramClient = toClientPort(ramReqFIFO, ramRespFIFO);
-    function MainMemReq adjustAddress(Addr a, MainMemReq r);
-        r.addr = r.addr - a;
-        return r;
-    endfunction
-    Integer maxPendingReq = 2;
-    let cachedMemBridge = transformServerPortReq(adjustAddress(dramBaseAddr), ramServer);
-    let cached_mem_connection <- mkConnection(memorySystem.cachedMemory, cachedMemBridge);
+    FIFOG#(CoarseMemReq#(xlen, TLog#(TDiv#(xlen,8)))) ramReqFIFO <- mkFIFOG;
+    FIFOG#(CoarseMemResp#(TLog#(TDiv#(xlen,8)))) ramRespFIFO <- mkFIFOG;
+    CoarseMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) ramServer = toServerPort(ramReqFIFO, ramRespFIFO);
+    CoarseMemClientPort#(xlen, TLog#(TDiv#(xlen,8))) ramClient = toClientPort(ramReqFIFO, ramRespFIFO);
+    let cached_mem_connection <- mkConnection(memorySystem.cachedMemory, ramServer);
 
     // Processor Control
     method Action start();
@@ -159,7 +156,7 @@ module mkProc(Proc#(DataSz));
 
     // Main Memory Connection
     interface MainMemClientPort ram = ramClient;
-    interface UncachedMemClientPort mmio = externalMMIOClient;
+    interface CoarseMemServerPort mmio = externalMMIOClient;
     interface GenericMemServerPort extmem = memorySystem.extMemory;
 
     // Interrupts

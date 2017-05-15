@@ -39,7 +39,7 @@ class ExternalMMIO : public ExternalMMIORequestWrapper {
         void triggerInterrupt();
 
     private:
-        void request(const int write, const uint8_t length, const uint64_t addr, const uint64_t data);
+        void request(const int write, const uint64_t addr, const uint64_t data);
 
         ExternalMMIOResponseProxy *externalMMIOResponse;
         bus_t bus;

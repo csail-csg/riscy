@@ -37,22 +37,30 @@ void ExternalMMIO::triggerInterrupt() {
     externalMMIOResponse->triggerExternalInterrupt();
 }
 
-void ExternalMMIO::request(const int write, const uint8_t length, const uint64_t addr, const uint64_t data) {
+void ExternalMMIO::request(const int write, const uint64_t addr, const uint64_t data) {
     // get mutex
     pthread_mutex_lock(&mutex);
     // forward request to device
     uint64_t respData = 0;
     bool success = false;
-    if (write == 1) {
-        success = bus.store((reg_t) addr, length, (uint8_t*) &data);
+    if (write == 0) {
+#ifdef CONFIG_RV64
+        success = bus.load((reg_t) addr, 8, (uint8_t*) &respData);
+#else
+        success = bus.load((reg_t) addr, 4, (uint8_t*) &respData);
+#endif
     } else {
-        success = bus.load((reg_t) addr, length, (uint8_t*) &respData);
+#ifdef CONFIG_RV64
+        success = bus.store((reg_t) addr, 8, (uint8_t*) &data);
+#else
+        success = bus.store((reg_t) addr, 4, (uint8_t*) &data);
+#endif
     }
     if (!success) {
-        if (write == 1) {
-            std::cerr << "[ERROR] MMIO write failed, addr = 0x" << std::hex << addr << ", data = 0x" << std::hex << data << std::endl;
-        } else {
+        if (write == 0) {
             std::cerr << "[ERROR] MMIO read failed, addr = 0x" << std::hex << addr << std::endl;
+        } else {
+            std::cerr << "[ERROR] MMIO write failed, addr = 0x" << std::hex << addr << ", data = 0x" << std::hex << data << std::endl;
         }
     }
     // forward response to processor

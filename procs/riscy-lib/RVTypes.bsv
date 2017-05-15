@@ -194,28 +194,35 @@ typedef enum {
     D   = 2'b11
 } RVMemSize deriving (Bits, Eq, FShow);
 
-`ifdef CONFIG_RV64
-function DataByteEn toDataByteEn(RVMemSize size);
-    return unpack(case (size)
-            B:       8'b00000001;
-            H:       8'b00000011;
-            W:       8'b00001111;
-            D:       8'b11111111;
-            default: 8'b00000000;
-        endcase);
-endfunction
-`else
-// rv32
-function DataByteEn toDataByteEn(RVMemSize size);
-    return unpack(case (size)
-            B:       4'b0001;
-            H:       4'b0011;
-            W:       4'b1111;
-            // D is illegal
-            default: 4'b0000;
-        endcase);
-endfunction
-`endif
+typeclass ToDataByteEn#(numeric type n);
+    function Bit#(n) toDataByteEn(RVMemSize size);
+endtypeclass
+
+// RV32 Instance
+instance ToDataByteEn#(4);
+    function Bit#(4) toDataByteEn(RVMemSize size);
+        return (case (size)
+                B:       4'b0001;
+                H:       4'b0011;
+                W:       4'b1111;
+                // D is illegal
+                default: 4'b0000;
+            endcase);
+    endfunction
+endinstance
+
+// RV64 Instance
+instance ToDataByteEn#(8);
+    function Bit#(8) toDataByteEn(RVMemSize size);
+        return (case (size)
+                B:       8'b00000001;
+                H:       8'b00000011;
+                W:       8'b00001111;
+                D:       8'b11111111;
+                default: 8'b00000000;
+            endcase);
+    endfunction
+endinstance
 
 function DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
     return toDataByteEn(size) << addrLSB;

@@ -25,7 +25,10 @@ import BRAM::*;
 import BuildVector::*;
 import Vector::*;
 
+import ConcatReg::*;
 import Ehr::*;
+import MemUtil::*;
+import PolymorphicMem::*;
 import Port::*;
 import RegUtil::*;
 
@@ -46,7 +49,8 @@ typedef struct {
     Addr config_string_addr;
 } BootRomConfig deriving (Eq);
 
-module mkBasicBootRom#(BootRomConfig cfg)(UncachedMemServerPort);
+module mkBasicBootRom32#(BootRomConfig cfg)(ReadOnlyMemServerPort#(addrSz, 2))
+        provisos (MkPolymorphicMemFromRegs#(ReadOnlyMemReq#(addrSz, 2), ReadOnlyMemResp#(2), 4, 32));
     Vector#(4, Reg#(Bit#(32))) rom =
         vec(
             readOnlyReg('h297 + truncate(cfg.start_addr - cfg.bootrom_addr)),
@@ -54,7 +58,18 @@ module mkBasicBootRom#(BootRomConfig cfg)(UncachedMemServerPort);
             readOnlyReg(32'h00000000),
             readOnlyReg(truncate(cfg.config_string_addr))
         );
-    ServerPort#(UncachedMemReq, UncachedMemResp) memIfc <- mkMemoryMappedServerPort(rom);
+    let memIfc <- mkPolymorphicMemFromRegs(rom);
+    return memIfc;
+endmodule
+
+module mkBasicBootRom64#(BootRomConfig cfg)(ReadOnlyMemServerPort#(addrSz, 3))
+        provisos (MkPolymorphicMemFromRegs#(ReadOnlyMemReq#(addrSz, 3), ReadOnlyMemResp#(3), 2, 64));
+    Vector#(2, Reg#(Bit#(64))) rom =
+        vec(
+            concatReg2(readOnlyReg(32'h00028067), readOnlyReg('h297 + truncate(cfg.start_addr - cfg.bootrom_addr))),
+            concatReg2(readOnlyReg(truncate(cfg.config_string_addr)), readOnlyReg(32'h00000000))
+        );
+    let memIfc <- mkPolymorphicMemFromRegs(rom);
     return memIfc;
 endmodule
 

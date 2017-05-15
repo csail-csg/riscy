@@ -25,9 +25,11 @@
 
 // ProcVerilator.bsv
 // This is a wrapper to translate the generic Proc interface to an interface
-// that is accepted by connectal.
+// that is accepted by verilator.
 
 import RS232::*;
+
+import MemUtil::*;
 
 // This assumes a Proc.bsv file that contains the mkProc definition
 import Abstraction::*;
@@ -58,7 +60,7 @@ interface ProcVerilator;
 
     // TODO: re-enable this port
     // interface UncachedMemClientPort mmio;
-    interface GenericMemServerPort#(XLEN) extmem;
+    interface CoarseMemServerPort#(XLEN, TLog#(TDiv#(XLEN,8))) extmem;
     // Interrupts
     method Action triggerExternalInterrupt;
 
@@ -67,14 +69,14 @@ interface ProcVerilator;
 endinterface
 
 module mkProcVerilator(ProcVerilator);
-    GenericMemServerPort#(MainMemoryWidth) simRam <- mkSimRam(`CONFIG_RAM_INIT_HEX_FILE);
+    CoarseMemServerPort#(XLEN, TLog#(TDiv#(MainMemoryWidth,8))) simRam <- mkSimRam(`CONFIG_RAM_INIT_HEX_FILE);
     Proc#(MainMemoryWidth) proc <- mkProc;
 
     // connect the processor to the simRam
     mkConnection(proc.ram, simRam);
 
     // some of our processors write to a certain location when finished executing:
-    rule checkForFinish if ((proc.mmio.request.first.addr == 'h6000_0000) && proc.mmio.request.first.write);
+    rule checkForFinish if ((proc.mmio.request.first.addr == 'h6000_0000) && (proc.mmio.request.first.write));
         if (proc.mmio.request.first.data == 0) begin
             $display("PASSED");
         end else begin

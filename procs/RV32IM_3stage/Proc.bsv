@@ -34,7 +34,10 @@ import Vector::*;
 
 import ClientServerUtil::*;
 import FIFOG::*;
+import GenericAtomicMem::*;
+import PolymorphicMem::*;
 import Port::*;
+import MemUtil::*;
 import ServerUtil::*;
 
 import Abstraction::*;
@@ -69,48 +72,50 @@ module mkProc(Proc#(DataSz));
     let pipelineClock <- mkGatedClockFromCC(True);
 
 `ifdef CONFIG_RV32
-    RTC#(1) rtc <- mkRTC_RV32;
+    RTC#(1, ByteEnMemServerPort#(32,2)) rtc <- mkRTC_RV32;
 `else
-    RTC#(1) rtc <- mkRTC_RV64;
+    RTC#(1, UncachedMemServer) rtc <- mkRTC_RV64;
 `endif
 
     //   9600 baud: divisor = 26042
     // 115200 baud: divisor = 134
-    RVUart#(1) uart_module <- mkRVUart_RV32(17);
+    RVUart#(ByteEnMemServerPort#(32,2)) uart_module <- mkRVUart_RV32(17);
 
-    RVSPI spi_module <- mkRVSPI();
+    RVSPI#(ByteEnMemServerPort#(32,2)) spi_module <- mkRVSPI();
 
     Bool timer_interrupt = rtc.timerInterrupt[0];
     Bit#(64) timer_value = rtc.timerValue;
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
-    // Shared I/D Memory
-    // the type of the imem port is Server#(Bit#(XLEN), Bit#(32))
-    // the type of the dmem port is Server#(UncachedMemReq, UncachedMemResp)
-    let sram <- mkBramIDMem;
+`ifdef CONFIG_IDMEM_INIT_HEX_FILE
+    let sram <- mkPolymorphicBRAMLoad(64*1024/4, tagged Hex `CONFIG_IDMEM_INIT_HEX_FILE);
+`else
+    let sram <- mkPolymorphicBRAM(64*1024/4);
+`endif
 
-    // This is the new way:
-    FIFOG#(UncachedMemReq) uncachedReqFIFO <- mkFIFOG;
-    FIFOG#(UncachedMemResp) uncachedRespFIFO <- mkFIFOG;
+    // MMIO server for devices outside of the processor
+    FIFOG#(CoarseMemReq#(32,2)) uncachedReqFIFO <- mkFIFOG;
+    FIFOG#(CoarseMemResp#(2)) uncachedRespFIFO <- mkFIFOG;
     let mmio_server = toServerPort(uncachedReqFIFO, uncachedRespFIFO);
     let mmio_client = toClientPort(uncachedReqFIFO, uncachedRespFIFO);
 
-    MemoryBusV2 memoryBus <- mkMemoryBusV2(vec(
-                                busItemFromAddrRange( 'h0000_0000, 'h1FFF_FFFF, sram.dmem ),
-                                busItemFromAddrRange( 'h2000_0000, 'h2FFF_FFFF, rtc.memifc ),
-                                busItemFromAddrRange( 'h3000_0000, 'h3000_FFFF, uart_module.memifc ),
-                                busItemFromAddrRange( 'h3001_0000, 'h3001_FFFF, spi_module.memifc ),
-                                // split into two ranges to fit mask/match formatting that mkMemoryBusV2 uses
-                                busItemFromAddrRange( 'h4000_0000, 'h7FFF_FFFF, mmio_server ),
-                                busItemFromAddrRange( 'h8000_0000, 'hFFFF_FFFF, mmio_server )));
+    // numClients = 3
+    // addrSz = 32
+    // logNumBytes = 2
+    MixedAtomicMemBus#(3, 32, 2) memBus <- mkMixedAtomicMemBus(vec(
+            mixedMemBusItemFromAddrRange( 'h0000_0000, 'h1FFF_FFFF, tagged ByteEn sram ),
+            mixedMemBusItemFromAddrRange( 'h2000_0000, 'h2FFF_FFFF, tagged ByteEn rtc.memifc ),
+            mixedMemBusItemFromAddrRange( 'h3000_0000, 'h3000_FFFF, tagged ByteEn uart_module.memifc ),
+            mixedMemBusItemFromAddrRange( 'h3001_0000, 'h3001_FFFF, tagged ByteEn spi_module.memifc ),
+            mixedMemBusItemFromAddrRange( 'h4000_0000, 'h7FFF_FFFF, tagged Coarse mmio_server ),
+            mixedMemBusItemFromAddrRange( 'h8000_0000, 'hFFFF_FFFF, tagged Coarse mmio_server )));
 
-    // mkUncachedConverter converts UncachedMemServerPort to ServerPort#(RVDMemReq, RVDMemResp)
-    let proc_dmem_ifc <- mkUncachedConverter(memoryBus.procIfc);
+    ReadOnlyMemServerPort#(32, 2) imem = simplifyMemServerPort(memBus.clients[0]);
 
     Core core <- mkThreeStageCore(
-                    sram.imem,
-                    proc_dmem_ifc,
+                    imem,
+                    memBus.clients[1],
                     False, // inter-process interrupt
                     timer_interrupt, // timer interrupt
                     timer_value, // timer value
@@ -132,44 +137,11 @@ module mkProc(Proc#(DataSz));
     endmethod
 
     // Main Memory Connection
-    // XXX: Currently unattached
-    interface MainMemClientPort ram = nullClientPort;
+    interface CoarseMemClientPort ram = nullClientPort;
 
-    interface UncachedMemClientPort mmio = mmio_client;
+    interface CoarseMemServerPort mmio = mmio_client;
 
-    interface GenericMemServerPort extmem;
-        interface InputPort request;
-            method Action enq(GenericMemReq#(XLEN) x);
-                if (x.byteen != '1) begin
-                    $fdisplay(stderr, "[ERROR] mkProc.extmem : expecting byteen to be all 1's, but byteen = ", fshow(x.byteen));
-                end
-                memoryBus.extIfc.request.enq(UncachedMemReq {
-                        write:  x.write,
-                        size:   (valueOf(XLEN) == 64 ? D : W),
-                        addr:   x.addr,
-                        data:   x.data
-                    } );
-            endmethod
-            method Bool canEnq;
-                return memoryBus.extIfc.request.canEnq;
-            endmethod
-        endinterface
-        interface OutputPort response;
-            method GenericMemResp#(XLEN) first;
-                let x = memoryBus.extIfc.response.first;
-                return GenericMemResp {
-                        write: x.write,
-                        data:  x.data
-                    };
-            endmethod
-            method Action deq;
-                memoryBus.extIfc.response.deq;
-            endmethod
-            method Bool canDeq;
-                return memoryBus.extIfc.response.canDeq;
-            endmethod
-        endinterface
-    endinterface
+    interface CoarseMemServerPort extmem = simplifyMemServerPort(memBus.clients[2]);
 
     // Interrupts
     method Action triggerExternalInterrupt;

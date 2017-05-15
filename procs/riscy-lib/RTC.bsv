@@ -23,22 +23,26 @@
 
 `include "ProcConfig.bsv"
 
+import BuildVector::*;
 import ClientServer::*;
+import ConfigReg::*;
 import GetPut::*;
 import Vector::*;
-import BuildVector::*;
+
 import Ehr::*;
+import PolymorphicMem::*;
+import Port::*;
 
 import Abstraction::*;
 import MemoryMappedServer::*;
 
-interface RTC#(numeric type cores);
+interface RTC#(numeric type cores, type memIfcT);
     // memory-mapped interface
     // 0x0000 = timer
     // 0x0008 = timecmp0
     // 0x0010 = timecmp1
     //  ...
-    interface UncachedMemServerPort memifc;
+    interface memIfcT memifc;
     method Bit#(64) timerValue;
     method Vector#(cores, Bool) timerInterrupt;
 endinterface
@@ -46,12 +50,14 @@ endinterface
 `ifdef CONFIG_RV32
 // This is only supported on RV32 systems
 // Only supports full-word memory accesses
-module mkRTC_RV32(RTC#(1));
+module mkRTC_RV32(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromRegs#(reqT, respT, 4, 32));
     // memory mapped registers
-    Reg#(Bit#(32)) timeRegLo <- mkReg(0);
-    Reg#(Bit#(32)) timeRegHi <- mkReg(0);
-    Reg#(Bit#(32)) timeCmpLo <- mkReg(0);
-    Reg#(Bit#(32)) timeCmpHi <- mkReg(0);
+    // make the time registers config registers to avoid complicated
+    // scheduling constraints between the memory system and the CSRF
+    Reg#(Bit#(32)) timeRegLo <- mkConfigReg(0);
+    Reg#(Bit#(32)) timeRegHi <- mkConfigReg(0);
+    Reg#(Bit#(32)) timeCmpLo <- mkConfigReg(0);
+    Reg#(Bit#(32)) timeCmpHi <- mkConfigReg(0);
 
     Bool timerInterruptEn = {timeRegHi, timeRegLo} >= {timeCmpHi, timeCmpLo};
 
@@ -60,7 +66,7 @@ module mkRTC_RV32(RTC#(1));
         asReg(timeRegHi),
         asReg(timeCmpLo),
         asReg(timeCmpHi));
-    UncachedMemServerPort memoryMappedIfc <- mkMemoryMappedServerPort(memoryMappedRegisters);
+    ServerPort#(reqT, respT) memoryMappedIfc <- mkPolymorphicMemFromRegs(memoryMappedRegisters);
 
     rule incrementTimer;
         Bit#(64) timeValue = {timeRegHi, timeRegLo};
@@ -69,7 +75,7 @@ module mkRTC_RV32(RTC#(1));
         timeRegHi <= newTimeValue[63:32];
     endrule
 
-    interface UncachedMemServerPort memifc = memoryMappedIfc;
+    interface ServerPort memifc = memoryMappedIfc;
     method Bit#(64) timerValue = {timeRegHi, timeRegLo};
     method Vector#(1, Bool) timerInterrupt = vec(timerInterruptEn);
 endmodule
@@ -78,7 +84,8 @@ endmodule
 `ifdef CONFIG_RV64
 // This is only supported on RV64 systems
 // Only supports full-word memory accesses
-module mkRTC_RV64(RTC#(1))
+// Also, this doesn't support polymorphic mem yet
+module mkRTC_RV64(RTC#(1, UncachedMemServer))
         provisos (NumAlias#(internalAddrSize, 4));
     // Address space:
     Bit#(internalAddrSize) timerAddr   = 'h0;

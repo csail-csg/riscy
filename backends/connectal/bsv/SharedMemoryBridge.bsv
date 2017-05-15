@@ -23,6 +23,9 @@
 
 `include "ProcConfig.bsv"
 
+import Port::*;
+import MemUtil::*;
+
 import Abstraction::*;
 import RVTypes::*;
 import CompareProvisos::*;
@@ -42,9 +45,9 @@ typedef Bit#(4) PendMemRespCnt;
 import BRAMFIFO::*;
 import DefaultValue::*;
 
-interface SharedMemoryBridge#(numeric type dataSz);
+interface SharedMemoryBridge#(numeric type addrSz, numeric type logNumBytes);
     // Processor Interface
-    interface Server#(GenericMemReq#(dataSz),GenericMemResp#(dataSz)) to_proc;
+    interface ServerPort#(CoarseMemReq#(addrSz, logNumBytes), CoarseMemResp#(logNumBytes)) to_proc;
 
     // Shared Memory Interfaces
     interface MemReadClient#(DataBusWidth)  to_host_read;
@@ -60,9 +63,11 @@ interface SharedMemoryBridge#(numeric type dataSz);
 endinterface
 
 // This bridge assumes the shared memory responds to load requests in order
-module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
+module mkSharedMemoryBridge(SharedMemoryBridge#(addrSz, logNumBytes)) provisos (
+        NumAlias#(TMul#(8,TExp#(logNumBytes)), dataSz),
         Mul#(DataBusWidth, packetsPerWrite, dataSz),
-        Mul#(8, bytesPerReq, dataSz)
+        NumAlias#(TExp#(logNumBytes), bytesPerReq),
+        Add#(a__, addrSz, 128)
     );
     Bool verbose = False;
     File tracefile = verbose ? stdout : tagged InvalidFile;
@@ -81,31 +86,23 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
     FIFO#(MemRequest)                       writeReqFifo  <- fprintTraceM(tracefile, "SharedMemoryBridge::writeReqFifo",  mkFIFO);
     FIFO#(MemData#(DataBusWidth))           writeDataFifo <- fprintTraceM(tracefile, "SharedMemoryBridge::writeDataFifo", mkSizedBRAMFIFO(2 * valueOf(packetsPerWrite)));
     FIFO#(MemData#(DataBusWidth))           readDataFifo  <- fprintTraceM(tracefile, "SharedMemoryBridge::readDataFifo",  mkFIFO);
-    FIFO#(Bit#(MemTagSize))                 writeDoneFifo <- fprintTraceM(tracefile, "SharedMemoryBridge::writeDoneFifo", mkFIFO);
+    FIFOF#(Bit#(MemTagSize))                writeDoneFifo <- fprintTraceM(tracefile, "SharedMemoryBridge::writeDoneFifo", mkFIFOF);
 
     Reg#(SGLId)                             refPointerReg <- mkReg(0);
     Reg#(PAddr)                             memSizeReg    <- mkReg(64 << 20); // 64 MB by default
     Reg#(Bool)                              flushRespReq  <- mkReg(False);
 
-    // addr aligned with 8B boundary
-    function PAddr getDWordAlignAddr(PAddr a);
-        // FIXME: Clean this up
-`ifdef CONFIG_RV64
-        return {truncateLSB(a), 3'b0};
-`else
-        return {truncateLSB(a), 2'b0};
-`endif
-    endfunction
-
     // This function adjusts the address to point to a valid location in memory
     // If the memory size is a power of 2, it simply truncates it.
     // Otherwise is uses a weird mask derived form memSizeReg - 1
-    function PAddr adjustAddress(PAddr a);
+    function Bit#(128) adjustAddress(Bit#(addrSz) narrow_addr);
+        Bit#(128) a = zeroExtend(narrow_addr);
+        a = (a >> valueOf(logNumBytes)) << valueOf(logNumBytes);
         // This works really well if the address is a power of 2, otherwise it has
         // weird behavior (but still functions as desired).
         let memSizeMask = memSizeReg - 1;
         // If the address needs adjusting, and it with memSizeMask
-        return (a >= memSizeReg) ? (a & memSizeMask) : a;
+        return (a >= zeroExtend(memSizeReg)) ? (a & zeroExtend(memSizeMask)) : a;
     endfunction
 
     rule sendWriteData(writeDataIndex[1] matches tagged Valid .index);
@@ -133,14 +130,10 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
         readDataFifo.deq;
     endrule
 
-    interface Server to_proc;
-        interface Put request;
-            method Action put(GenericMemReq#(dataSz) r) if (!isValid(writeDataIndex[0]));
-                if (pack(r.byteen) != '1) begin
-                    $fdisplay(stderr, "[ERROR] [SharedMem] request - byteEn != '1");
-                end
-
-                PAddr addr = adjustAddress(getDWordAlignAddr(r.addr));
+    interface ServerPort to_proc;
+        interface InputPort request;
+            method Action enq(CoarseMemReq#(addrSz, logNumBytes) r) if (!isValid(writeDataIndex[0]));
+                Bit#(128) addr = adjustAddress(r.addr);
                 if (r.write) begin
                     // $display("[SharedMem] write - addr: 0x%08x, data: 0x%08x", addr, r.data);
                     writeReqFifo.enq(MemRequest{sglId: refPointerReg, offset: truncate(addr), burstLen: fromInteger(valueOf(bytesPerReq)), tag: 0});
@@ -153,22 +146,32 @@ module mkSharedMemoryBridge(SharedMemoryBridge#(dataSz)) provisos (
                     pendingReqs.enq(False);
                 end
             endmethod
+            method Bool canEnq;
+                return !isValid(writeDataIndex[0]);
+            endmethod
         endinterface
-        interface Get response;
-            method ActionValue#(GenericMemResp#(dataSz)) get;
+        interface OutputPort response;
+            method CoarseMemResp#(logNumBytes) first if ((pendingReqs.first && writeDoneFifo.notEmpty) || (!pendingReqs.first && !isValid(readDataIndex[1])));
+                let isWrite = pendingReqs.first;
+                if (isWrite) begin
+                    return CoarseMemResp{write: True, data: 0};
+                end else begin
+                    return CoarseMemResp{write: False, data: readData[1]};
+                end
+            endmethod
+            method Action deq if ((pendingReqs.first && writeDoneFifo.notEmpty) || (!pendingReqs.first && !isValid(readDataIndex[1])));
                 let isWrite = pendingReqs.first;
                 pendingReqs.deq;
 
                 if (isWrite) begin
                     writeDoneFifo.deq;
-                    return GenericMemResp{write: True, data: 0};
                 end else begin
-                    // only fire if formatReadData is done
-                    when(!isValid(readDataIndex[1]), noAction);
                     readData[1] <= 0;
                     readDataIndex[1] <= tagged Valid 0;
-                    return GenericMemResp{write: False, data: readData[1]};
                 end
+            endmethod
+            method Bool canDeq;
+                return ((pendingReqs.first && writeDoneFifo.notEmpty) || (!pendingReqs.first && !isValid(readDataIndex[1])));
             endmethod
         endinterface
     endinterface

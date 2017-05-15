@@ -51,18 +51,19 @@ void Platform::init() {
 }
 
 uint64_t Platform::memRead(uint64_t addr) {
-    platformRequest->memRequest(0, 0, addr, 0);
+    platformRequest->memRequest(0, addr, 0);
     sem_wait(&responseSem);
     return responseData;
 }
 
 void Platform::memWrite(uint64_t addr, uint64_t data) {
+    // TODO: figure out how to standardize these
 #ifdef CONFIG_RV64
     // byteen is 8 bits long
-    platformRequest->memRequest(1, 0xff, addr, data);
+    platformRequest->memRequest(1, addr, data);
 #else
     // byteen is 4 bits long
-    platformRequest->memRequest(1, 0xf, addr, data);
+    platformRequest->memRequest(1, addr, data);
 #endif
     sem_wait(&responseSem);
 }

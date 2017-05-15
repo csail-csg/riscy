@@ -25,26 +25,45 @@
 
 import RVTypes::*;
 
-(* noinline *)
-function Data execAluInst(AluInst aluInst, Data rVal1, Data rVal2, Maybe#(Data) imm, Data pc);
-    Data aluVal1 = (case (aluInst.op)
-                        Auipc:   pc;
-                        Lui:     0;
-                        default: rVal1;
-                    endcase);
-    Data aluVal2 = (case (imm) matches
-                        tagged Valid .validImm: validImm;
-                        default:                rVal2;
-                    endcase);
+typeclass ExecAluInst#(numeric type xlen);
+    function Bit#(xlen) execAluInst(AluInst aluInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2, Maybe#(Bit#(xlen)) imm, Bit#(xlen) pc);
+endtypeclass
 
-`ifdef CONFIG_RV64
-    Data data = alu64(aluInst.op, aluInst.w, aluVal1, aluVal2);
-`else
-    Data data = alu32(aluInst.op, aluVal1, aluVal2);
-`endif
+instance ExecAluInst#(32);
+    function Bit#(32) execAluInst(AluInst aluInst, Bit#(32) rVal1, Bit#(32) rVal2, Maybe#(Bit#(32)) imm, Bit#(32) pc);
+        Bit#(32) aluVal1 = (case (aluInst.op)
+                            Auipc:   pc;
+                            Lui:     0;
+                            default: rVal1;
+                        endcase);
+        Bit#(32) aluVal2 = (case (imm) matches
+                            tagged Valid .validImm: validImm;
+                            default:                rVal2;
+                        endcase);
 
-    return data;
-endfunction
+        Bit#(32) data = alu32(aluInst.op, aluVal1, aluVal2);
+
+        return data;
+    endfunction
+endinstance
+
+instance ExecAluInst#(64);
+    function Bit#(64) execAluInst(AluInst aluInst, Bit#(64) rVal1, Bit#(64) rVal2, Maybe#(Bit#(64)) imm, Bit#(64) pc);
+        Bit#(64) aluVal1 = (case (aluInst.op)
+                            Auipc:   pc;
+                            Lui:     0;
+                            default: rVal1;
+                        endcase);
+        Bit#(64) aluVal2 = (case (imm) matches
+                            tagged Valid .validImm: validImm;
+                            default:                rVal2;
+                        endcase);
+
+        Bit#(64) data = alu64(aluInst.op, aluInst.w, aluVal1, aluVal2);
+
+        return data;
+    endfunction
+endinstance
 
 // RV64 ALU -- no need to use Data or other similar types because this has the
 // "w" field only seen in 64-bit RISC-V, but it doesn't have the necessary

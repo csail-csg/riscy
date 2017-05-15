@@ -40,6 +40,9 @@ import StrLen::*;
 import RS232::*;
 `endif
 
+import FIFOG::*;
+import MemUtil::*;
+
 // This assumes a Proc.bsv file that contains the mkProc definition
 import Abstraction::*;
 import BuildVector::*;
@@ -71,7 +74,7 @@ endinterface
 // Platform
 interface PlatformRequest;
     method Action configure(Bit#(32) ramSharedMemRefPointer, Bit#(64) ramSize);
-    method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
+    method Action memRequest(Bool write, Bit#(64) addr, Bit#(64) data);
 endinterface
 interface PlatformIndication;
     method Action memResponse(Bool write, Bit#(64) data);
@@ -97,7 +100,7 @@ interface ExternalMMIOResponse;
     method Action triggerExternalInterrupt;
 endinterface
 interface ExternalMMIORequest;
-    method Action request(Bool write, Bit#(4) length, Bit#(64) addr, Bit#(64) data);
+    method Action request(Bool write, Bit#(64) addr, Bit#(64) data);
 endinterface
 
 // This is the interface of all the requests, the indications are passed in as
@@ -132,11 +135,11 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     Proc#(MainMemoryWidth) proc <- mkProc(reset_by procReset.new_rst);
 
     // Address space: 0 - ramSz
-    SharedMemoryBridge#(MainMemoryWidth) ramSharedMemoryBridge <- mkSharedMemoryBridge;
+    SharedMemoryBridge#(XLEN, TLog#(TDiv#(XLEN,8))) ramSharedMemoryBridge <- mkSharedMemoryBridge;
     let ramToSharedMem <- mkConnection(proc.ram, ramSharedMemoryBridge.to_proc);
 
-    FIFO#(GenericMemReq#(DataSz)) extMemReqFIFO <- mkFIFO;
-    FIFO#(GenericMemResp#(DataSz)) extMemRespFIFO <- mkFIFO;
+    FIFOG#(CoarseMemReq#(XLEN, TLog#(TDiv#(XLEN,8)))) extMemReqFIFO <- mkFIFOG;
+    FIFOG#(CoarseMemResp#(TLog#(TDiv#(XLEN,8)))) extMemRespFIFO <- mkFIFOG;
     FIFO#(ExtMemUser) extMemUserFIFO <- mkFIFO;
 
     FIFO#(VerificationPacket) verificationPacketFIFO <- mkFIFO;
@@ -252,9 +255,8 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     // Only if accelerator has pins
     rule acceleratorMemReq;
         let req <- accelerator.pins.readReq;
-        extMemReqFIFO.enq( GenericMemReq{
+        extMemReqFIFO.enq( CoarseMemReq{
                                 write: False,
-                                byteen: '1,
                                 addr: truncate(req),
                                 data: 0
                             });
@@ -291,14 +293,9 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     rule connectExternalMMIORequest;
         let msg = proc.mmio.request.first;
         proc.mmio.request.deq;
-        Bit#(4) length = (case (msg.size)
-                B: 1;
-                H: 2;
-                W: 4;
-                D: 8;
-            endcase);
+        // TODO: setup accelerator to only send coarse write requests
         // zero extend data in case XLEN is not 64
-        externalMMIORequest.request(msg.write, length, msg.addr, zeroExtend(msg.data));
+        externalMMIORequest.request(msg.write, zeroExtend(msg.addr), zeroExtend(msg.data));
     endrule
 `endif
 
@@ -337,10 +334,9 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
             // configure shared memory
             ramSharedMemoryBridge.initSharedMem(ramSharedMemRefPointer, ramSize);
         endmethod
-        method Action memRequest(Bool write, Bit#(8) byteen, Bit#(64) addr, Bit#(64) data);
-            extMemReqFIFO.enq( GenericMemReq{
+        method Action memRequest(Bool write, Bit#(64) addr, Bit#(64) data);
+            extMemReqFIFO.enq( CoarseMemReq{
                                     write: write,
-                                    byteen: truncate(byteen),
                                     addr: truncate(addr),
                                     data: truncate(data)
                                 });
@@ -372,7 +368,7 @@ module [Module] mkProcConnectal#(ProcControlIndication procControlIndication,
     interface ExternalMMIOResponse externalMMIOResponse;
         method Action response(Bool write, Bit#(64) data);
             // truncate data in case XLEN is not 64
-            proc.mmio.response.enq( UncachedMemResp{write: write, data: truncate(data)} );
+            proc.mmio.response.enq( ByteEnMemResp{write: write, data: truncate(data)} );
         endmethod
         method Action triggerExternalInterrupt;
             proc.triggerExternalInterrupt;

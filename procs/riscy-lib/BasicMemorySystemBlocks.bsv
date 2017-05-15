@@ -31,6 +31,7 @@ import Vector::*;
 
 import Ehr::*;
 import FIFOG::*;
+import MemUtil::*;
 import Port::*;
 
 import Abstraction::*;
@@ -279,13 +280,15 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
     endmethod
 endmodule
 
-module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), GenericMemServerPort#(DataSz) mainMemory)(RVIMMU);
+// This module assumes XLEN=64
+module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), CoarseMemServerPort#(64, 3) mainMemory)(RVIMMU);
     let _dMMU <- mkDummyRVDMMU(True, getPMA, mainMemory);
     let _iMMU <- mkRVIMMUWrapper(_dMMU);
     return _iMMU;
 endmodule
 
-module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemServerPort#(DataSz) mainMemory)(RVDMMU);
+// This module assumes XLEN=64
+module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemServerPort#(64, 3) mainMemory)(RVDMMU);
     FIFOG#(RVDMMUReq) procMMUReq <- mkFIFOG;
     FIFOG#(RVDMMUResp) procMMUResp <- mkFIFOG;
 
@@ -394,13 +397,13 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
                         pte.d = True;
                     end
                     // send write request
-                    mainMemory.request.enq(GenericMemReq{write: True, byteen: '1, addr: a, data: pack(pte)});
+                    mainMemory.request.enq(CoarseMemReq{write: True, addr: a, data: pack(pte)});
                 end
             end
         end else begin
             // go to next level
             PAddr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
-            mainMemory.request.enq(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
+            mainMemory.request.enq(CoarseMemReq{write: False, addr: newA, data: ?});
             a <= newA;
             i <= i - 1;
         end
@@ -451,7 +454,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), GenericMemSe
                             // PAddr newA = vmInfo.base + (zeroExtend(vpn[2]) << 3);
                             Vector#(3, Bit#(9)) newvpn = unpack(vaddr[38:12]);
                             PAddr newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
-                            mainMemory.request.enq(GenericMemReq{write: False, byteen: '1, addr: newA, data: ?});
+                            mainMemory.request.enq(CoarseMemReq{write: False, addr: newA, data: ?});
                             walking <= True;
                             pageTableWalk = True;
                             a <= newA;
