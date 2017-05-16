@@ -23,8 +23,7 @@
 
 import RVTypes::*;
 
-(* noinline *)
-function Addr addrCalc(Data rVal1, Maybe#(Data) imm);
+function Bit#(xlen) addrCalc(Bit#(xlen) rVal1, Maybe#(Bit#(xlen)) imm);
     return rVal1 + fromMaybe(0, imm);
 endfunction
 

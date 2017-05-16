@@ -68,13 +68,6 @@ instance DefaultValue#(FrontEndCsrs);
     function FrontEndCsrs defaultValue = FrontEndCsrs {vmI: defaultValue, state: defaultValue};
 endinstance
 
-typedef struct {
-    Addr    pc;
-    Addr    nextPc;
-    BrFunc  brFunc;
-    Bool    taken;
-} TrainingData deriving (Bits, Eq, FShow);
-
 // front-end memory ports
 typedef Addr RVIMMUReq; // maybe add prv
 typedef struct {

@@ -34,7 +34,7 @@ import Port::*;
 
 import Abstraction::*;
 import RegUtil::*;
-import RVRFile::*;
+import RVRegFile::*;
 import RVCsrFile::*;
 import RVExec::*;
 import RVFpu::*;
@@ -99,9 +99,12 @@ module mkMulticycleCore#(
         (Core#(xlen)) provisos (NumAlias#(xlen, XLEN));
     File fout = stdout;
 
+    // This is used in a few places for configuring the core
+    RiscVISASubset misa = defaultValue;
+
     Reg#(Bool) stallReg <- mkReg(False);
 
-    ArchRFile rf <- mkArchRFile;
+    RVRegFile#(xlen) rf <- mkRVRegFile(misa.f);
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
     MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec;
     FpuExec fpu <- mkFpuExecPipeline;
@@ -160,7 +163,6 @@ module mkMulticycleCore#(
         let fInst = ifetch.response.first.data;
         ifetch.response.deq;
 
-        RiscVISASubset misa = defaultValue;
         let decInst = decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, fInst);
 
         if (decInst matches tagged Valid .validDInst) begin
@@ -261,9 +263,8 @@ module mkMulticycleCore#(
                     mulDiv.result_deq;
                 end
             tagged Fpu .*: begin
-                    let fpuResult = toFullResult(fpu.result_data);
-                    dataWb = fpuResult.data;
-                    fflagsWb = fpuResult.fflags;
+                    dataWb = fpu.result_data.data;
+                    fflagsWb = fpu.result_data.fflags;
                     fpu.result_deq;
                 end
             tagged Mem .memInst:

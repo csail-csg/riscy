@@ -778,16 +778,16 @@ typedef struct {
 // } DecodedInst deriving (Bits, Eq, FShow);
 
 typedef struct {
-    Data                    data;
+    Bit#(xlen)              data;
     Bit#(5)                 fflags;
-    Addr                    vaddr;
-    Addr                    paddr;
+    Bit#(xlen)              vaddr;
+    Bit#(xlen)              paddr;
     ControlFlow             controlFlow;
     Maybe#(ExceptionCause)  cause;
-} FullResult deriving (Bits, Eq, FShow);
+} FullResult#(numeric type xlen) deriving (Bits, Eq, FShow);
 
-typeclass FullResultSubset#(type t);
-    function FullResult updateFullResult(t x, FullResult full_result);
+typeclass FullResultSubset#(type t, numeric type xlen);
+    function FullResult#(xlen) updateFullResult(t x, FullResult#(xlen) full_result);
 endtypeclass
 instance DefaultValue#(ControlFlow);
     function ControlFlow defaultValue = ControlFlow{pc: 0,
@@ -795,15 +795,15 @@ instance DefaultValue#(ControlFlow);
                                                     taken: False,
                                                     mispredict: False};
 endinstance
-instance DefaultValue#(FullResult);
-    function FullResult defaultValue = FullResult{  data: 0,
+instance DefaultValue#(FullResult#(xlen));
+    function FullResult#(xlen) defaultValue = FullResult{  data: 0,
                                                     fflags: 0,
                                                     vaddr: 0,
                                                     paddr: 0,
                                                     controlFlow: defaultValue,
                                                     cause: tagged Invalid};
 endinstance
-function FullResult toFullResult(t x) provisos (FullResultSubset#(t));
+function FullResult#(xlen) toFullResult(t x) provisos (FullResultSubset#(t, xlen));
     return updateFullResult(x, defaultValue);
 endfunction
 

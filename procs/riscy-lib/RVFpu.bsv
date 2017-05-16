@@ -39,12 +39,12 @@ import FloatingPoint::*;
 function FloatingPoint#(e,m) canonicalNaN = FloatingPoint{sign: False, exp: '1, sfd: 1 << (valueof(m)-1)};
 
 typedef struct {
-    Data    data;
-    Bit#(5) fflags;
+    Bit#(64) data;
+    Bit#(5)  fflags;
 } FpuResult deriving(Bits, Eq, FShow);
 
-instance FullResultSubset#(FpuResult);
-    function FullResult updateFullResult(FpuResult x, FullResult full_result);
+instance FullResultSubset#(FpuResult, 64);
+    function FullResult#(64) updateFullResult(FpuResult x, FullResult#(64) full_result);
         full_result.data = x.data;
         full_result.fflags = x.fflags;
         return full_result;
@@ -52,7 +52,7 @@ instance FullResultSubset#(FpuResult);
 endinstance
 
 interface FpuExec;
-    method Action       exec(FpuInst fInst, RVRoundMode rm, Data rVal1, Data rVal2, Data rVal3);
+    method Action       exec(FpuInst fInst, RVRoundMode rm, Bit#(64) rVal1, Bit#(64) rVal2, Bit#(64) rVal3);
     method Bool         notEmpty; // True if there is any instruction in this pipeline
     // output
     method Bool         result_rdy;
@@ -551,7 +551,7 @@ endfunction
 
 // exec function for simple operations
 (* noinline *)
-function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, Data rVal2);
+function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Bit#(64) rVal1, Bit#(64) rVal2);
     FpuResult fpu_result = FpuResult{data: 0, fflags: 0};
 
     // Convert the Risc-V RVRoundMode to FloatingPoint::RoundMode
@@ -570,19 +570,19 @@ function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, D
         Float in1 = unpack(rVal1[31:0]);
         Float in2 = unpack(rVal2[31:0]);
         Float dst = unpack(0);
-        Maybe#(Data) full_dst = Invalid;
+        Maybe#(Bit#(64)) full_dst = Invalid;
         Exception e = unpack(0);
         let fpu_f = fpu_inst.func;
         // Fpu Decoding
         case (fpu_f)
             // combinational instructions
             FMin:     begin
-                Data x;
+                Bit#(64) x;
                 {x, e} = fmin_s(rVal1, rVal2);
                 full_dst = tagged Valid x;
             end
             FMax:     begin
-                Data x;
+                Bit#(64) x;
                 {x, e} = fmax_s(rVal1, rVal2);
                 full_dst = tagged Valid x;
             end
@@ -642,22 +642,22 @@ function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, D
             end
             // Float -> Int
             FCvt_WF:    begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_w_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_WUF: begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_wu_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_LF:    begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_l_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_LUF: begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_lu_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
@@ -686,19 +686,19 @@ function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, D
         Double in1 = unpack(rVal1);
         Double in2 = unpack(rVal2);
         Double dst = unpack(0);
-        Maybe#(Data) full_dst = Invalid;
+        Maybe#(Bit#(64)) full_dst = Invalid;
         Exception e = unpack(0);
         let fpu_f = fpu_inst.func;
         // Fpu Decoding
         case (fpu_f)
             // combinational instructions
             FMin:     begin
-                Data x;
+                Bit#(64) x;
                 {x, e} = fmin_d(rVal1, rVal2);
                 full_dst = tagged Valid x;
             end
             FMax:     begin
-                Data x;
+                Bit#(64) x;
                 {x, e} = fmax_d(rVal1, rVal2);
                 full_dst = tagged Valid x;
             end
@@ -758,22 +758,22 @@ function FpuResult execFpuSimple(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, D
             end
             // Float -> Int
             FCvt_WF:    begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_w_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_WUF: begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_wu_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_LF:    begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_l_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
             FCvt_LUF: begin
-                Data dst_bits;
+                Bit#(64) dst_bits;
                 {dst_bits, e} = fcvt_lu_f(in1, fpu_rm);
                 full_dst = tagged Valid dst_bits;
             end
@@ -911,7 +911,7 @@ module mkFpuExecPipeline(FpuExec);
         fpu_exec_fifo_out.enq(x);
     endrule
 
-    method Action exec(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, Data rVal2, Data rVal3);
+    method Action exec(FpuInst fpu_inst, RVRoundMode rm, Bit#(64) rVal1, Bit#(64) rVal2, Bit#(64) rVal3);
         // Convert the Risc-V RVRoundMode to FloatingPoint::RoundMode
         RoundMode fpu_rm = (case (rm)
                 RNE:        Rnd_Nearest_Even;
@@ -931,7 +931,7 @@ module mkFpuExecPipeline(FpuExec);
             Float in2 = unpack(rVal2[31:0]);
             Float in3 = unpack(rVal3[31:0]);
             Float dst = unpack(0);
-            Maybe#(Data) full_dst = Invalid;
+            Maybe#(Bit#(64)) full_dst = Invalid;
             Exception e = unpack(0);
             let fpu_f = fpu_inst.func;
             // Fpu Decoding
@@ -957,7 +957,7 @@ module mkFpuExecPipeline(FpuExec);
             Double in2 = unpack(rVal2);
             Double in3 = unpack(rVal3);
             Double dst = unpack(0);
-            Maybe#(Data) full_dst = Invalid;
+            Maybe#(Bit#(64)) full_dst = Invalid;
             Exception e = unpack(0);
             let fpu_f = fpu_inst.func;
             // Fpu Decoding
@@ -995,7 +995,7 @@ endmodule
 module mkFpuExecPipeline(FpuExec);
     FIFOF#(FpuResult) fpu_exec_fifo <- mkFIFOF;
 
-    method Action exec(FpuInst fpu_inst, RVRoundMode rm, Data rVal1, Data rVal2, Data rVal3);
+    method Action exec(FpuInst fpu_inst, RVRoundMode rm, Bit#(64) rVal1, Bit#(64) rVal2, Bit#(64) rVal3);
         $fdisplay(stderr, "[ERROR] mkFpuExecDummy is in use");
         // don't do the function...
         FpuResult res = unpack(0);

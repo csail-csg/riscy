@@ -32,17 +32,17 @@ import RVControl::*;
 import RVMemory::*;
 
 typedef struct {
-    Data data;
-    Addr addr;
+    Bit#(xlen) data;
+    Bit#(xlen) addr;
     Bool taken;
-    Addr nextPc;
-} ExecResult deriving (Bits, Eq, FShow);
+    Bit#(xlen) nextPc;
+} ExecResult#(numeric type xlen) deriving (Bits, Eq, FShow);
 
 // Reference implementation of the exec function
 // This is an inefficient implementation because many of the functions used
 // in the case statement can reuse hardware
 (* noinline *)
-function ExecResult execRef(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc);
+function ExecResult#(XLEN) execRef(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc);
     Data data = 0;
     Addr addr = 0;
     Addr pcPlus4 = pc + 4;
@@ -146,19 +146,18 @@ function Addr brAddrCalc(BrFunc brFunc, Addr pc, Data val, Data imm);
     return targetAddr;
 endfunction
 
-(* noinline *)
-function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc /*, Addr ppc */);
+function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2, Bit#(xlen) pc) provisos (NumAlias#(XLEN, xlen));
     // PC+4 is used in a few places
-    Addr pcPlus4 = pc + 4;
+    Bit#(xlen) pcPlus4 = pc + 4;
 
     // just data, addr, and control flow
-    Data data = 0;
-    Addr addr = 0;
+    Bit#(xlen) data = 0;
+    Bit#(xlen) addr = 0;
     Bool taken = False;
-    Addr nextPc = pcPlus4;
+    Bit#(xlen) nextPc = pcPlus4;
 
     // Immediate Field
-    Maybe#(Data) imm = getImmediate(dInst.imm, dInst.inst);
+    Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
     if (dInst.execFunc matches tagged Mem .*) begin
         if (!isValid(imm)) begin
             // Lr, Sc, and AMO instructions don't have immediate fields, so ovveride the immediate field here for address calculation
@@ -167,8 +166,8 @@ function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr 
     end
 
     // ALU
-    Data aluVal1 = rVal1;
-    Data aluVal2 = imm matches tagged Valid .validImm ? validImm : rVal2;
+    Bit#(xlen) aluVal1 = rVal1;
+    Bit#(xlen) aluVal2 = imm matches tagged Valid .validImm ? validImm : rVal2;
     if (dInst.execFunc matches tagged Alu .aluInst) begin
         // Special functions use special inputs
         case (aluInst.op) matches
@@ -179,7 +178,7 @@ function ExecResult basicExec(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr 
     // Use Add as default for memory instructions so alu result is the address
     AluFunc aluF = dInst.execFunc matches tagged Alu .aluInst ? aluInst.op : Add;
     Bool w = dInst.execFunc matches tagged Alu .aluInst ? aluInst.w : False;
-    Data aluResult = alu(aluF, w, aluVal1, aluVal2);
+    Bit#(xlen) aluResult = alu(aluF, w, aluVal1, aluVal2);
 
     // Branch
     if (dInst.execFunc matches tagged Br .brFunc) begin
