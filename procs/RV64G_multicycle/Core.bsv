@@ -103,7 +103,7 @@ module mkMulticycleCore#(
 
     ArchRFile rf <- mkArchRFile;
     RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
-    MulDivExec mulDiv <- mkBoothRoughMulDivExec;
+    MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec;
     FpuExec fpu <- mkFpuExecPipeline;
 
     Reg#(Bool) running <- mkReg(False);
@@ -160,7 +160,8 @@ module mkMulticycleCore#(
         let fInst = ifetch.response.first.data;
         ifetch.response.deq;
 
-        let decInst = decodeInst(fInst);
+        RiscVISASubset misa = defaultValue;
+        let decInst = decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, fInst);
 
         if (decInst matches tagged Valid .validDInst) begin
             // Legal instruction
@@ -452,6 +453,7 @@ module mkMulticycleCore#(
         pc <= startPc;
         state <= IMMU;
         csrState <= defaultValue;
+        stallReg <= False;
     endmethod
     method Action stop;
         running <= False;

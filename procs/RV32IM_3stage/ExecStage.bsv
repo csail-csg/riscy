@@ -23,6 +23,7 @@
 
 `include "ProcConfig.bsv"
 
+import DefaultValue::*;
 import GetPut::*;
 
 import MemUtil::*;
@@ -59,7 +60,7 @@ typedef struct {
     InputPort#(AtomicMemReq#(32,2)) dmemreq;
     // InputPort#(RVDMemReq) dmemreq;
 `ifdef CONFIG_M
-    MulDivExec mulDiv;
+    MulDivExec#(xlen) mulDiv;
 `endif
 `ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
@@ -100,7 +101,8 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
             end
 
             // decode the instruction
-            let maybeDInst = decodeInst(inst);
+            RiscVISASubset misa = defaultValue;
+            let maybeDInst = decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, inst);
             if (maybeDInst == tagged Invalid && trap == tagged Invalid) begin
                 trap = tagged Valid (tagged Exception IllegalInst);
             end

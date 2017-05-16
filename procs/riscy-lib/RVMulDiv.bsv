@@ -47,60 +47,58 @@ function Bool isDiv(MulDivFunc func);
 endfunction
 
 
-interface Multiplier;
+interface Multiplier#(numeric type xlen);
   // input
-  method Action               multiply(Bit#(TAdd#(DataSz, 1)) multiplicand, Bit#(TAdd#(DataSz, 1)) multiplier);
+  method Action                          multiply(Bit#(TAdd#(xlen, 1)) multiplicand, Bit#(TAdd#(xlen, 1)) multiplier);
   // output
-  method Bool                 result_rdy;
-  method Tuple2#(Data, Data)  result_data;
-  method Action               result_deq;
+  method Bool                            result_rdy;
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data;
+  method Action                          result_deq;
 endinterface
 
-interface Divider;
+interface Divider#(numeric type xlen);
   // input
-  method Action               divide(Bit#(TAdd#(DataSz, 1)) dividend, Bit#(TAdd#(DataSz, 1)) divisor);
+  method Action                          divide(Bit#(TAdd#(xlen, 1)) dividend, Bit#(TAdd#(xlen, 1)) divisor);
   // output
-  method Bool                 result_rdy;
-  method Tuple2#(Data, Data)  result_data;
-  method Action               result_deq;
+  method Bool                            result_rdy;
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data;
+  method Action                          result_deq;
 endinterface
 
 // This module takes in the same operands as exec
-interface MulDivExec;
-    method Action   exec(MulDivInst mdInst, Data rVal1, Data rVal2);
+interface MulDivExec#(numeric type xlen);
+    method Action   exec(MulDivInst mdInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2);
     method Bool     notEmpty; // True if there is any instruction in this pipeline
     // output
     method Bool     result_rdy;
-    method Data     result_data;
+    method Bit#(xlen)     result_data;
     method Action   result_deq;
 endinterface
 
-(* synthesize, gate_all_clocks *)
-module mkBluesimMultiplier(Multiplier);
-  FIFOF#(Tuple2#(Data, Data)) result_fifo <- mkSizedFIFOF(4);
+module mkBluesimMultiplier(Multiplier#(xlen));
+  FIFOF#(Tuple2#(Bit#(xlen), Bit#(xlen))) result_fifo <- mkSizedFIFOF(4);
 
-  method Action multiply(Bit#(TAdd#(DataSz, 1)) multiplicand, Bit#(TAdd#(DataSz, 1)) multiplier);
-    Int#(TAdd#(TAdd#(DataSz, DataSz), 1)) a = unpack(signExtend(multiplicand));
-    Int#(TAdd#(TAdd#(DataSz, DataSz), 1)) b = unpack(signExtend(multiplier));
+  method Action multiply(Bit#(TAdd#(xlen, 1)) multiplicand, Bit#(TAdd#(xlen, 1)) multiplier);
+    Int#(TAdd#(TAdd#(xlen, xlen), 1)) a = unpack(signExtend(multiplicand));
+    Int#(TAdd#(TAdd#(xlen, xlen), 1)) b = unpack(signExtend(multiplier));
 
     // This is a 65-bit signed multiplication
     // FIXME: Replace this with an efficient multiplication implementation like a booth multiplier
-    Bit#(TAdd#(TAdd#(DataSz, DataSz), 1)) r = pack(a * b);
+    Bit#(TAdd#(TAdd#(xlen, xlen), 1)) r = pack(a * b);
 
-    Tuple2#(Data, Data) answer = tuple2( r[2*valueOf(DataSz)-1:valueOf(DataSz)], r[valueOf(DataSz)-1:0] );
+    Tuple2#(Bit#(xlen), Bit#(xlen)) answer = tuple2( r[2*valueOf(xlen)-1:valueOf(xlen)], r[valueOf(xlen)-1:0] );
     result_fifo.enq(answer);
   endmethod
 
   method Bool result_rdy = result_fifo.notEmpty;
-  method Tuple2#(Data, Data) result_data = result_fifo.first;
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data = result_fifo.first;
   method Action result_deq = result_fifo.deq;
 endmodule
 
 // This is a radix-4 Booth multiplier was taken from the 6.175 Lab
-(* synthesize, gate_all_clocks *)
-module mkBoothMultiplier(Multiplier)
+module mkBoothMultiplier(Multiplier#(xlen))
     provisos (
-      NumAlias#(TAdd#(DataSz, 2),                         _InputSize), // This _could_ be DataSz+1 if we tried harder
+      NumAlias#(TAdd#(xlen, 2),                         _InputSize), // This _could_ be xlen+1 if we tried harder
       NumAlias#(TAdd#(TAdd#(_InputSize, _InputSize), 2),  _MultSize),
       NumAlias#(TAdd#(TLog#(_InputSize), 1),              _IndexSize)
     );
@@ -125,7 +123,7 @@ module mkBoothMultiplier(Multiplier)
     i <= i+1;
   endrule
 
-  method Action multiply(Bit#(TAdd#(DataSz, 1)) multiplicand, Bit#(TAdd#(DataSz, 1)) multiplier) if (i == fromInteger(valueOf(_InputSize)/2+1));
+  method Action multiply(Bit#(TAdd#(xlen, 1)) multiplicand, Bit#(TAdd#(xlen, 1)) multiplier) if (i == fromInteger(valueOf(_InputSize)/2+1));
     Bit#(_InputSize) x = signExtend(multiplicand);
     Bit#(_InputSize) y = signExtend(multiplier);
     m_pos <= {msb(x), x, 0};
@@ -137,9 +135,9 @@ module mkBoothMultiplier(Multiplier)
   method Bool result_rdy;
     return i == fromInteger(valueOf(_InputSize)/2);
   endmethod
-  method Tuple2#(Data, Data) result_data if (i == fromInteger(valueOf(_InputSize)/2));
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data if (i == fromInteger(valueOf(_InputSize)/2));
     // was: return tuple2(p[128:65], p[64:1]);
-    return tuple2(p[2*valueOf(DataSz):valueOf(DataSz)+1], p[valueOf(DataSz):1]);
+    return tuple2(p[2*valueOf(xlen):valueOf(xlen)+1], p[valueOf(xlen):1]);
   endmethod
   method Action result_deq if (i == fromInteger(valueOf(_InputSize)/2));
     i <= fromInteger(valueOf(_InputSize)/2+1);
@@ -148,18 +146,17 @@ endmodule
 
 
 
-(* synthesize, gate_all_clocks *)
-module mkBluesimDivider(Divider);
-  FIFOF#(Tuple2#(Data, Data)) result_fifo <- mkSizedFIFOF(4);
+module mkBluesimDivider(Divider#(xlen)) provisos (Add#(1, a__, xlen));
+  FIFOF#(Tuple2#(Bit#(xlen), Bit#(xlen))) result_fifo <- mkSizedFIFOF(4);
 
-  method Action divide(Bit#(TAdd#(DataSz, 1)) dividend, Bit#(TAdd#(DataSz, 1)) divisor);
+  method Action divide(Bit#(TAdd#(xlen, 1)) dividend, Bit#(TAdd#(xlen, 1)) divisor);
     // This is a 65-bit signed division
     // FIXME: Replace this with an efficient division implementation
     // Bluesim causes a runtime error when dividing by zero, even if the
     // division is part of an unused part of a ternary operation. To avoid
     // this we change the divisor to 1 if it is zero.
-    Int#(TAdd#(DataSz, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
-    Int#(TAdd#(DataSz, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
+    Int#(TAdd#(xlen, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
+    Int#(TAdd#(xlen, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
 
     if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
       quotent = unpack(dividend);
@@ -169,15 +166,15 @@ module mkBluesimDivider(Divider);
   endmethod
 
   method Bool result_rdy = result_fifo.notEmpty;
-  method Tuple2#(Data, Data) result_data = result_fifo.first;
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data = result_fifo.first;
   method Action result_deq = result_fifo.deq;
 endmodule
 
 
-(* synthesize, gate_all_clocks *)
-module mkRoughDivider(Divider)
+module mkRoughDivider(Divider#(xlen))
     provisos (
-      NumAlias#(TAdd#(DataSz, 1),               _InputSize),
+      Add#(1, a__, xlen),
+      NumAlias#(TAdd#(xlen, 1),                 _InputSize),
       NumAlias#(TAdd#(_InputSize, _InputSize),  _DivSize),
       NumAlias#(TAdd#(TLog#(_InputSize), 2),    _IndexSize)
     );
@@ -200,7 +197,7 @@ module mkRoughDivider(Divider)
     current_bit <= (current_bit == 0) ? fromInteger(valueOf(_InputSize)) : current_bit - 1;
   endrule
 
-  method Action divide(Bit#(TAdd#(DataSz, 1)) dividend, Bit#(TAdd#(DataSz, 1)) divisor) if (current_bit == fromInteger(valueOf(_InputSize) + 1));
+  method Action divide(Bit#(TAdd#(xlen, 1)) dividend, Bit#(TAdd#(xlen, 1)) divisor) if (current_bit == fromInteger(valueOf(_InputSize) + 1));
     // Optimization: Divide by zero and handle signed overflow very fast
     if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
       quotent <= unpack(signExtend(dividend));
@@ -234,8 +231,8 @@ module mkRoughDivider(Divider)
       quotent_negative <= (top_negative != bottom_negative);
       remainder_negative <= top_negative;
 
-      Int#(TAdd#(DataSz, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
-      Int#(TAdd#(DataSz, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
+      Int#(TAdd#(xlen, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
+      Int#(TAdd#(xlen, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
 
       current_bit <= fromInteger(valueOf(_InputSize)-1);
     end
@@ -244,7 +241,7 @@ module mkRoughDivider(Divider)
   method Bool result_rdy;
     return (current_bit == fromInteger(valueOf(_InputSize)));
   endmethod
-  method Tuple2#(Data, Data) result_data if (current_bit == fromInteger(valueOf(_InputSize)));
+  method Tuple2#(Bit#(xlen), Bit#(xlen)) result_data if (current_bit == fromInteger(valueOf(_InputSize)));
     Int#(_DivSize) final_quotent = quotent_negative ? -quotent : quotent;
     Int#(_DivSize) final_remainder = remainder_negative ? -remainder : remainder;
     return tuple2(truncate(pack(final_quotent)), truncate(pack(final_remainder)));
@@ -254,18 +251,19 @@ module mkRoughDivider(Divider)
   endmethod
 endmodule
 
-module mkMulDivExec#(Multiplier mul_unit, Divider div_unit)(MulDivExec);
+module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDivExec#(xlen))
+        provisos (Add#(a__, 32, xlen));
   Bool verbose = False;
 
   // This fifo holds what operation is being done by the unit
   // If the value is invalid, then the result is already in muldiv_exec_fifo
   FIFOF#(MulDivInst) func_fifo <- mkFIFOF;
 
-  method Action exec(MulDivInst mdInst, Data rVal1, Data rVal2);
+  method Action exec(MulDivInst mdInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2);
     if (verbose) $display("[MulDiv] ", fshow(mdInst), ", ", fshow(rVal1), ", ", fshow(rVal2) );
 
-    Bit#(TAdd#(DataSz, 1)) a = 0;
-    Bit#(TAdd#(DataSz, 1)) b = 0;
+    Bit#(TAdd#(xlen, 1)) a = 0;
+    Bit#(TAdd#(xlen, 1)) b = 0;
     case (mdInst.sign)
       Signed: begin
         a = signExtend(rVal1);
@@ -295,9 +293,9 @@ module mkMulDivExec#(Multiplier mul_unit, Divider div_unit)(MulDivExec);
   method Bool result_rdy;
     return (isMul(func_fifo.first.func)) ? mul_unit.result_rdy : div_unit.result_rdy;
   endmethod
-  method Data result_data;
+  method Bit#(xlen) result_data;
     let mdInst = func_fifo.first;
-    Data data = (case(mdInst.func)
+    Bit#(xlen) data = (case(mdInst.func)
         Mul  : tpl_2(mul_unit.result_data);
         Mulh : tpl_1(mul_unit.result_data);
         Div  : tpl_1(div_unit.result_data);
@@ -315,7 +313,7 @@ module mkMulDivExec#(Multiplier mul_unit, Divider div_unit)(MulDivExec);
     // For debugging
     // This can't be included in the above method because it is not an Action
     if (verbose) begin
-      Data data = (case(mdInst.func)
+      Bit#(xlen) data = (case(mdInst.func)
           Mul  : tpl_2(mul_unit.result_data);
           Mulh : tpl_1(mul_unit.result_data);
           Div  : tpl_1(div_unit.result_data);
@@ -337,29 +335,26 @@ module mkMulDivExec#(Multiplier mul_unit, Divider div_unit)(MulDivExec);
   endmethod
 endmodule
 
-(* synthesize, gate_all_clocks *)
-module mkBluesimMulDivExec(MulDivExec);
-  Multiplier mul_unit <- mkBluesimMultiplier;
-  Divider div_unit <- mkBluesimDivider;
-  MulDivExec ifc <- mkMulDivExec(mul_unit, div_unit);
+module mkBluesimMulDivExec(MulDivExec#(xlen)) provisos (Add#(a__, 32, xlen), Add#(1, b__, xlen));
+  Multiplier#(xlen) mul_unit <- mkBluesimMultiplier;
+  Divider#(xlen) div_unit <- mkBluesimDivider;
+  MulDivExec#(xlen) ifc <- mkMulDivExec(mul_unit, div_unit);
   return ifc;
 endmodule
 
-(* synthesize, gate_all_clocks *)
-module mkBoothRoughMulDivExec(MulDivExec);
-  Multiplier mul_unit <- mkBoothMultiplier;
-  Divider div_unit <- mkRoughDivider;
-  MulDivExec ifc <- mkMulDivExec(mul_unit, div_unit);
+module mkBoothRoughMulDivExec(MulDivExec#(xlen)) provisos (Add#(a__, 32, xlen), Add#(1, b__, xlen));
+  Multiplier#(xlen) mul_unit <- mkBoothMultiplier;
+  Divider#(xlen) div_unit <- mkRoughDivider;
+  MulDivExec#(xlen) ifc <- mkMulDivExec(mul_unit, div_unit);
   return ifc;
 endmodule
 
-(* synthesize, gate_all_clocks *)
-module mkMulDivExecDummy(MulDivExec);
-  FIFOF#(Data) muldiv_exec_fifo <- mkFIFOF;
+module mkMulDivExecDummy(MulDivExec#(xlen));
+  FIFOF#(Bit#(xlen)) muldiv_exec_fifo <- mkFIFOF;
 
-  method Action exec(MulDivInst mdInst, Data rVal1, Data rVal2);
+  method Action exec(MulDivInst mdInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2);
     $fdisplay(stderr, "[ERROR] mkMulDivExecDummy is in use");
-    Data res = 0;
+    Bit#(xlen) res = 0;
     muldiv_exec_fifo.enq(res);
   endmethod
 
@@ -367,6 +362,6 @@ module mkMulDivExecDummy(MulDivExec);
 
   // output
   method Bool result_rdy = muldiv_exec_fifo.notEmpty;
-  method Data result_data = muldiv_exec_fifo.first;
+  method Bit#(xlen) result_data = muldiv_exec_fifo.first;
   method Action result_deq = muldiv_exec_fifo.deq;
 endmodule

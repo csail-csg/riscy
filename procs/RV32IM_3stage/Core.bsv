@@ -87,7 +87,7 @@ module mkThreeStageCore#(
 
     // TODO: make this depend on a bool
 `ifdef CONFIG_M
-    MulDivExec mulDiv <- mkBoothRoughMulDivExec;
+    MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec;
 `endif
 
     Ehr#(4, Maybe#(FetchState#(xlen))) fetchStateEhr <- mkEhr(tagged Invalid);

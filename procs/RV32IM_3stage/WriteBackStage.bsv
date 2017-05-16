@@ -56,7 +56,7 @@ typedef struct {
     // OutputPort#(RVDMemResp) dmemres;
     OutputPort#(AtomicMemResp#(2)) dmemres;
 `ifdef CONFIG_M
-    MulDivExec mulDiv;
+    MulDivExec#(xlen) mulDiv;
 `endif
 `ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
