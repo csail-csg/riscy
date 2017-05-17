@@ -39,29 +39,29 @@ import RVAmo::*;
 import RVExec::*; // for scatterStore and gatherLoad
 import RVTypes::*;
 
-interface RVDMMU;
-    interface InputPort#(RVDMMUReq) request;
-    interface OutputPort#(RVDMMUResp) response;
-    method Action updateVMInfo(VMInfo vm);
+interface RVDMMU#(numeric type xlen, numeric type addrSz);
+    interface InputPort#(RVDMMUReq#(xlen)) request;
+    interface OutputPort#(RVDMMUResp#(addrSz)) response;
+    method Action updateVMInfo(VMInfo#(xlen) vm);
 endinterface
 
-interface RVIMMU;
-    interface InputPort#(RVIMMUReq) request;
-    interface OutputPort#(RVIMMUResp) response;
-    method Action updateVMInfo(VMInfo vm);
+interface RVIMMU#(numeric type xlen, numeric type addrSz);
+    interface InputPort#(RVIMMUReq#(xlen)) request;
+    interface OutputPort#(RVIMMUResp#(addrSz)) response;
+    method Action updateVMInfo(VMInfo#(xlen) vm);
 endinterface
 
-`ifndef CONFIG_RV32
-// XXX: No RV32 support for MMU's yet
+// These are all RV64 MMUs, we have no support for RV32 MMUs yet
 
 // This does not support any paged virtual memory modes
 // TODO: add support for getPMA
-module mkBasicDummyRVDMMU#(Bool isInst, CoarseMemServerPort#(64,3) mainMemory)(RVDMMU);
-    FIFOG#(RVDMMUReq) procMMUReq <- mkFIFOG;
-    FIFOG#(RVDMMUResp) procMMUResp <- mkFIFOG;
+// 64-Bit dummy MMU
+module mkBasicDummyRVDMMU64#(Bool isInst, CoarseMemServerPort#(64,3) mainMemory)(RVDMMU#(64, 64));
+    FIFOG#(RVDMMUReq#(64)) procMMUReq <- mkFIFOG;
+    FIFOG#(RVDMMUResp#(64)) procMMUResp <- mkFIFOG;
 
     // TODO: This should be defaultValue
-    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
+    Reg#(VMInfo#(64)) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
 
     rule doTranslate;
         // TODO: add misaligned address exceptions
@@ -74,7 +74,7 @@ module mkBasicDummyRVDMMU#(Bool isInst, CoarseMemServerPort#(64,3) mainMemory)(R
         Bool isStore = getsWritePermission(op); // XXX: was isStore(r.op) || isAmo(r.op) || (r.op == tagged Mem PrefetchForSt);
         Bool isSupervisor = vmInfo.prv == prvS;
 
-        PAddr paddr = 0;
+        Bit#(64) paddr = 0;
         Maybe#(ExceptionCause) exception = tagged Invalid;
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
                                                             (isStore ? StoreAccessFault :
@@ -103,14 +103,14 @@ module mkBasicDummyRVDMMU#(Bool isInst, CoarseMemServerPort#(64,3) mainMemory)(R
 
     interface InputPort request = toInputPort(procMMUReq);
     interface OutputPort response = toOutputPort(procMMUResp);
-    method Action updateVMInfo(VMInfo vm);
+    method Action updateVMInfo(VMInfo#(64) vm);
         vmInfo <= vm;
     endmethod
 endmodule
 
-module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
+module mkRVIMMUWrapper#(RVDMMU#(xlen, addrSz) dMMU)(RVIMMU#(xlen, addrSz));
     interface InputPort request;
-        method Action enq(RVIMMUReq req);
+        method Action enq(RVIMMUReq#(xlen) req);
             dMMU.request.enq(RVDMMUReq{addr: req, size: W, op: Ld}); // XXX: Should this type include AMO instructions too?
         endmethod
         method Bool canEnq;
@@ -118,7 +118,7 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
         endmethod
     endinterface
     interface OutputPort response;
-        method RVIMMUResp first;
+        method RVIMMUResp#(addrSz) first;
             return dMMU.response.first;
         endmethod
         method Action deq;
@@ -128,31 +128,30 @@ module mkRVIMMUWrapper#(RVDMMU dMMU)(RVIMMU);
             return dMMU.response.canDeq;
         endmethod
     endinterface
-    method Action updateVMInfo(VMInfo vm);
+    method Action updateVMInfo(VMInfo#(xlen) vm);
         dMMU.updateVMInfo(vm);
     endmethod
 endmodule
 
 // This module assumes XLEN=64
-module mkDummyRVIMMU#(function PMA getPMA(PAddr addr), CoarseMemServerPort#(64, 3) mainMemory)(RVIMMU);
-    let _dMMU <- mkDummyRVDMMU(True, getPMA, mainMemory);
+module mkDummyRVIMMU64#(function PMA getPMA(Bit#(64) addr), CoarseMemServerPort#(64, 3) mainMemory)(RVIMMU#(64, 64));
+    let _dMMU <- mkDummyRVDMMU64(True, getPMA, mainMemory);
     let _iMMU <- mkRVIMMUWrapper(_dMMU);
     return _iMMU;
 endmodule
 
 // This module assumes XLEN=64
-module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemServerPort#(64, 3) mainMemory)(RVDMMU);
-    FIFOG#(RVDMMUReq) procMMUReq <- mkFIFOG;
-    FIFOG#(RVDMMUResp) procMMUResp <- mkFIFOG;
+module mkDummyRVDMMU64#(Bool isInst, function PMA getPMA(Bit#(64) addr), CoarseMemServerPort#(64, 3) mainMemory)(RVDMMU#(64, 64));
+    FIFOG#(RVDMMUReq#(64)) procMMUReq <- mkFIFOG;
+    FIFOG#(RVDMMUResp#(64)) procMMUResp <- mkFIFOG;
 
-    // TODO: This should be defaultValue
-    Reg#(VMInfo) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
+    Reg#(VMInfo#(64)) vmInfo <- mkReg(VMInfo{prv:2'b11, asid:0, vm:0, mxr: False, pum: False, base:0, bound:'1});
 
     // Registers for hardware pagetable walk
     Reg#(Bool) walking <- mkReg(False);
     Reg#(Bool) store <- mkReg(False);
     Reg#(Bool) supervisor <- mkReg(False);
-    Reg#(PAddr) a <- mkReg(0);
+    Reg#(Bit#(64)) a <- mkReg(0);
     Reg#(Bit#(2)) i <- mkReg(0);
     Reg#(Bit#(64)) pte <- mkReg(0);
     Reg#(Vector#(3,Bit#(9))) vpn <- mkReg(replicate(0));
@@ -187,7 +186,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemSer
             // valid leaf page
 
             // translated physical address
-            PAddr paddr = '1;
+            Bit#(64) paddr = '1;
             if (i == 0) begin
                 paddr = {0, pte.ppn2, pte.ppn1, pte.ppn0, pageoffset};
             end else if (i == 1) begin
@@ -255,7 +254,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemSer
             end
         end else begin
             // go to next level
-            PAddr newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
+            Bit#(64) newA = {0, pte.ppn2, pte.ppn1, pte.ppn0, 12'b0} | (zeroExtend(vpn[i-1]) << 3);
             mainMemory.request.enq(CoarseMemReq{write: False, addr: newA, data: ?});
             a <= newA;
             i <= i - 1;
@@ -273,7 +272,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemSer
         Bool isSupervisor = vmInfo.prv == prvS;
         Bool pageTableWalk = False;
 
-        PAddr paddr = 0;
+        Bit#(64) paddr = 0;
         Maybe#(ExceptionCause) exception = tagged Invalid;
         Maybe#(ExceptionCause) accessFault = tagged Valid (isInst ? InstAccessFault :
                                                             (isStore ? StoreAccessFault :
@@ -306,7 +305,7 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemSer
                             // start page table walk
                             // PAddr newA = vmInfo.base + (zeroExtend(vpn[2]) << 3);
                             Vector#(3, Bit#(9)) newvpn = unpack(vaddr[38:12]);
-                            PAddr newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
+                            Bit#(64) newA = vmInfo.base + (zeroExtend(newvpn[2]) << 3);
                             mainMemory.request.enq(CoarseMemReq{write: False, addr: newA, data: ?});
                             walking <= True;
                             pageTableWalk = True;
@@ -330,10 +329,8 @@ module mkDummyRVDMMU#(Bool isInst, function PMA getPMA(PAddr addr), CoarseMemSer
 
     interface InputPort request = toInputPort(procMMUReq);
     interface OutputPort response = toOutputPort(procMMUResp);
-    method Action updateVMInfo(VMInfo vm);
+    method Action updateVMInfo(VMInfo#(64) vm);
         vmInfo <= vm;
     endmethod
 endmodule
-
-`endif
 

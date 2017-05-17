@@ -39,7 +39,7 @@ typedef union tagged {
     void None;       // all other operations
 } CsrReturn deriving (Bits, Eq, FShow);
 
-interface RVCsrFile;
+interface RVCsrFile#(numeric type xlen);
     // Read and Write ports
     // method Data rd(CSR csr);
     method ActionValue#(CsrReturn)
@@ -55,8 +55,8 @@ interface RVCsrFile;
             Bool xDirty);
 
     // Outputs for CSRs that the rest of the processor needs to know about
-    method VMInfo vmI;
-    method VMInfo vmD;
+    method VMInfo#(xlen) vmI;
+    method VMInfo#(xlen) vmD;
     method CsrState csrState; // prv, frm, f_enabled, x_enabled
     method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
     method Bool wakeFromWFI;
@@ -67,13 +67,13 @@ module mkRVCsrFile#(
             Bit#(64) time_counter, Bool mtip, // From RTC
             Bool msip,                        // From IPI
             Bool meip                         // From interrupt controller
-        )(RVCsrFile);
+        )(RVCsrFile#(xlen)) provisos (NumAlias#(XLEN, xlen));
 
     let verbose = False;
     File fout = stdout;
 
     RiscVISASubset isa = defaultValue;
-    Bool is32bit       = valueOf(XLEN) == 32;
+    Bool is32bit       = valueOf(xlen) == 32;
     Data mvendorid     = 0; // non-commercial
     Data marchid       = 0; // not implemented
     Data mimpid        = 0; // not implemented
@@ -119,8 +119,8 @@ module mkRVCsrFile#(
     Reg#(Bit#(12)) mideleg_field <- mkReg(0);
 
     // trap vector fields (same as CSR without bottom 2 bits)
-    Reg#(Bit#(TSub#(XLEN,2))) mtvec_field <- mkReg(truncateLSB(default_mtvec));
-    Reg#(Bit#(TSub#(XLEN,2))) stvec_field <- mkReg(truncateLSB(default_stvec));
+    Reg#(Bit#(TSub#(xlen,2))) mtvec_field <- mkReg(truncateLSB(default_mtvec));
+    Reg#(Bit#(TSub#(xlen,2))) stvec_field <- mkReg(truncateLSB(default_stvec));
 
     // mstatus fields
     Reg#(Bit#(5)) vm_field   <- mkReg(0); // WARL
@@ -504,7 +504,7 @@ module mkRVCsrFile#(
     // METHODS
     ////////////////////////////////////////////////////////
 
-    method VMInfo vmI;
+    method VMInfo#(xlen) vmI;
         Bit#(5) vm = (prv == prvM) ? vmMbare : vm_field;
         Addr base = (case (vm)
                         vmMbare: 0;
@@ -525,7 +525,7 @@ module mkRVCsrFile#(
         return VMInfo{ prv: prv, asid: asid_field, vm: vm, mxr: unpack(mxr_field), pum: unpack(pum_field), base: base, bound: bound };
     endmethod
 
-    method VMInfo vmD;
+    method VMInfo#(xlen) vmD;
         Bit#(2) vm_prv = (mprv_field == 1) ? mpp_field : prv;
         Bit#(5) vm = (vm_prv == prvM) ? vmMbare : vm_field;
         Addr base = (case (vm)

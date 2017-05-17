@@ -808,16 +808,16 @@ function FullResult#(xlen) toFullResult(t x) provisos (FullResultSubset#(t, xlen
 endfunction
 
 typedef struct {
-    Bit#(2) prv;
-    Asid    asid;
-    Bit#(5) vm;
-    Bool    mxr;
-    Bool    pum;
-    Addr    base;
-    Addr    bound;
-} VMInfo deriving (Bits, Eq, FShow);
-instance DefaultValue#(VMInfo);
-    function VMInfo defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: 0};
+    Bit#(2)    prv;
+    Asid       asid;
+    Bit#(5)    vm;
+    Bool       mxr;
+    Bool       pum;
+    Bit#(xlen) base;
+    Bit#(xlen) bound;
+} VMInfo#(numeric type xlen) deriving (Bits, Eq, FShow);
+instance DefaultValue#(VMInfo#(xlen));
+    function VMInfo#(xlen) defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: 0};
 endinstance
 
 // Instead of making PMAs generic (like a massive struct), we are adding named

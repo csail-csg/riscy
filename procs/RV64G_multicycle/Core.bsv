@@ -56,8 +56,8 @@ interface Core#(numeric type xlen);
     method Action stallPipeline(Bool stall);
 
     method Maybe#(VerificationPacket) currVerificationPacket;
-    method ActionValue#(VMInfo) updateVMInfoI;
-    method ActionValue#(VMInfo) updateVMInfoD;
+    method ActionValue#(VMInfo#(xlen)) updateVMInfoI;
+    method ActionValue#(VMInfo#(xlen)) updateVMInfoD;
 
     interface Client#(FenceReq, FenceResp) fence;
 endinterface
@@ -84,10 +84,10 @@ typedef enum {
 } ProcState deriving (Bits, Eq, FShow);
 
 module mkMulticycleCore#(
-        ServerPort#(RVIMMUReq, RVIMMUResp) ivat,
+        ServerPort#(RVIMMUReq#(xlen), RVIMMUResp#(xlen)) ivat,
         // ServerPort#(RVIMemReq, RVIMemResp) ifetch,
         ReadOnlyMemServerPort#(xlen, 2) ifetch,
-        ServerPort#(RVDMMUReq, RVDMMUResp) dvat,
+        ServerPort#(RVDMMUReq#(xlen), RVDMMUResp#(xlen)) dvat,
         // ServerPort#(RVDMemReq, RVDMemResp) dmem,
         AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) dmem,
         Bool ipi,
@@ -105,7 +105,7 @@ module mkMulticycleCore#(
     Reg#(Bool) stallReg <- mkReg(False);
 
     RVRegFile#(xlen) rf <- mkRVRegFile(misa.f);
-    RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+    RVCsrFile#(xlen) csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
     MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec;
     FpuExec fpu <- mkFpuExecPipeline;
 
@@ -116,7 +116,7 @@ module mkMulticycleCore#(
     Reg#(Maybe#(ExceptionCause)) exception <- mkReg(tagged Invalid);
     Reg#(Instruction) inst <- mkReg(0);
     Reg#(RVDecodedInst) dInst <- mkReg(unpack(0));
-    Reg#(FrontEndCsrs) csrState <- mkReadOnlyReg( FrontEndCsrs { vmI: csrf.vmI, state: csrf.csrState } );
+    Reg#(FrontEndCsrs#(xlen)) csrState <- mkReadOnlyReg( FrontEndCsrs { vmI: csrf.vmI, state: csrf.csrState } );
 
     Reg#(Data) rVal1 <- mkReg(0);
     Reg#(Data) rVal2 <- mkReg(0);
@@ -472,10 +472,10 @@ module mkMulticycleCore#(
         end
     endmethod
 
-    method ActionValue#(VMInfo) updateVMInfoI;
+    method ActionValue#(VMInfo#(xlen)) updateVMInfoI;
         return csrf.vmI;
     endmethod
-    method ActionValue#(VMInfo) updateVMInfoD;
+    method ActionValue#(VMInfo#(xlen)) updateVMInfoD;
         return csrf.vmD;
     endmethod
 

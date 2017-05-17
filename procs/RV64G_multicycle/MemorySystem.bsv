@@ -38,14 +38,14 @@ import RVTypes::*;
 
 interface MemorySystem#(numeric type xlen);
     // To Front-End
-    interface ServerPort#(RVIMMUReq, RVIMMUResp) ivat;
+    interface ServerPort#(RVIMMUReq#(xlen), RVIMMUResp#(xlen)) ivat;
     interface ReadOnlyMemServerPort#(xlen, 2) ifetch; // ifetch is a 32-bit interface
     // To Back-End
-    interface ServerPort#(RVDMMUReq, RVDMMUResp) dvat;
+    interface ServerPort#(RVDMMUReq#(xlen), RVDMMUResp#(xlen)) dvat;
     interface AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) dmem;
     interface ServerPort#(FenceReq, FenceResp) fence;
-    method Action updateVMInfoI(VMInfo vmI);
-    method Action updateVMInfoD(VMInfo vmD);
+    method Action updateVMInfoI(VMInfo#(xlen) vmI);
+    method Action updateVMInfoD(VMInfo#(xlen) vmD);
 endinterface
 
 interface MulticoreMemorySystem#(numeric type xlen, numeric type numCores, numeric type mainMemWidth);
@@ -82,14 +82,14 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
     // extMemServer -- works on 64-bit words
     let extMemServer = mainMemorySplitServer[4];
 
-    let itlb <- mkDummyRVIMMU(getPMA, mainMemorySplitServer[3]);
+    let itlb <- mkDummyRVIMMU64(getPMA, mainMemorySplitServer[3]);
     // two different paths for imem request to take: cached and uncached
     let icache = simplifyMemServerPort(mainMemorySplitServer[2]);
     // let icache <- mkDummyRVICache(mainMemorySplitServer[2]);
     // was mkUncachedIMemConverter:
     let iuncached = simplifyMemServerPort(uncachedMemSplitServer[1]);
 
-    let dtlb <- mkDummyRVDMMU(False, getPMA, mainMemorySplitServer[1]);
+    let dtlb <- mkDummyRVDMMU64(False, getPMA, mainMemorySplitServer[1]);
     // two different paths for dmem request to take: cached and uncached
     // let dcache <- mkDummyRVDCache(mainMemorySplitServer[0]);
     let dcache <- mkEmulateMemServerPort(mainMemorySplitServer[0]);
@@ -146,10 +146,10 @@ module mkBasicMemorySystem#(function PMA getPMA(PAddr addr))(SingleCoreMemorySys
                     endmethod
                 endinterface
             endinterface
-            method Action updateVMInfoI(VMInfo vmI);
+            method Action updateVMInfoI(VMInfo#(xlen) vmI);
                 itlb.updateVMInfo(vmI);
             endmethod
-            method Action updateVMInfoD(VMInfo vmD);
+            method Action updateVMInfoD(VMInfo#(xlen) vmD);
                 dtlb.updateVMInfo(vmD);
             endmethod
         endinterface);

@@ -39,47 +39,42 @@ import VerificationPacket::*;
 /////////////////////////////////////////////
 
 typedef struct {
-    VMInfo      vmI; // only if MMU is in front-end
+    VMInfo#(xlen) vmI; // only if MMU is in front-end
     CsrState    state; // Bit#(2) prv;
                        // Bit#(3) frm;
                        // Bool f_enabled;
                        // Bool x_enabled;
-} FrontEndCsrs deriving (Bits, Eq, FShow);
+} FrontEndCsrs#(numeric type xlen) deriving (Bits, Eq, FShow);
 instance DefaultValue#(CsrState);
     function CsrState defaultValue = CsrState {prv: prvM, frm: 0, f_enabled: False, x_enabled: False};
 endinstance
-instance DefaultValue#(FrontEndCsrs);
-    function FrontEndCsrs defaultValue = FrontEndCsrs {vmI: defaultValue, state: defaultValue};
+instance DefaultValue#(FrontEndCsrs#(xlen));
+    function FrontEndCsrs#(xlen) defaultValue = FrontEndCsrs {vmI: defaultValue, state: defaultValue};
 endinstance
 
-// front-end memory ports
-typedef Addr RVIMMUReq; // maybe add prv
+typedef Bit#(addrSz) RVIMMUReq#(numeric type addrSz); // maybe add prv
 typedef struct {
-    PAddr                   addr;
+    Bit#(xlen)              addr;
     Maybe#(ExceptionCause)  exception;
-} RVIMMUResp deriving (Bits, Eq, FShow);
-
-typedef PAddr RVIMemReq;
-typedef Instruction RVIMemResp;
-
-// back-end memory ports
-typedef struct {
-    Addr      addr;
-    RVMemSize size; // for address misaligned
-    RVMemOp   op; // really just load or store (amo counts as store)
-} RVDMMUReq deriving (Bits, Eq, FShow);
-typedef RVIMMUResp RVDMMUResp;
+} RVIMMUResp#(numeric type xlen) deriving (Bits, Eq, FShow);
 
 typedef struct {
-    RVMemAmoOp      op;
-    RVMemSize       size;
-    Bool            isUnsigned;
-    PAddr           addr;
-    Data            data;
-    // Bool aq; // XXX: I don't think these are necessary
-    // Bool rl; // XXX: I don't think these are necessary
-} RVDMemReq deriving (Bits, Eq, FShow);
-typedef Data RVDMemResp;
+    Bit#(xlen) addr;
+    RVMemSize  size; // for address misaligned
+    RVMemOp    op; // really just load or store (amo counts as store)
+} RVDMMUReq#(numeric type xlen) deriving (Bits, Eq, FShow);
+typedef RVIMMUResp#(addrSz) RVDMMUResp#(numeric type addrSz);
+
+// typedef struct {
+//     RVMemAmoOp      op;
+//     RVMemSize       size;
+//     Bool            isUnsigned;
+//     PAddr           addr;
+//     Data            data;
+//     // Bool aq; // XXX: I don't think these are necessary
+//     // Bool rl; // XXX: I don't think these are necessary
+// } RVDMemReq deriving (Bits, Eq, FShow);
+// typedef Data RVDMemResp;
 
 typedef Fence FenceReq;
 typedef void FenceResp;

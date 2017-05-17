@@ -79,7 +79,7 @@ module mkThreeStageCore#(
     // TODO: make this depend on a bool
 `ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
-    RVCsrFile csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+    RVCsrFile#(xlen) csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `else
     // Otherwise use the M-only CSR File designed for MCUs
     RVCsrFileMCU csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);

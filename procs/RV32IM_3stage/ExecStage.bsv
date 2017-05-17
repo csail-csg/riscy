@@ -64,7 +64,7 @@ typedef struct {
 `endif
 `ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
-    RVCsrFile csrf;
+    RVCsrFile#(xlen) csrf;
 `else
     // Otherwise use the M-only CSR File designed for MCUs
     RVCsrFileMCU csrf;
