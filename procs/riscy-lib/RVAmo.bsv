@@ -26,15 +26,22 @@
 import RVTypes::*;
 import Vector::*;
 
-(* noinline *)
-function Data amoExec(RVAmoOp amoFunc, DataByteEn permutedDataByteEn, Data currentData, Data inData);
-`ifdef CONFIG_RV64
-    return amoExec64(amoFunc, permutedDataByteEn, currentData, inData);
-`else
-    return amoExec32(amoFunc, permutedDataByteEn, currentData, inData);
-`endif
-endfunction
+typeclass AmoExec#(numeric type xlen);
+    function Bit#(xlen) amoExec(RVAmoOp amoFunc, Bit#(TDiv#(xlen,8)) permutedDataByteEn, Bit#(xlen) currentData, Bit#(xlen) inData);
+endtypeclass
 
+instance AmoExec#(32);
+    function Bit#(32) amoExec(RVAmoOp amoFunc, Bit#(4) permutedDataByteEn, Bit#(32) currentData, Bit#(32) inData);
+        return amoExec32(amoFunc, permutedDataByteEn, currentData, inData);
+    endfunction
+endinstance
+instance AmoExec#(64);
+    function Bit#(64) amoExec(RVAmoOp amoFunc, Bit#(8) permutedDataByteEn, Bit#(64) currentData, Bit#(64) inData);
+        return amoExec64(amoFunc, permutedDataByteEn, currentData, inData);
+    endfunction
+endinstance
+
+(* noinline *)
 function Bit#(64) amoExec64(RVAmoOp amoFunc, Bit#(8) permutedDataByteEn, Bit#(64) currentData, Bit#(64) inData);
     Bit#(64) newData = 0;
     Bit#(64) oldData = currentData;
@@ -91,6 +98,7 @@ function Bit#(64) amoExec64(RVAmoOp amoFunc, Bit#(8) permutedDataByteEn, Bit#(64
     return newData;
 endfunction
 
+(* noinline *)
 function Bit#(32) amoExec32(RVAmoOp amoFunc, Bit#(4) permutedDataByteEn, Bit#(32) currentData, Bit#(32) inData);
     Bit#(32) newData = 0;
     Bit#(32) oldData = currentData;
