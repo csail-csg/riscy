@@ -33,15 +33,8 @@ import Port::*;
 import RegUtil::*;
 
 import Abstraction::*;
-import MemoryMappedServer::*;
 import RVExec::*;
 import RVTypes::*;
-
-interface BootRom#(numeric type numBytes);
-    interface UncachedMemServerPort memIfc;
-    // It might be nice to have PMA information in this interface to say this
-    // is a ROM that doesn't support 64-bit accesses.
-endinterface
 
 typedef struct {
     Addr bootrom_addr;
@@ -73,60 +66,3 @@ module mkBasicBootRom64#(BootRomConfig cfg)(ReadOnlyMemServerPort#(addrSz, 3))
     return memIfc;
 endmodule
 
-typedef struct {
-    Bool write;
-    Bit#(2) addrByteSel;
-    RVMemSize size;
-} BootRomPendingReq deriving (Bits, Eq, FShow);
-
-// 32-bit BootRom
-module mkBRAMBootRom32#(parameter String rom_hex_file)(BootRom#(numBytes)) provisos (Add#(a__, TLog#(TDiv#(numBytes, 4)), 64));
-    BRAM_Configure cfg = defaultValue;
-    cfg.loadFormat = tagged Hex rom_hex_file;
-
-    BRAM1Port#(Bit#(TLog#(TDiv#(numBytes,4))), Bit#(32)) bram_rom <- mkBRAM1Server(cfg);
-
-    Ehr#(2, Maybe#(BootRomPendingReq)) pendingReq <- mkEhr(tagged Invalid);
-
-    Ehr#(2, Maybe#(Bit#(32))) pendingResp <- mkEhr(tagged Invalid);
-
-    rule getPendingResp(!isValid(pendingResp[0]));
-        let resp <- bram_rom.portA.response.get;
-        pendingResp[0] <= tagged Valid resp;
-    endrule
-
-    interface UncachedMemServerPort memIfc;
-        interface InputPort request;
-            method Action enq(UncachedMemReq r) if (pendingReq[1] == tagged Invalid);
-                // since this is a rom, don't write to bram
-                bram_rom.portA.request.put( BRAMRequest {
-                        write:              False,
-                        responseOnWrite:    True,
-                        address:            truncate(r.addr >> 2), // get word address
-                        datain:             0
-                    } );
-                pendingReq[1] <= tagged Valid BootRomPendingReq {
-                        write: r.write,
-                        addrByteSel: truncate(r.addr),
-                        size: r.size
-                    };
-            endmethod
-            method Bool canEnq;
-                return pendingReq[1] == tagged Invalid;
-            endmethod
-        endinterface
-        interface OutputPort response;
-            method UncachedMemResp first if (pendingReq[0] matches tagged Valid .req &&& pendingResp[1] matches tagged Valid .resp);
-                let data = gatherLoad(zeroExtend(req.addrByteSel), req.size, True /* was isUnsigned */, zeroExtend(resp));
-                return UncachedMemResp{write: req.write, data: data};
-            endmethod
-            method Action deq if (pendingReq[0] matches tagged Valid .req &&& pendingResp[1] matches tagged Valid .resp);
-                pendingReq[0] <= tagged Invalid;
-                pendingResp[1] <= tagged Invalid;
-            endmethod
-            method Bool canDeq;
-                return isValid(pendingReq[0]) && isValid(pendingResp[1]);
-            endmethod
-        endinterface
-    endinterface
-endmodule

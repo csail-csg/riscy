@@ -34,7 +34,6 @@ import PolymorphicMem::*;
 import Port::*;
 
 import Abstraction::*;
-import MemoryMappedServer::*;
 
 interface RTC#(numeric type cores, type memIfcT);
     // memory-mapped interface

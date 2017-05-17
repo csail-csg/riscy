@@ -37,7 +37,6 @@ import Port::*;
 import RegUtil::*;
 
 import Abstraction::*;
-import MemoryMappedServer::*;
 import SPI::*;
 
 interface RVSPI#(type memIfcT);
@@ -99,7 +98,7 @@ module mkRVSPI(RVSPI#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromR
         rxDataReg <= tagged Valid data;
     endrule
 
-    interface UncachedMemServerPort memifc = memoryMappedIfc;
+    interface ServerPort memifc = memoryMappedIfc;
 
     interface SPIMasterPins spi_pins = spi.pins;
 endmodule

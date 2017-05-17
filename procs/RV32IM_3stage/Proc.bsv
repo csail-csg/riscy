@@ -41,10 +41,9 @@ import MemUtil::*;
 import ServerUtil::*;
 
 import Abstraction::*;
-import BasicMemorySystemBlocks::*;
-import BramIDMem::*;
+// import BasicMemorySystemBlocks::*;
+// import BramIDMem::*;
 import Core::*;
-import MemoryMappedCSRs::*;
 import ProcPins::*;
 import RTC::*;
 import RVUart::*;

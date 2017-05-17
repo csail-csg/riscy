@@ -42,14 +42,15 @@ typedef struct {
 // This is an inefficient implementation because many of the functions used
 // in the case statement can reuse hardware
 (* noinline *)
-function ExecResult#(XLEN) execRef(RVDecodedInst dInst, Data rVal1, Data rVal2, Addr pc);
-    Data data = 0;
-    Addr addr = 0;
-    Addr pcPlus4 = pc + 4;
+function ExecResult#(xlen) execRef(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2, Bit#(xlen) pc)
+        provisos (NumAlias#(XLEN, xlen));
+    Bit#(xlen) data = 0;
+    Bit#(xlen) addr = 0;
+    Bit#(xlen) pcPlus4 = pc + 4;
     Bool taken = False;
-    Addr nextPc = pcPlus4;
+    Bit#(xlen) nextPc = pcPlus4;
 
-    Maybe#(Data) imm = getImmediate(dInst.imm, dInst.inst);
+    Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
     case (dInst.execFunc) matches
         tagged Alu    .aluInst:
             begin
@@ -85,7 +86,8 @@ endfunction
 
 // functions for execBasic
 (* noinline *)
-function Data alu(AluFunc func, Bool w, Data a, Data b);
+function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
+        provisos (NumAlias#(XLEN, xlen));
 `ifndef CONFIG_RV64
     w = True;
 `endif
@@ -99,7 +101,7 @@ function Data alu(AluFunc func, Bool w, Data a, Data b);
         shamt = {1'b0, shamt[4:0]};
     end
 
-    Data res = (case(func)
+    Bit#(xlen) res = (case(func)
             Add, Auipc, Lui: (a + b);
             Sub:        (a - b);
             And:        (a & b);
@@ -120,8 +122,7 @@ function Data alu(AluFunc func, Bool w, Data a, Data b);
     return res;
 endfunction
 
-(* noinline *)
-function Bool aluBr(BrFunc brFunc, Data a, Data b);
+function Bool aluBr(BrFunc brFunc, Bit#(xlen) a, Bit#(xlen) b);
     Bool brTaken = (case(brFunc)
             Eq:         (a == b);
             Neq:        (a != b);
@@ -136,11 +137,10 @@ function Bool aluBr(BrFunc brFunc, Data a, Data b);
     return brTaken;
 endfunction
 
-(* noinline *)
-function Addr brAddrCalc(BrFunc brFunc, Addr pc, Data val, Data imm);
-    Addr targetAddr = (case (brFunc)
+function Bit#(xlen) brAddrCalc(BrFunc brFunc, Bit#(xlen) pc, Bit#(xlen) val, Bit#(xlen) imm) provisos (Add#(a__, 1, xlen));
+    Bit#(xlen) targetAddr = (case (brFunc)
             Jal:        (pc + imm);
-            Jalr:       {(val + imm)[valueOf(AddrSz)-1:1], 1'b0};
+            Jalr:       {(val + imm)[valueOf(xlen)-1:1], 1'b0};
             default:    (pc + imm);
         endcase);
     return targetAddr;
@@ -207,8 +207,8 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     return ExecResult{data: data, addr: addr, taken: taken, nextPc: nextPc};
 endfunction
 
-// function Data gatherLoad(Addr addr, ByteEn byteEn, Bool unsignedLd, Data data);
-function Data gatherLoad(DataByteSel byteSel, RVMemSize size, Bool isUnsigned, Data data);
+function Bit#(xlen) gatherLoad(Bit#(TLog#(TDiv#(xlen,8))) byteSel, RVMemSize size, Bool isUnsigned, Bit#(xlen) data)
+        provisos (NumAlias#(XLEN, xlen));
     function extend = isUnsigned ? zeroExtend : signExtend;
 
     let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
@@ -225,7 +225,8 @@ function Data gatherLoad(DataByteSel byteSel, RVMemSize size, Bool isUnsigned, D
     return data;
 endfunction
 
-function Tuple2#(DataByteEn, Data) scatterStore(DataByteSel byteSel, RVMemSize size, Data data);
+function Tuple2#(DataByteEn, Bit#(xlen)) scatterStore(DataByteSel byteSel, RVMemSize size, Bit#(xlen) data)
+        provisos (NumAlias#(XLEN, xlen));
     let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
     data = data << bitsToShiftBy;
     DataByteEn permutedByteEn = toPermutedDataByteEn(size, byteSel);

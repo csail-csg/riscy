@@ -95,7 +95,7 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
                                     config_string_addr: configStringPtr });
 
     SingleCoreMemorySystem#(xlen, DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
-    MemoryMappedCSRs#(1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
+    MemoryMappedCSRs#(xlen, 1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
     Core#(xlen) core <- mkMulticycleCore(
                     memorySystem.core[0].ivat,
                     memorySystem.core[0].ifetch,
@@ -126,7 +126,7 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
 
     MixedAtomicMemBus#(1, xlen, TLog#(TDiv#(xlen,8))) memBus <- mkMixedAtomicMemBus(vec(
             mixedMemBusItemFromAddrRange( 'h0000_1000, 'h0000_100F, tagged ReadOnly bootrom ),
-            //mixedMemBusItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, tagged Atomic mmcsrs.memifc ),
+            mixedMemBusItemFromAddrRange( 'h4000_0000, 'h5FFF_FFFF, tagged Coarse mmcsrs.memifc ),
             mixedMemBusItemFromAddrRange( 'h6000_0000, 'h7FFF_FFFF, tagged Coarse externalMMIOServer )));
 
     let uncached_mem_connection <- mkConnection(memorySystem.uncachedMemory, memBus.clients[0]);

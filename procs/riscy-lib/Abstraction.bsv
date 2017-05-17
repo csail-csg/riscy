@@ -39,22 +39,6 @@ import VerificationPacket::*;
 /////////////////////////////////////////////
 
 typedef struct {
-    Addr                    pc;
-    Maybe#(Addr)            ppc; // invalid if front-end made no prediction
-                                 // (i.e. it is waiting for a redirection)
-    Instruction             inst;
-    RVDecodedInst           dInst;
-    Maybe#(ExceptionCause)  cause;
-    epochType               backendEpoch;
-} FrontEndToBackEnd#(type epochType) deriving (Bits, Eq, FShow);
-
-typedef struct {
-    Addr                pc;
-    epochType           epoch;
-    FrontEndCsrs        frontEndCsrs;
-} Redirect#(type epochType) deriving (Bits, Eq, FShow);
-
-typedef struct {
     VMInfo      vmI; // only if MMU is in front-end
     CsrState    state; // Bit#(2) prv;
                        // Bit#(3) frm;
@@ -99,52 +83,6 @@ typedef Data RVDMemResp;
 
 typedef Fence FenceReq;
 typedef void FenceResp;
-
-typedef struct {
-    Bool                     write;
-    Bit#(TDiv#(dataWidth,8)) byteen;
-    PAddr                    addr;
-    Bit#(dataWidth)          data;
-} GenericMemReq#(numeric type dataWidth) deriving (Bits, Eq, FShow);
-typedef struct {
-    Bool            write;
-    Bit#(dataWidth) data;
-} GenericMemResp#(numeric type dataWidth) deriving (Bits, Eq, FShow);
-typedef Client#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemClient#(numeric type dataWidth);
-typedef Server#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemServer#(numeric type dataWidth);
-typedef ClientPort#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemClientPort#(numeric type dataWidth);
-typedef ServerPort#(GenericMemReq#(dataWidth), GenericMemResp#(dataWidth)) GenericMemServerPort#(numeric type dataWidth);
-
-// main memory ports
-typedef enum {IMMU, ICache, DMMU, DCache} MemoryClientType deriving (Bits, Eq, FShow);
-typedef GenericMemReq#(DataSz) MainMemReq;
-typedef MainMemReq MainMemoryReq; // TODO: use only one of these types
-typedef GenericMemResp#(DataSz) MainMemResp;
-typedef MainMemResp MainMemoryResp; // TODO: use only one of these types
-typedef Client#(MainMemReq,MainMemResp) MainMemoryClient;
-typedef Server#(MainMemReq,MainMemResp) MainMemoryServer;
-typedef MainMemoryServer MainMemServer;
-typedef MainMemoryClient MainMemClient;
-typedef ClientPort#(MainMemReq,MainMemResp) MainMemoryClientPort;
-typedef ServerPort#(MainMemReq,MainMemResp) MainMemoryServerPort;
-typedef MainMemoryServerPort MainMemServerPort;
-typedef MainMemoryClientPort MainMemClientPort;
-
-// uncached memory port
-typedef struct {
-    Bool            write;
-    RVMemSize       size;
-    PAddr           addr;
-    Data            data;
-} UncachedMemReq deriving (Bits, Eq, FShow);
-typedef struct {
-    Bool            write;
-    Data            data;
-} UncachedMemResp deriving (Bits, Eq, FShow);
-typedef Client#(UncachedMemReq, UncachedMemResp) UncachedMemClient;
-typedef Server#(UncachedMemReq, UncachedMemResp) UncachedMemServer;
-typedef ClientPort#(UncachedMemReq, UncachedMemResp) UncachedMemClientPort;
-typedef ServerPort#(UncachedMemReq, UncachedMemResp) UncachedMemServerPort;
 
 interface Proc#(numeric type mainMemoryWidth);
     // Processor Control

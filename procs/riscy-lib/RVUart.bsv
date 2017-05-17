@@ -33,8 +33,6 @@ import PolymorphicMem::*;
 import Port::*;
 import RegUtil::*;
 
-import MemoryMappedServer::*;
-
 import Abstraction::*;
 
 interface RVUart#(type memIfcT);
