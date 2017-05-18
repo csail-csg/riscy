@@ -55,8 +55,8 @@ import RVMemory::*;
 import RVMulDiv::*;
 `endif
 
-interface Core;
-    method Action start(Addr startPc);
+interface Core#(numeric type xlen);
+    method Action start(Bit#(xlen) startPc);
     method Action stop;
     method Action stallPipeline(Bool stall);
     method Maybe#(VerificationPacket) currVerificationPacket;
@@ -70,19 +70,19 @@ module mkThreeStageCore#(
             Bit#(64) timer,
             Bool externalInterrupt,
             Bit#(xlen) hartID
-        )(Core) provisos (NumAlias#(xlen,32));
+        )(Core#(xlen)) provisos (NumAlias#(xlen, 32));
 
     Reg#(Bool) stallReg <- mkReg(False);
 
     RVRegFile#(xlen) rf <- mkRVRegFileBypass(False); // make this true if you add an FPU
 
     // TODO: make this depend on a bool
-`ifdef CONFIG_U
     // If user mode is supported, use the full CSR File
-    RVCsrFile#(xlen) csrf <- mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+    RVCsrFile#(xlen) csrf <-
+`ifdef CONFIG_U
+        mkRVCsrFile(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `else
-    // Otherwise use the M-only CSR File designed for MCUs
-    RVCsrFileMCU csrf <- mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
+        mkRVCsrFileMCU(hartID, timer, timerInterrupt, ipi, externalInterrupt);
 `endif
 
     // TODO: make this depend on a bool

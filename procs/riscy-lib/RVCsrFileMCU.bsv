@@ -29,43 +29,20 @@ import DefaultValue::*;
 import RegUtil::*;
 import Vector::*;
 
-typedef union tagged {
-    struct {
-        TrapCause exception;
-        Addr      trapHandlerPC;
-    } Exception;     // exception/interrupt redirection
-    Addr RedirectPC; // non-trap redirection (xRET)
-    Data CsrData;    // CSR read operations
-    void None;       // all other operations
-} CsrReturn deriving (Bits, Eq, FShow);
+import RVCsrFile::*;
 
-interface RVCsrFileMCU;
-    // Read and Write ports
-    // method Data rd(CSR csr);
-    method ActionValue#(CsrReturn)
-        wr( Addr pc,
-            Maybe#(SystemInst) sysInst,
-            CSR csr,
-            Data data, // zimm or rval
-            Addr addr, // badaddr
-            Maybe#(TrapCause) trap, // exception or interrupt
-            // indirect updates
-            Bit#(5) fflags,
-            Bool fpuDirty,
-            Bool xDirty);
-
-    // Outputs for CSRs that the rest of the processor needs to know about
-    method CsrState csrState; // prv, frm, f_enabled, x_enabled
-    method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
-    method Bool wakeFromWFI;
-endinterface
+// From RVCsrFile
+export CsrReturn(..);
+export RVCsrFile(..);
+// From this package
+export mkRVCsrFileMCU(..);
 
 module mkRVCsrFileMCU#(
             Data hartid,                      // Compile-time constant
             Bit#(64) time_counter, Bool mtip, // From RTC
             Bool msip,                        // From IPI
             Bool meip                         // From interrupt controller
-        )(RVCsrFileMCU);
+        )(RVCsrFile);
 
     let verbose = False;
     File fout = stdout;
@@ -286,6 +263,14 @@ module mkRVCsrFileMCU#(
     // METHODS
     ////////////////////////////////////////////////////////
 
+    method VMInfo#(xlen) vmI;
+        return VMInfo{ prv: prv, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: '1 };
+    endmethod
+
+    method VMInfo#(xlen) vmD;
+        return VMInfo{ prv: prv, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: '1 };
+    endmethod
+
     method CsrState csrState = CsrState {prv: prv, frm: 0, f_enabled: (fs_field != 0), x_enabled: (xs_field != 0)};
 
     method Maybe#(InterruptCause) readyInterrupt;
@@ -296,7 +281,7 @@ module mkRVCsrFileMCU#(
         return (mip_csr & mie_csr) != 0;
     endmethod
 
-    method ActionValue#(CsrReturn) wr(
+    method ActionValue#(CsrReturn#(xlen)) wr(
             Addr pc, // pc of current exception
             Maybe#(SystemInst) sysInst,
             CSR csr,

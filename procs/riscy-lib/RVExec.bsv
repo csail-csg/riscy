@@ -88,9 +88,9 @@ endfunction
 (* noinline *)
 function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
         provisos (NumAlias#(XLEN, xlen));
-`ifndef CONFIG_RV64
-    w = True;
-`endif
+    if (valueOf(xlen) == 32) begin
+        w = True;
+    end
     // setup inputs
     if (w) begin
         a = (func == Sra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
@@ -208,7 +208,9 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
 endfunction
 
 function Bit#(xlen) gatherLoad(Bit#(TLog#(TDiv#(xlen,8))) byteSel, RVMemSize size, Bool isUnsigned, Bit#(xlen) data)
-        provisos (NumAlias#(XLEN, xlen));
+        provisos (Add#(a__, 32, xlen),
+                  Add#(b__, 16, xlen),
+                  Add#(c__, 8, xlen));
     function extend = isUnsigned ? zeroExtend : signExtend;
 
     let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
@@ -217,9 +219,7 @@ function Bit#(xlen) gatherLoad(Bit#(TLog#(TDiv#(xlen,8))) byteSel, RVMemSize siz
             B: extend(data[7:0]);
             H: extend(data[15:0]);
             W: extend(data[31:0]);
-`ifdef CONFIG_RV64
-            D: data[63:0];
-`endif
+            D: data;
         endcase);
 
     return data;

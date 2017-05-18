@@ -32,22 +32,22 @@ import Vector::*;
 typedef union tagged {
     struct {
         TrapCause exception;
-        Addr      trapHandlerPC;
+        Bit#(xlen) trapHandlerPC;
     } Exception;     // exception/interrupt redirection
-    Addr RedirectPC; // non-trap redirection (xRET)
-    Data CsrData;    // CSR read operations
+    Bit#(xlen) RedirectPC; // non-trap redirection (xRET)
+    Bit#(xlen) CsrData;    // CSR read operations
     void None;       // all other operations
-} CsrReturn deriving (Bits, Eq, FShow);
+} CsrReturn#(numeric type xlen) deriving (Bits, Eq, FShow);
 
 interface RVCsrFile#(numeric type xlen);
     // Read and Write ports
     // method Data rd(CSR csr);
-    method ActionValue#(CsrReturn)
-        wr( Addr pc,
+    method ActionValue#(CsrReturn#(xlen))
+        wr( Bit#(xlen) pc,
             Maybe#(SystemInst) sysInst,
             CSR csr,
-            Data data, // zimm or rval
-            Addr addr, // badaddr
+            Bit#(xlen) data, // zimm or rval
+            Bit#(xlen) addr, // badaddr
             Maybe#(TrapCause) trap, // exception or interrupt
             // indirect updates
             Bit#(5) fflags,
@@ -557,7 +557,7 @@ module mkRVCsrFile#(
         return (mip_csr & mie_csr) != 0;
     endmethod
 
-    method ActionValue#(CsrReturn) wr(
+    method ActionValue#(CsrReturn#(xlen)) wr(
             Addr pc, // pc of current exception
             Maybe#(SystemInst) sysInst,
             CSR csr,

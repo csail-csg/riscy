@@ -95,7 +95,7 @@ module mkProc(Proc#(DataSz)) provisos (NumAlias#(XLEN, xlen));
                                     config_string_addr: configStringPtr });
 
     SingleCoreMemorySystem#(xlen, DataSz) memorySystem <- mkBasicMemorySystem(getPMA);
-    MemoryMappedCSRs#(xlen, 1) mmcsrs <- mkMemoryMappedCSRs(mmioBaseAddr);
+    MemoryMappedCSRs#(64, 1) mmcsrs <- mkMemoryMappedCSRs64(mmioBaseAddr);
     Core#(xlen) core <- mkMulticycleCore(
                     memorySystem.core[0].ivat,
                     memorySystem.core[0].ifetch,

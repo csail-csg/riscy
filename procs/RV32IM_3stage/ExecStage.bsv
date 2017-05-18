@@ -62,13 +62,7 @@ typedef struct {
 `ifdef CONFIG_M
     MulDivExec#(xlen) mulDiv;
 `endif
-`ifdef CONFIG_U
-    // If user mode is supported, use the full CSR File
     RVCsrFile#(xlen) csrf;
-`else
-    // Otherwise use the M-only CSR File designed for MCUs
-    RVCsrFileMCU csrf;
-`endif
     RVRegFile#(xlen) rf;
 } ExecRegs#(numeric type xlen);
 

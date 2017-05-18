@@ -71,7 +71,7 @@ module mkProc(Proc#(DataSz));
 `ifdef CONFIG_RV32
     RTC#(1, ByteEnMemServerPort#(32,2)) rtc <- mkRTC_RV32;
 `else
-    RTC#(1, UncachedMemServer) rtc <- mkRTC_RV64;
+    RTC#(1, ByteEnMemServerPort#(64,3)) rtc <- mkRTC_RV64;
 `endif
 
     //   9600 baud: divisor = 26042
@@ -110,7 +110,7 @@ module mkProc(Proc#(DataSz));
 
     ReadOnlyMemServerPort#(32, 2) imem = simplifyMemServerPort(memBus.clients[0]);
 
-    Core core <- mkThreeStageCore(
+    Core#(32) core <- mkThreeStageCore(
                     imem,
                     memBus.clients[1],
                     False, // inter-process interrupt

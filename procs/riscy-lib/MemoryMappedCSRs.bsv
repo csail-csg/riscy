@@ -50,13 +50,9 @@ interface MemoryMappedCSRs#(numeric type xlen, numeric type cores);
     method Vector#(cores, Bool) ipi;
 endinterface
 
-module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(xlen, cores)) provisos (LT#(cores, 16), NumAlias#(XLEN, xlen));
-`ifdef CONFIG_RV32
-    // TODO: needs to support single-word writes to support RV32
-    warningM("mkMemoryMappedCSRs does not support RV32 yet");
-`else
+module mkMemoryMappedCSRs64#(PAddr baseaddr)(MemoryMappedCSRs#(64, cores)) provisos (LT#(cores, 16));
     // this doesn't work for 16 or more cores since it assumes a 16 bit address space
-    Reg#(Maybe#(CoarseMemResp#(TLog#(TDiv#(xlen,8))))) resp <- mkReg(tagged Invalid);
+    Reg#(Maybe#(CoarseMemResp#(3))) resp <- mkReg(tagged Invalid);
 
     Reg#(Bit#(10)) subTimer <- mkReg(0);
     Reg#(Bit#(64)) timer <- mkReg(0);
@@ -78,8 +74,8 @@ module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(xlen, cores)) provi
 
     interface CoarseMemServerPort memifc;
         interface InputPort request;
-            method Action enq(CoarseMemReq#(xlen, TLog#(TDiv#(xlen,8))) req) if (!isValid(resp));
-                CoarseMemResp#(TLog#(TDiv#(xlen,8))) newResp = CoarseMemResp{write: req.write, data: 0};
+            method Action enq(CoarseMemReq#(64, 3) req) if (!isValid(resp));
+                CoarseMemResp#(3) newResp = CoarseMemResp{write: req.write, data: 0};
                 Bit#(16) addr = truncate(req.addr - baseaddr);
                 if (addr < 16'h1000) begin
                     // RTC registers
@@ -125,7 +121,7 @@ module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(xlen, cores)) provi
             endmethod
         endinterface
         interface OutputPort response;
-            method CoarseMemResp#(TLog#(TDiv#(xlen,8))) first if (resp matches tagged Valid .validResp);
+            method CoarseMemResp#(3) first if (resp matches tagged Valid .validResp);
                 return validResp;
             endmethod
             method Action deq if (resp matches tagged Valid .validResp);
@@ -139,5 +135,4 @@ module mkMemoryMappedCSRs#(PAddr baseaddr)(MemoryMappedCSRs#(xlen, cores)) provi
     method Bit#(64) timerValue = timer;
     method Vector#(cores, Bool) timerInterrupt = zipWith( \>= , replicate(timer), readVReg(timeCmp));
     method Vector#(cores, Bool) ipi = readVReg(ipiReg);
-`endif
 endmodule
