@@ -38,7 +38,7 @@ import Vector::*;
 import FIFO::*;
 import FIFOF::*;
 import HostInterface::*;
-import MemTypes::*;
+import ConnectalMemTypes::*;
 import PrintTrace::*;
 typedef Bit#(4) PendMemRespCnt;
 

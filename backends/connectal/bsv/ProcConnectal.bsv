@@ -56,7 +56,7 @@ import Proc::*;
 import Vector::*;
 import VerificationPacket::*;
 import VerificationPacketFilter::*;
-import MemTypes::*;
+import ConnectalMemTypes::*;
 import ProcPins::*;
 import RVTypes::*;
 import SharedMemoryBridge::*;
