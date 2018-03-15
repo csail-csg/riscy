@@ -100,7 +100,7 @@ module mkProc(Proc#(DataSz));
     // numClients = 3
     // addrSz = 32
     // logNumBytes = 2
-    MixedAtomicMemBus#(3, 32, 2) memBus <- mkMixedAtomicMemBus(vec(
+    MixedAtomicMemBus#(3, 32, 2) memBus <- mkMixedAtomicMemBus(vec6(
             mixedMemBusItemFromAddrRange( 'h0000_0000, 'h1FFF_FFFF, tagged ByteEn sram ),
             mixedMemBusItemFromAddrRange( 'h2000_0000, 'h2FFF_FFFF, tagged ByteEn rtc.memifc ),
             mixedMemBusItemFromAddrRange( 'h3000_0000, 'h3000_FFFF, tagged ByteEn uart_module.memifc ),

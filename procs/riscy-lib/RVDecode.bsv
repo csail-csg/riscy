@@ -465,7 +465,7 @@ endfunction
 function Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Bool hasF, Bool hasD, Instruction inst);
     // Construct a vector of all the results
     // We will apply a fold function on this vector to find the valid result
-    let decoderResults = vec(
+    let decoderResults = vec6(
             isRV64 ? toExecFuncRV64I(inst) : toExecFuncRV32I(inst),
             hasM ? (isRV64 ? toExecFuncRV64M(True, inst) : toExecFuncRV32M(True, inst)) : tagged Invalid,
             hasA ? (isRV64 ? toExecFuncRV64A(inst) : toExecFuncRV32A(inst)) : tagged Invalid,
