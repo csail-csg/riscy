@@ -24,7 +24,8 @@
 // This is a wrapper for SPI.bsv to provide a memory-mapped interface for
 // integration with the Riscy processors.
 
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import ClientServer::*;
 import Vector::*;
 import GetPut::*;
@@ -80,7 +81,7 @@ module mkRVSPI(RVSPI#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromR
             endmethod
         endinterface);
 
-    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec(
+    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec4(
             concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fromMaybeReg(0, txDataReg)),
             concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fromMaybeReg(0, rxDataReg)),
             enableReg,

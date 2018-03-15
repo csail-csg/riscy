@@ -22,7 +22,8 @@
 // SOFTWARE.
 
 import BRAM::*;
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import Vector::*;
 
 import ConcatReg::*;
@@ -45,7 +46,7 @@ typedef struct {
 module mkBasicBootRom32#(BootRomConfig cfg)(ReadOnlyMemServerPort#(addrSz, 2))
         provisos (MkPolymorphicMemFromRegs#(ReadOnlyMemReq#(addrSz, 2), ReadOnlyMemResp#(2), 4, 32));
     Vector#(4, Reg#(Bit#(32))) rom =
-        vec(
+        vec4(
             readOnlyReg('h297 + truncate(cfg.start_addr - cfg.bootrom_addr)),
             readOnlyReg(32'h00028067),
             readOnlyReg(32'h00000000),
@@ -58,7 +59,7 @@ endmodule
 module mkBasicBootRom64#(BootRomConfig cfg)(ReadOnlyMemServerPort#(addrSz, 3))
         provisos (MkPolymorphicMemFromRegs#(ReadOnlyMemReq#(addrSz, 3), ReadOnlyMemResp#(3), 2, 64));
     Vector#(2, Reg#(Bit#(64))) rom =
-        vec(
+        vec2(
             concatReg2(readOnlyReg(32'h00028067), readOnlyReg('h297 + truncate(cfg.start_addr - cfg.bootrom_addr))),
             concatReg2(readOnlyReg(truncate(cfg.config_string_addr)), readOnlyReg(32'h00000000))
         );

@@ -24,7 +24,8 @@
 `include "ProcConfig.bsv"
 `include "Opcodes.defines"
 
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import Opcodes::*;
 import RVTypes::*;
 import Vector::*;

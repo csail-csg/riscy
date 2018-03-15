@@ -23,7 +23,8 @@
 
 `include "ProcConfig.bsv"
 
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import ClientServer::*;
 import ConfigReg::*;
 import GetPut::*;
@@ -59,7 +60,7 @@ module mkRTC_RV32(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
 
     Bool timerInterruptEn = {timeRegHi, timeRegLo} >= {timeCmpHi, timeCmpLo};
 
-    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec(
+    Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec4(
         asReg(timeRegLo),  // 0x00
         asReg(timeRegHi),  // 0x04
         asReg(timeCmpLo),  // 0x08
@@ -75,7 +76,7 @@ module mkRTC_RV32(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
 
     interface ServerPort memifc = memoryMappedIfc;
     method Bit#(64) timerValue = {timeRegHi, timeRegLo};
-    method Vector#(1, Bool) timerInterrupt = vec(timerInterruptEn);
+    method Vector#(1, Bool) timerInterrupt = vec1(timerInterruptEn);
 endmodule
 
 // This is only supported on RV64 systems
@@ -90,7 +91,7 @@ module mkRTC_RV64(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
 
     Bool timerInterruptEn = timeReg >= timeCmp;
 
-    Vector#(2, Reg#(Bit#(64))) memoryMappedRegisters = vec(
+    Vector#(2, Reg#(Bit#(64))) memoryMappedRegisters = vec2(
         asReg(timeReg),  // 0x00
         asReg(timeCmp)); // 0x08
     ServerPort#(reqT, respT) memoryMappedIfc <- mkPolymorphicMemFromRegs(memoryMappedRegisters);
@@ -101,5 +102,5 @@ module mkRTC_RV64(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
 
     interface ServerPort memifc = memoryMappedIfc;
     method Bit#(64) timerValue = timeReg;
-    method Vector#(1, Bool) timerInterrupt = vec(timerInterruptEn);
+    method Vector#(1, Bool) timerInterrupt = vec1(timerInterruptEn);
 endmodule

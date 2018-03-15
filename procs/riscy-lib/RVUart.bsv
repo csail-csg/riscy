@@ -21,7 +21,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import ClientServer::*;
 import GetPut::*;
 import RS232::*;
@@ -57,7 +58,7 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(ServerPort#(reqT, respT))) provi
     Reg#(Bit#(16)) divReg <- mkReg(divisor);
 
     Vector#(5, Reg#(Bit#(32))) memoryMappedRegisters =
-        vec(
+        vec5(
             concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fromMaybeReg(0, txDataReg)),
             concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fromMaybeReg(0, rxDataReg)),
             txCtrlReg,
