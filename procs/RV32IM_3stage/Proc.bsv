@@ -23,7 +23,8 @@
 
 `include "ProcConfig.bsv"
 
-import BuildVector::*;
+//import BuildVector::*;
+import VecN::*;
 import DefaultValue::*;
 import ClientServer::*;
 import Clocks::*;
