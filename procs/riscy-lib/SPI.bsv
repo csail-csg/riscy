@@ -24,6 +24,8 @@
 // For information about SPI, check wikipedia:
 //   https://en.wikipedia.org/wiki/Serial_Peripheral_Interface_Bus
 
+import Clocks::*;
+
 (* always_ready, always_enabled *)
 interface SPIMasterPins;
     // serial clock
