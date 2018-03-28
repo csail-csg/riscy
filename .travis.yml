@@ -8,7 +8,6 @@ env:
     - PATH=$PATH:$PWD/Bluespec-2016.07.beta1/bin:$PWD/verilator/bin
     - LD_LIBRARY_PATH=$PWD/lib
   matrix:
-    - TRAVIS_PROC=RV64G_multicycle  TRAVIS_ISA_SIZE=64
     - TRAVIS_PROC=RV32IM_3stage     TRAVIS_ISA_SIZE=32
 before_script:
   # get all submodules
