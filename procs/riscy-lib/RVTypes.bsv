@@ -409,8 +409,8 @@ typedef union tagged {
 } FullRegIndex deriving (Bits, Eq, FShow, Bounded);
 function Maybe#(FullRegIndex) toFullRegIndex(Maybe#(RegType) rType, RegIndex index);
     return (case (rType)
-            tagged Valid Gpr: tagged Valid tagged Gpr index;
-            tagged Valid Fpu: tagged Valid tagged Fpu index;
+            tagged Valid RtGpr: tagged Valid tagged Gpr index;
+            tagged Valid RtFpu: tagged Valid tagged Fpu index;
             default: tagged Invalid;
         endcase);
 endfunction
@@ -672,12 +672,12 @@ typedef union tagged {
 } ExecFunc deriving (Bits, Eq, FShow);
 
 typedef enum {
-    Gpr = 1'b0,
-    Fpu = 1'b1
+    RtGpr = 1'b0,
+    RtFpu = 1'b1
 } RegType deriving (Bits, Eq, FShow);
 
 typedef enum {
-    None, I, S, SB, U, UJ, Z
+    ItNone, ItI, ItS, ItSB, ItU, ItUJ, ItZ
 } ImmType deriving (Bits, Eq, FShow);
 
 typedef struct {

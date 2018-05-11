@@ -511,12 +511,12 @@ function Maybe#(Bit#(xlen)) getImmediate(ImmType imm, Instruction inst)
     Bit#(xlen) immUJ = signExtend({inst[31], inst[19:12], inst[20], inst[30:21], 1'b0});
     Bit#(xlen) immZ  = zeroExtend(inst[19:15]);
     return (case (imm)
-            S:  tagged Valid immS;
-            SB: tagged Valid immSB;
-            U:  tagged Valid immU;
-            UJ: tagged Valid immUJ;
-            I:  tagged Valid immI;
-            Z:  tagged Valid immZ;
+            ItS:  tagged Valid immS;
+            ItSB: tagged Valid immSB;
+            ItU:  tagged Valid immU;
+            ItUJ: tagged Valid immUJ;
+            ItI:  tagged Valid immI;
+            ItZ:  tagged Valid immZ;
             default: tagged Invalid;
         endcase);
 endfunction
