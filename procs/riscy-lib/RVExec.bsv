@@ -52,11 +52,11 @@ function ExecResult#(xlen) execRef(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(x
 
     Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
     case (dInst.execFunc) matches
-        tagged Alu    .aluInst:
+        tagged EF_Alu    .aluInst:
             begin
                 data = execAluInst(aluInst, rVal1, rVal2, imm, pc);
             end
-        tagged Br     .brFunc:
+        tagged EF_Br     .brFunc:
             begin
                 // data for jal
                 data = pcPlus4;
@@ -64,13 +64,13 @@ function ExecResult#(xlen) execRef(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(x
                 taken = aluBr(brFunc, rVal1, rVal2);
                 nextPc = taken ? addr : pcPlus4;
             end
-        tagged Mem    .memInst:
+        tagged EF_Mem    .memInst:
             begin
                 // data for store and AMO
                 data = rVal2;
                 addr = addrCalc(rVal1, imm);
             end
-        tagged System .systemInst:
+        tagged EF_System .systemInst:
             begin
                 // data for CSR instructions
                 data = fromMaybe(rVal1, imm);

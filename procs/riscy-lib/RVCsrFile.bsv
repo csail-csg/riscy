@@ -703,14 +703,15 @@ module mkRVCsrFile#(
                         Bool read = (validSysInst != CSRW);
                         Bool write = (validSysInst != CSRR);
                         // CSR read/write operation
-                        let oldVal = getCSR(csr)._read;
-                        let newVal = (case(validSysInst)
+			Reg#(Data) csrReg = getCSR(csr);
+                        Data oldVal = csrReg;
+                        Data newVal = (case(validSysInst)
                                 CSRW, CSRR, CSRRW: data;
                                 CSRRS: (oldVal | data);
                                 CSRRC: (oldVal & (~data));
                             endcase);
                         if (write) begin
-                            getCSR(csr)._write(newVal);
+			    csrReg <= newVal;
                         end
                         return tagged CsrData oldVal;
                     end

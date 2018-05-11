@@ -87,7 +87,7 @@ module mkThreeStageCore#(
 
     // TODO: make this depend on a bool
 `ifdef CONFIG_M
-    MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec;
+    MulDivExec#(xlen) mulDiv <- mkBoothRoughMulDivExec();
 `endif
 
     Ehr#(4, Maybe#(FetchState#(xlen))) fetchStateEhr <- mkEhr(tagged Invalid);
@@ -96,37 +96,34 @@ module mkThreeStageCore#(
 
     Ehr#(2, Maybe#(VerificationPacket)) verificationPacketEhr <- mkEhr(tagged Invalid);
 
-    let fetchRegs = FetchRegs{
-            fs: fetchStateEhr[2],
-            es: executeStateEhr[2],
-            ifetchreq: ifetch.request};
-    FetchStage f <- mkFetchStage(fetchRegs);
+    FetchStage f <- mkFetchStage(
+            fetchStateEhr[2],
+            executeStateEhr[2],
+            ifetch.request);
 
-    let execRegs = ExecRegs{
-        fs: fetchStateEhr[1],
-        es: executeStateEhr[1],
-        ws: writeBackStateEhr[1],
-        ifetchres: ifetch.response,
-        dmemreq: dmem.request,
+    ExecStage e <- mkExecStage(fetchStateEhr[1],
+        executeStateEhr[1],
+        writeBackStateEhr[1],
+        ifetch.response,
+        dmem.request,
 `ifdef CONFIG_M
-        mulDiv: mulDiv,
+        mulDiv,
 `endif
-        csrf: csrf,
-        rf: rf};
-    ExecStage e <- mkExecStage(execRegs); 
+        csrf,
+        rf
+	); 
 
-    let writeBackRegs = WriteBackRegs{ 
-        fs: fetchStateEhr[0],
-        es: executeStateEhr[0],
-        ws: writeBackStateEhr[0],
-        dmemres: dmem.response,
+    WriteBackStage w <- mkWriteBackStage(fetchStateEhr[0],
+        executeStateEhr[0],
+        writeBackStateEhr[0],
+        dmem.response,
 `ifdef CONFIG_M
-        mulDiv: mulDiv,
+        mulDiv,
 `endif
-        csrf: csrf,
-        rf: rf,
-        verificationPackets: verificationPacketEhr[1]};
-    WriteBackStage w <- mkWriteBackStage(writeBackRegs, stallReg);
+        csrf,
+        rf,
+        verificationPacketEhr[1],
+	stallReg);
 
     rule clearVerificationPacketEhr;
         verificationPacketEhr[0] <= tagged Invalid;

@@ -66,25 +66,29 @@ typedef struct {
     RVRegFile#(xlen) rf;
 } ExecRegs#(numeric type xlen);
 
-module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32));
-
-    let ifetchres = er.ifetchres;
-    let dmemreq = er.dmemreq;
-    let csrf = er.csrf;
-    let rf = er.rf;
+module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
+    Reg#(Maybe#(ExecuteState#(xlen))) es,
+    Reg#(Maybe#(WriteBackState#(xlen))) ws,
+    OutputPort#(ReadOnlyMemResp#(2)) ifetchres,
+    InputPort#(AtomicMemReq#(32,2)) dmemreq,
+    // InputPort#(RVDMemReq) dmemreq,
 `ifdef CONFIG_M
-    let mulDiv = er.mulDiv;
+    MulDivExec#(xlen) mulDiv,
 `endif
+    RVCsrFile#(xlen) csrf,
+    RVRegFile#(xlen) rf
+)(ExecStage) provisos (NumAlias#(xlen, 32));
 
-    rule doExecute(er.es matches tagged Valid .executeState
-                    &&& er.ws == tagged Invalid);
+    rule doExecute(es matches tagged Valid .executeState
+                    &&& ws == tagged Invalid);
         // get and clear the execute state
         let poisoned = executeState.poisoned;
         let pc = executeState.pc;
-        er.es <= tagged Invalid;
+        es <= tagged Invalid;
 
         // get the instruction
-        let inst = ifetchres.first.data;
+	ReadOnlyMemResp#(2) ifetchdata = ifetchres.first;
+        let inst = ifetchdata.data;
         ifetchres.deq;
 
         if (!poisoned) begin
@@ -167,10 +171,10 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
 
             // update next pc for fetch stage if no trap
             if (trap == tagged Invalid) begin
-                er.fs <= tagged Valid FetchState{ pc: nextPc };
+                fs <= tagged Valid FetchState{ pc: nextPc };
             end
             // store things for next stage
-            er.ws <= tagged Valid WriteBackState{
+            ws <= tagged Valid WriteBackState{
                                                         pc: pc,
                                                         trap: trap,
                                                         dInst: dInst,

@@ -661,14 +661,14 @@ typedef enum {
 
 // LdStInst and AmoInst are defined in Types.bsv
 typedef union tagged {
-    AluInst     Alu;
-    BrFunc      Br;
-    RVMemInst   Mem;
-    MulDivInst  MulDiv;
-    FpuInst     Fpu;
-    Fence       Fence;
-    SystemInst  System;
-    // void        Other; // Should be none
+    AluInst     EF_Alu;
+    BrFunc      EF_Br;
+    RVMemInst   EF_Mem;
+    MulDivInst  EF_MulDiv;
+    FpuInst     EF_Fpu;
+    Fence       EF_Fence;
+    SystemInst  EF_System;
+    // void        EF_Other; // Should be none
 } ExecFunc deriving (Bits, Eq, FShow);
 
 typedef enum {

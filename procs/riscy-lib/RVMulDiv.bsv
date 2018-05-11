@@ -257,7 +257,7 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
 
   // This fifo holds what operation is being done by the unit
   // If the value is invalid, then the result is already in muldiv_exec_fifo
-  FIFOF#(MulDivInst) func_fifo <- mkFIFOF;
+  FIFOF#(MulDivInst) func_fifo <- mkFIFOF();
 
   method Action exec(MulDivInst mdInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2);
     if (verbose) $display("[MulDiv] ", fshow(mdInst), ", ", fshow(rVal1), ", ", fshow(rVal2) );
@@ -291,10 +291,11 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
 
   // output
   method Bool result_rdy;
-    return (isMul(func_fifo.first.func)) ? mul_unit.result_rdy : div_unit.result_rdy;
+    MulDivInst mdInst = func_fifo.first;
+    return (isMul(mdInst.func)) ? mul_unit.result_rdy : div_unit.result_rdy;
   endmethod
   method Bit#(xlen) result_data;
-    let mdInst = func_fifo.first;
+    MulDivInst mdInst = func_fifo.first;
     Bit#(xlen) data = (case(mdInst.func)
         Mul  : tpl_2(mul_unit.result_data);
         Mulh : tpl_1(mul_unit.result_data);
@@ -308,7 +309,7 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
     return data;
   endmethod
   method Action result_deq;
-    let mdInst = func_fifo.first;
+    MulDivInst mdInst = func_fifo.first;
 
     // For debugging
     // This can't be included in the above method because it is not an Action
@@ -336,21 +337,21 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
 endmodule
 
 module mkBluesimMulDivExec(MulDivExec#(xlen)) provisos (Add#(a__, 32, xlen), Add#(1, b__, xlen));
-  Multiplier#(xlen) mul_unit <- mkBluesimMultiplier;
-  Divider#(xlen) div_unit <- mkBluesimDivider;
+  Multiplier#(xlen) mul_unit <- mkBluesimMultiplier();
+  Divider#(xlen) div_unit <- mkBluesimDivider();
   MulDivExec#(xlen) ifc <- mkMulDivExec(mul_unit, div_unit);
   return ifc;
 endmodule
 
 module mkBoothRoughMulDivExec(MulDivExec#(xlen)) provisos (Add#(a__, 32, xlen), Add#(1, b__, xlen));
-  Multiplier#(xlen) mul_unit <- mkBoothMultiplier;
-  Divider#(xlen) div_unit <- mkRoughDivider;
+  Multiplier#(xlen) mul_unit <- mkBoothMultiplier();
+  Divider#(xlen) div_unit <- mkRoughDivider();
   MulDivExec#(xlen) ifc <- mkMulDivExec(mul_unit, div_unit);
   return ifc;
 endmodule
 
 module mkMulDivExecDummy(MulDivExec#(xlen));
-  FIFOF#(Bit#(xlen)) muldiv_exec_fifo <- mkFIFOF;
+  FIFOF#(Bit#(xlen)) muldiv_exec_fifo <- mkFIFOF();
 
   method Action exec(MulDivInst mdInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2);
     $fdisplay(stderr, "[ERROR] mkMulDivExecDummy is in use");

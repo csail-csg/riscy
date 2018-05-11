@@ -32,25 +32,18 @@ import CoreStates::*;
 interface FetchStage;
 endinterface
 
-typedef struct {
-    Reg#(Maybe#(FetchState#(xlen))) fs;
-    Reg#(Maybe#(ExecuteState#(xlen))) es;
-    InputPort#(ReadOnlyMemReq#(xlen, 2)) ifetchreq;
-} FetchRegs#(numeric type xlen);
+module mkFetchStage#(Reg#(Maybe#(FetchState#(xlen))) fs, Reg#(Maybe#(ExecuteState#(xlen))) es, InputPort#(ReadOnlyMemReq#(xlen, 2)) ifetchreq)(FetchStage);
 
-module mkFetchStage#(FetchRegs#(xlen) fr)(FetchStage);
-    let ifetchreq = fr.ifetchreq;
-
-    rule doFetch(fr.fs matches tagged Valid .fetchState
-                    &&& fr.es == tagged Invalid);
+    rule doFetch(fs matches tagged Valid .fetchState
+                    &&& es == tagged Invalid);
         // get and clear the fetch state
         let pc = fetchState.pc;
-        fr.fs <= tagged Invalid;
+        fs <= tagged Invalid;
 
         // request instruction
         ifetchreq.enq(ReadOnlyMemReq{ addr: pc });
 
         // pass to execute state
-        fr.es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };
+        es <= tagged Valid ExecuteState{ poisoned: False, pc: pc };
     endrule
 endmodule

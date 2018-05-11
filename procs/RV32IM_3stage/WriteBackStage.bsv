@@ -63,16 +63,22 @@ typedef struct {
     Reg#(Maybe#(VerificationPacket)) verificationPackets;
 } WriteBackRegs#(numeric type xlen);
 
-module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
-    let dmemres = wr.dmemres;
-    let csrf = wr.csrf;
-    let rf = wr.rf;
+module mkWriteBackStage#(
+    Reg#(Maybe#(FetchState#(xlen))) fs,
+    Reg#(Maybe#(ExecuteState#(xlen))) es,
+    Reg#(Maybe#(WriteBackState#(xlen))) ws,
+    // OutputPort#(RVDMemResp) dmemres,
+    OutputPort#(AtomicMemResp#(2)) dmemres,
 `ifdef CONFIG_M
-    let mulDiv = wr.mulDiv;
+    MulDivExec#(xlen) mulDiv,
 `endif
+    RVCsrFile#(xlen) csrf,
+    RVRegFile#(xlen) rf,
+    Reg#(Maybe#(VerificationPacket)) verificationPackets,
+Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
 
-    rule doWriteBack(wr.ws matches tagged Valid .writeBackState
-                        &&& (writeBackState.dInst.execFunc != tagged System WFI || csrf.wakeFromWFI())
+    rule doWriteBack(ws matches tagged Valid .writeBackState
+                        &&& (writeBackState.dInst.execFunc != tagged EF_System WFI || csrf.wakeFromWFI())
                         &&& !stall);
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
@@ -80,7 +86,7 @@ module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) pr
         let inst = dInst.inst;
         let addr = writeBackState.addr;
         let data = writeBackState.data;
-        wr.ws <= tagged Invalid;
+        ws <= tagged Invalid;
 
 `ifdef CONFIG_M
         if (dInst.execFunc matches tagged MulDiv .* &&& trap == tagged Invalid) begin
@@ -149,13 +155,14 @@ module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) pr
                     trapCause = pack(x);
                 end
         endcase
-        wr.verificationPackets <= tagged Valid VerificationPacket {
+	InstructionFields instFields = getInstFields(inst);
+        verificationPackets <= tagged Valid VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
                 data: signExtend(fromMaybe(data, maybeData)),
                 addr: signExtend(addr),
                 instruction: inst,
-                dst: {pack(dInst.dst), getInstFields(inst).rd},
+                dst: {pack(dInst.dst), instFields.rd},
                 exception: isException,
                 interrupt: isInterrupt,
                 cause: trapCause };
@@ -164,10 +171,10 @@ module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) pr
             // This instruction is not writing to the register file
             // it is either an instruction that requires flushing the pipeline
             // or it caused an exception
-            wr.fs <= tagged Valid FetchState{ pc: replayPc };
+            fs <= tagged Valid FetchState{ pc: replayPc };
             // kill other instructions
-            if (wr.es matches tagged Valid .validExecuteState) begin
-                wr.es <= tagged Valid ExecuteState{ poisoned: True, pc: validExecuteState.pc };
+            if (es matches tagged Valid .validExecuteState) begin
+                es <= tagged Valid ExecuteState{ poisoned: True, pc: validExecuteState.pc };
             end
         end else begin
             // This instruction retired
