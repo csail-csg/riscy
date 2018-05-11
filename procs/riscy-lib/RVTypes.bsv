@@ -565,22 +565,22 @@ typedef enum {
 
 // This encoding tries to match {inst[30], funct3}
 typedef enum {
-    Add  = 4'b0000,
-    Sll  = 4'b0001,
-    Slt  = 4'b0010,
-    Sltu = 4'b0011,
-    Xor  = 4'b0100,
-    Srl  = 4'b0101,
-    Or   = 4'b0110,
-    And  = 4'b0111,
-    Sub  = 4'b1000,
-    Sra  = 4'b1101,
+    AluAdd  = 4'b0000,
+    AluSll  = 4'b0001,
+    AluSlt  = 4'b0010,
+    AluSltu = 4'b0011,
+    AluXor  = 4'b0100,
+    AluSrl  = 4'b0101,
+    AluOr   = 4'b0110,
+    AluAnd  = 4'b0111,
+    AluSub  = 4'b1000,
+    AluSra  = 4'b1101,
     // These don't follow the {inst[30], funct3} encoding since they use
     // different opcodes
     // TODO: check the values of these instructions
     // XXX: Should these not specify a value?
-    Auipc = 5'b10000,
-    Lui   = 5'b11000
+    AluAuipc = 5'b10000,
+    AluLui   = 5'b11000
 } AluFunc deriving (Bits, Eq, FShow);
 typedef struct {
     AluFunc op;

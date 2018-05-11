@@ -93,7 +93,7 @@ function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
     end
     // setup inputs
     if (w) begin
-        a = (func == Sra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
+        a = (func == AluSra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
         b = zeroExtend(b[31:0]);
     end
     Bit#(6) shamt = truncate(b);
@@ -102,16 +102,16 @@ function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
     end
 
     Bit#(xlen) res = (case(func)
-            Add, Auipc, Lui: (a + b);
-            Sub:        (a - b);
-            And:        (a & b);
-            Or:         (a | b);
-            Xor:        (a ^ b);
-            Slt:        zeroExtend( pack( signedLT(a, b) ) );
-            Sltu:       zeroExtend( pack( a < b ) );
-            Sll:        (a << shamt);
-            Srl:        (a >> shamt);
-            Sra:        signedShiftRight(a, shamt);
+            AluAdd, AluAuipc, AluLui: (a + b);
+            AluSub:        (a - b);
+            AluAnd:        (a & b);
+            AluOr:         (a | b);
+            AluXor:        (a ^ b);
+            AluSlt:        zeroExtend( pack( signedLT(a, b) ) );
+            AluSltu:       zeroExtend( pack( a < b ) );
+            AluSll:        (a << shamt);
+            AluSrl:        (a >> shamt);
+            AluSra:        signedShiftRight(a, shamt);
             default:    0;
         endcase);
 
@@ -171,12 +171,12 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     if (dInst.execFunc matches tagged Alu .aluInst) begin
         // Special functions use special inputs
         case (aluInst.op) matches
-            Auipc: aluVal1 = pc;
-            Lui:   aluVal1 = 0;
+            AluAuipc: aluVal1 = pc;
+            AluLui:   aluVal1 = 0;
         endcase
     end
     // Use Add as default for memory instructions so alu result is the address
-    AluFunc aluF = dInst.execFunc matches tagged Alu .aluInst ? aluInst.op : Add;
+    AluFunc aluF = dInst.execFunc matches tagged Alu .aluInst ? aluInst.op : AluAdd;
     Bool w = dInst.execFunc matches tagged Alu .aluInst ? aluInst.w : False;
     Bit#(xlen) aluResult = alu(aluF, w, aluVal1, aluVal2);
 

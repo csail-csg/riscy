@@ -46,30 +46,30 @@ function Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
             // JAL
             `JAL:     tagged Valid (tagged Br BrJal);
             // LUI
-            `LUI:     tagged Valid (tagged Alu AluInst{op: Lui,   w: False});
+            `LUI:     tagged Valid (tagged Alu AluInst{op: AluLui,   w: False});
             // AUIPC
-            `AUIPC:   tagged Valid (tagged Alu AluInst{op: Auipc, w: False});
+            `AUIPC:   tagged Valid (tagged Alu AluInst{op: AluAuipc, w: False});
             // OP-IMM
-            `ADDI:    tagged Valid (tagged Alu AluInst{op: Add,   w: False});
-            `SLLI_32: tagged Valid (tagged Alu AluInst{op: Sll,   w: False});
-            `SLTI:    tagged Valid (tagged Alu AluInst{op: Slt,   w: False});
-            `SLTIU:   tagged Valid (tagged Alu AluInst{op: Sltu,  w: False});
-            `XORI:    tagged Valid (tagged Alu AluInst{op: Xor,   w: False});
-            `SRLI_32: tagged Valid (tagged Alu AluInst{op: Srl,   w: False});
-            `SRAI_32: tagged Valid (tagged Alu AluInst{op: Sra,   w: False});
-            `ORI:     tagged Valid (tagged Alu AluInst{op: Or,    w: False});
-            `ANDI:    tagged Valid (tagged Alu AluInst{op: And,   w: False});
+            `ADDI:    tagged Valid (tagged Alu AluInst{op: AluAdd,   w: False});
+            `SLLI_32: tagged Valid (tagged Alu AluInst{op: AluSll,   w: False});
+            `SLTI:    tagged Valid (tagged Alu AluInst{op: AluSlt,   w: False});
+            `SLTIU:   tagged Valid (tagged Alu AluInst{op: AluSltu,  w: False});
+            `XORI:    tagged Valid (tagged Alu AluInst{op: AluXor,   w: False});
+            `SRLI_32: tagged Valid (tagged Alu AluInst{op: AluSrl,   w: False});
+            `SRAI_32: tagged Valid (tagged Alu AluInst{op: AluSra,   w: False});
+            `ORI:     tagged Valid (tagged Alu AluInst{op: AluOr,    w: False});
+            `ANDI:    tagged Valid (tagged Alu AluInst{op: AluAnd,   w: False});
             // OP
-            `ADD:     tagged Valid (tagged Alu AluInst{op: Add,   w: False});
-            `SUB:     tagged Valid (tagged Alu AluInst{op: Sub,   w: False});
-            `SLL:     tagged Valid (tagged Alu AluInst{op: Sll,   w: False});
-            `SLT:     tagged Valid (tagged Alu AluInst{op: Slt,   w: False});
-            `SLTU:    tagged Valid (tagged Alu AluInst{op: Sltu,  w: False});
-            `XOR:     tagged Valid (tagged Alu AluInst{op: Xor,   w: False});
-            `SRL:     tagged Valid (tagged Alu AluInst{op: Srl,   w: False});
-            `SRA:     tagged Valid (tagged Alu AluInst{op: Sra,   w: False});
-            `OR:      tagged Valid (tagged Alu AluInst{op: Or,    w: False});
-            `AND:     tagged Valid (tagged Alu AluInst{op: And,   w: False});
+            `ADD:     tagged Valid (tagged Alu AluInst{op: AluAdd,   w: False});
+            `SUB:     tagged Valid (tagged Alu AluInst{op: AluSub,   w: False});
+            `SLL:     tagged Valid (tagged Alu AluInst{op: AluSll,   w: False});
+            `SLT:     tagged Valid (tagged Alu AluInst{op: AluSlt,   w: False});
+            `SLTU:    tagged Valid (tagged Alu AluInst{op: AluSltu,  w: False});
+            `XOR:     tagged Valid (tagged Alu AluInst{op: AluXor,   w: False});
+            `SRL:     tagged Valid (tagged Alu AluInst{op: AluSrl,   w: False});
+            `SRA:     tagged Valid (tagged Alu AluInst{op: AluSra,   w: False});
+            `OR:      tagged Valid (tagged Alu AluInst{op: AluOr,    w: False});
+            `AND:     tagged Valid (tagged Alu AluInst{op: AluAnd,   w: False});
             // LOAD
             `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: False});
             `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: False});
@@ -243,30 +243,30 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
             // JAL
             `JAL:     tagged Valid (tagged Br BrJal);
             // LUI
-            `LUI:     tagged Valid (tagged Alu AluInst{op: Lui,   w: False});
+            `LUI:     tagged Valid (tagged Alu AluInst{op: AluLui,   w: False});
             // AUIPC
-            `AUIPC:   tagged Valid (tagged Alu AluInst{op: Auipc, w: False});
+            `AUIPC:   tagged Valid (tagged Alu AluInst{op: AluAuipc, w: False});
             // OP-IMM
-            `ADDI:    tagged Valid (tagged Alu AluInst{op: Add,   w: False});
-            `SLLI_32: tagged Valid (tagged Alu AluInst{op: Sll,   w: False});
-            `SLTI:    tagged Valid (tagged Alu AluInst{op: Slt,   w: False});
-            `SLTIU:   tagged Valid (tagged Alu AluInst{op: Sltu,  w: False});
-            `XORI:    tagged Valid (tagged Alu AluInst{op: Xor,   w: False});
-            `SRLI_32: tagged Valid (tagged Alu AluInst{op: Srl,   w: False});
-            `SRAI_32: tagged Valid (tagged Alu AluInst{op: Sra,   w: False});
-            `ORI:     tagged Valid (tagged Alu AluInst{op: Or,    w: False});
-            `ANDI:    tagged Valid (tagged Alu AluInst{op: And,   w: False});
+            `ADDI:    tagged Valid (tagged Alu AluInst{op: AluAdd,   w: False});
+            `SLLI_32: tagged Valid (tagged Alu AluInst{op: AluSll,   w: False});
+            `SLTI:    tagged Valid (tagged Alu AluInst{op: AluSlt,   w: False});
+            `SLTIU:   tagged Valid (tagged Alu AluInst{op: AluSltu,  w: False});
+            `XORI:    tagged Valid (tagged Alu AluInst{op: AluXor,   w: False});
+            `SRLI_32: tagged Valid (tagged Alu AluInst{op: AluSrl,   w: False});
+            `SRAI_32: tagged Valid (tagged Alu AluInst{op: AluSra,   w: False});
+            `ORI:     tagged Valid (tagged Alu AluInst{op: AluOr,    w: False});
+            `ANDI:    tagged Valid (tagged Alu AluInst{op: AluAnd,   w: False});
             // OP
-            `ADD:     tagged Valid (tagged Alu AluInst{op: Add,   w: False});
-            `SUB:     tagged Valid (tagged Alu AluInst{op: Sub,   w: False});
-            `SLL:     tagged Valid (tagged Alu AluInst{op: Sll,   w: False});
-            `SLT:     tagged Valid (tagged Alu AluInst{op: Slt,   w: False});
-            `SLTU:    tagged Valid (tagged Alu AluInst{op: Sltu,  w: False});
-            `XOR:     tagged Valid (tagged Alu AluInst{op: Xor,   w: False});
-            `SRL:     tagged Valid (tagged Alu AluInst{op: Srl,   w: False});
-            `SRA:     tagged Valid (tagged Alu AluInst{op: Sra,   w: False});
-            `OR:      tagged Valid (tagged Alu AluInst{op: Or,    w: False});
-            `AND:     tagged Valid (tagged Alu AluInst{op: And,   w: False});
+            `ADD:     tagged Valid (tagged Alu AluInst{op: AluAdd,   w: False});
+            `SUB:     tagged Valid (tagged Alu AluInst{op: AluSub,   w: False});
+            `SLL:     tagged Valid (tagged Alu AluInst{op: AluSll,   w: False});
+            `SLT:     tagged Valid (tagged Alu AluInst{op: AluSlt,   w: False});
+            `SLTU:    tagged Valid (tagged Alu AluInst{op: AluSltu,  w: False});
+            `XOR:     tagged Valid (tagged Alu AluInst{op: AluXor,   w: False});
+            `SRL:     tagged Valid (tagged Alu AluInst{op: AluSrl,   w: False});
+            `SRA:     tagged Valid (tagged Alu AluInst{op: AluSra,   w: False});
+            `OR:      tagged Valid (tagged Alu AluInst{op: AluOr,    w: False});
+            `AND:     tagged Valid (tagged Alu AluInst{op: AluAnd,   w: False});
             // LOAD
             `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: False});
             `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: False});
@@ -283,20 +283,20 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
 
             // RV64-specific instructions
             // OP-IMM
-            `SLLI_64: tagged Valid (tagged Alu AluInst{op: Sll,   w: False});
-            `SRLI_64: tagged Valid (tagged Alu AluInst{op: Srl,   w: False});
-            `SRAI_64: tagged Valid (tagged Alu AluInst{op: Sra,   w: False});
+            `SLLI_64: tagged Valid (tagged Alu AluInst{op: AluSll,   w: False});
+            `SRLI_64: tagged Valid (tagged Alu AluInst{op: AluSrl,   w: False});
+            `SRAI_64: tagged Valid (tagged Alu AluInst{op: AluSra,   w: False});
             // OP-IMM-32
-            `ADDIW:   tagged Valid (tagged Alu AluInst{op: Add,   w: True});
-            `SLLIW:   tagged Valid (tagged Alu AluInst{op: Sll,   w: True});
-            `SRLIW:   tagged Valid (tagged Alu AluInst{op: Srl,   w: True});
-            `SRAIW:   tagged Valid (tagged Alu AluInst{op: Sra,   w: True});
+            `ADDIW:   tagged Valid (tagged Alu AluInst{op: AluAdd,   w: True});
+            `SLLIW:   tagged Valid (tagged Alu AluInst{op: AluSll,   w: True});
+            `SRLIW:   tagged Valid (tagged Alu AluInst{op: AluSrl,   w: True});
+            `SRAIW:   tagged Valid (tagged Alu AluInst{op: AluSra,   w: True});
             // OP-32
-            `ADDW:    tagged Valid (tagged Alu AluInst{op: Add,   w: True});
-            `SUBW:    tagged Valid (tagged Alu AluInst{op: Sub,   w: True});
-            `SLLW:    tagged Valid (tagged Alu AluInst{op: Sll,   w: True});
-            `SRLW:    tagged Valid (tagged Alu AluInst{op: Srl,   w: True});
-            `SRAW:    tagged Valid (tagged Alu AluInst{op: Sra,   w: True});
+            `ADDW:    tagged Valid (tagged Alu AluInst{op: AluAdd,   w: True});
+            `SUBW:    tagged Valid (tagged Alu AluInst{op: AluSub,   w: True});
+            `SLLW:    tagged Valid (tagged Alu AluInst{op: AluSll,   w: True});
+            `SRLW:    tagged Valid (tagged Alu AluInst{op: AluSrl,   w: True});
+            `SRAW:    tagged Valid (tagged Alu AluInst{op: AluSra,   w: True});
             // LOAD
             `LD:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: D, isUnsigned: False});
             `LWU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: True});

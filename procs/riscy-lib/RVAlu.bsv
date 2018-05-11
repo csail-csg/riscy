@@ -32,8 +32,8 @@ endtypeclass
 instance ExecAluInst#(32);
     function Bit#(32) execAluInst(AluInst aluInst, Bit#(32) rVal1, Bit#(32) rVal2, Maybe#(Bit#(32)) imm, Bit#(32) pc);
         Bit#(32) aluVal1 = (case (aluInst.op)
-                            Auipc:   pc;
-                            Lui:     0;
+                            AluAuipc:   pc;
+                            AluLui:     0;
                             default: rVal1;
                         endcase);
         Bit#(32) aluVal2 = (case (imm) matches
@@ -50,8 +50,8 @@ endinstance
 instance ExecAluInst#(64);
     function Bit#(64) execAluInst(AluInst aluInst, Bit#(64) rVal1, Bit#(64) rVal2, Maybe#(Bit#(64)) imm, Bit#(64) pc);
         Bit#(64) aluVal1 = (case (aluInst.op)
-                            Auipc:   pc;
-                            Lui:     0;
+                            AluAuipc:   pc;
+                            AluLui:     0;
                             default: rVal1;
                         endcase);
         Bit#(64) aluVal2 = (case (imm) matches
@@ -72,7 +72,7 @@ endinstance
 function Bit#(64) alu64(AluFunc func, Bool w, Bit#(64) a, Bit#(64) b);
     // setup inputs
     if (w) begin
-        a = (func == Sra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
+        a = (func == AluSra) ? signExtend(a[31:0]) : zeroExtend(a[31:0]);
         b = zeroExtend(b[31:0]);
     end
     Bit#(6) shamt = truncate(b);
@@ -81,18 +81,18 @@ function Bit#(64) alu64(AluFunc func, Bool w, Bit#(64) a, Bit#(64) b);
     end
 
     Bit#(64) res = (case(func)
-            Add:        (a + b);
-            Sub:        (a - b);
-            And:        (a & b);
-            Or:         (a | b);
-            Xor:        (a ^ b);
-            Slt:        zeroExtend( pack( signedLT(a, b) ) );
-            Sltu:       zeroExtend( pack( a < b ) );
-            Sll:        (a << shamt);
-            Srl:        (a >> shamt);
-            Sra:        signedShiftRight(a, shamt);
-            Auipc:      (a + b);
-            Lui:        (a + b);
+            AluAdd:        (a + b);
+            AluSub:        (a - b);
+            AluAnd:        (a & b);
+            AluOr:         (a | b);
+            AluXor:        (a ^ b);
+            AluSlt:        zeroExtend( pack( signedLT(a, b) ) );
+            AluSltu:       zeroExtend( pack( a < b ) );
+            AluSll:        (a << shamt);
+            AluSrl:        (a >> shamt);
+            AluSra:        signedShiftRight(a, shamt);
+            AluAuipc:      (a + b);
+            AluLui:        (a + b);
             default:    0;
         endcase);
 
@@ -111,18 +111,18 @@ function Bit#(32) alu32(AluFunc func, Bit#(32) a, Bit#(32) b);
     Bit#(5) shamt = truncate(b);
 
     Bit#(32) res = (case(func)
-            Add:        (a + b);
-            Sub:        (a - b);
-            And:        (a & b);
-            Or:         (a | b);
-            Xor:        (a ^ b);
-            Slt:        zeroExtend( pack( signedLT(a, b) ) );
-            Sltu:       zeroExtend( pack( a < b ) );
-            Sll:        (a << shamt);
-            Srl:        (a >> shamt);
-            Sra:        signedShiftRight(a, shamt);
-            Auipc:      (a + b);
-            Lui:        (a + b);
+            AluAdd:        (a + b);
+            AluSub:        (a - b);
+            AluAnd:        (a & b);
+            AluOr:         (a | b);
+            AluXor:        (a ^ b);
+            AluSlt:        zeroExtend( pack( signedLT(a, b) ) );
+            AluSltu:       zeroExtend( pack( a < b ) );
+            AluSll:        (a << shamt);
+            AluSrl:        (a >> shamt);
+            AluSra:        signedShiftRight(a, shamt);
+            AluAuipc:      (a + b);
+            AluLui:        (a + b);
             default:    0;
         endcase);
 
