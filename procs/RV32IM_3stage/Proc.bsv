@@ -87,7 +87,7 @@ module mkProc(Proc#(DataSz));
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
 `ifdef CONFIG_IDMEM_INIT_HEX_FILE
-    let sram <- mkPolymorphicBRAMLoad(64*1024/4, tagged Hex `CONFIG_IDMEM_INIT_HEX_FILE);
+    let sram <- mkPolymorphicBRAMLoad(64*1024/4, tagged LfHex `CONFIG_IDMEM_INIT_HEX_FILE);
 `else
     let sram <- mkPolymorphicBRAM(64*1024/4);
 `endif
