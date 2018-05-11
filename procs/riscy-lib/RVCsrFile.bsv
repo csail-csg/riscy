@@ -573,33 +573,33 @@ module mkRVCsrFile#(
         if (!isValid(trapToTake) &&& sysInst matches tagged Valid .validSysInst) begin
             case (validSysInst)
                 ECall:  trapToTake = tagged Valid (case (prv)
-                                                    prvU: (tagged Exception EnvCallU);
-                                                    prvS: (tagged Exception EnvCallS);
-                                                    prvH: (tagged Exception EnvCallH);
-                                                    prvM: (tagged Exception EnvCallM);
+                                                    prvU: (tagged TcException EnvCallU);
+                                                    prvS: (tagged TcException EnvCallS);
+                                                    prvH: (tagged TcException EnvCallH);
+                                                    prvM: (tagged TcException EnvCallM);
                                                 endcase);
                 // URet and HRet are not supported
-                URet: trapToTake = tagged Valid (tagged Exception IllegalInst);
+                URet: trapToTake = tagged Valid (tagged TcException IllegalInst);
                 SRet:
                     begin
                         if (prv < prvS) begin
-                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                            trapToTake = tagged Valid (tagged TcException IllegalInst);
                         end
                     end
-                HRet: trapToTake = tagged Valid (tagged Exception IllegalInst);
+                HRet: trapToTake = tagged Valid (tagged TcException IllegalInst);
                 MRet:
                     begin
                         if (prv < prvM) begin
-                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                            trapToTake = tagged Valid (tagged TcException IllegalInst);
                         end
                     end
-                EBreak: trapToTake = tagged Valid (tagged Exception Breakpoint);
+                EBreak: trapToTake = tagged Valid (tagged TcException Breakpoint);
                 CSRRW, CSRRS, CSRRC, CSRR, CSRW:
                     begin
                         Bool read = (validSysInst != CSRW);
                         Bool write = (validSysInst != CSRR);
                         if (!isLegalCSR(csr) || !hasCSRPermission(csr, prv, write)) begin
-                            trapToTake = tagged Valid (tagged Exception IllegalInst);
+                            trapToTake = tagged Valid (tagged TcException IllegalInst);
                         end
                     end
             endcase
@@ -616,8 +616,8 @@ module mkRVCsrFile#(
             // Traps
             // delegate to S if the prv <= S and the corresponding deleg bit is set
             Bool delegToS = prv <= prvS && (case (validTrap) matches
-                    tagged Exception .exceptionCause: (((medeleg_csr >> pack(exceptionCause)) & 1) != 0);
-                    tagged Interrupt .interruptCause: (((mideleg_csr >> pack(interruptCause)) & 1) != 0);
+                    tagged TcException .exceptionCause: (((medeleg_csr >> pack(exceptionCause)) & 1) != 0);
+                    tagged TcInterrupt .interruptCause: (((mideleg_csr >> pack(interruptCause)) & 1) != 0);
                 endcase);
             Addr newPC = delegToS ? stvec_csr : mtvec_csr;
             if (delegToS) begin
@@ -625,12 +625,12 @@ module mkRVCsrFile#(
                 sepc_csr <= pc;
                 scause_csr <= toCauseCSR(validTrap);
                 case (validTrap)
-                    tagged Exception InstAddrMisaligned,
-                    tagged Exception InstAccessFault,
-                    tagged Exception LoadAddrMisaligned,
-                    tagged Exception LoadAccessFault,
-                    tagged Exception StoreAddrMisaligned,
-                    tagged Exception StoreAccessFault:
+                    tagged TcException InstAddrMisaligned,
+                    tagged TcException InstAccessFault,
+                    tagged TcException LoadAddrMisaligned,
+                    tagged TcException LoadAccessFault,
+                    tagged TcException StoreAddrMisaligned,
+                    tagged TcException StoreAccessFault:
                         sbadaddr_csr <= addr;
                 endcase
                 // update mstatus fields
@@ -644,12 +644,12 @@ module mkRVCsrFile#(
                 mepc_csr <= pc;
                 mcause_csr <= toCauseCSR(validTrap);
                 case (validTrap)
-                    tagged Exception InstAddrMisaligned,
-                    tagged Exception InstAccessFault,
-                    tagged Exception LoadAddrMisaligned,
-                    tagged Exception LoadAccessFault,
-                    tagged Exception StoreAddrMisaligned,
-                    tagged Exception StoreAccessFault:
+                    tagged TcException InstAddrMisaligned,
+                    tagged TcException InstAccessFault,
+                    tagged TcException LoadAddrMisaligned,
+                    tagged TcException LoadAccessFault,
+                    tagged TcException StoreAddrMisaligned,
+                    tagged TcException StoreAccessFault:
                         mbadaddr_csr <= addr;
                 endcase
                 // update mstatus fields

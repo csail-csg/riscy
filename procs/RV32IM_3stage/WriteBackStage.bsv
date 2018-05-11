@@ -138,12 +138,12 @@ module mkWriteBackStage#(WriteBackRegs#(xlen) wr, Bool stall)(WriteBackStage) pr
         Bool isException = False;
         Bit#(4) trapCause = 0;
         case (maybeTrap) matches
-            tagged Valid (tagged Interrupt .x):
+            tagged Valid (tagged TcInterrupt .x):
                 begin
                     isInterrupt = True;
                     trapCause = pack(x);
                 end
-            tagged Valid (tagged Exception .x):
+            tagged Valid (tagged TcException .x):
                 begin
                     isException = True;
                     trapCause = pack(x);

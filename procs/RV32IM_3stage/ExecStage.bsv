@@ -91,14 +91,14 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
             // check for interrupts
             Maybe#(TrapCause) trap = tagged Invalid;
             if (csrf.readyInterrupt matches tagged Valid .validInterrupt) begin
-                trap = tagged Valid (tagged Interrupt validInterrupt);
+                trap = tagged Valid (tagged TcInterrupt validInterrupt);
             end
 
             // decode the instruction
             RiscVISASubset misa = defaultValue;
             let maybeDInst = decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, inst);
             if (maybeDInst == tagged Invalid && trap == tagged Invalid) begin
-                trap = tagged Valid (tagged Exception IllegalInst);
+                trap = tagged Valid (tagged TcException IllegalInst);
             end
             let dInst = fromMaybe(?, maybeDInst);
 
@@ -116,7 +116,7 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
 
             // check for next address alignment
             if (nextPc[1:0] != 0 && trap == tagged Invalid) begin
-                trap = tagged Valid (tagged Exception InstAddrMisaligned);
+                trap = tagged Valid (tagged TcException InstAddrMisaligned);
             end
 
 `ifdef CONFIG_M
@@ -158,9 +158,9 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
                 end else begin
                     // misaligned address exception
                     if ((memInst.op == tagged MemOp Ld) || (memInst.op == tagged MemOp Lr)) begin
-                        trap = tagged Valid (tagged Exception LoadAddrMisaligned);
+                        trap = tagged Valid (tagged TcException LoadAddrMisaligned);
                     end else begin
-                        trap = tagged Valid (tagged Exception StoreAddrMisaligned);
+                        trap = tagged Valid (tagged TcException StoreAddrMisaligned);
                     end
                 end
             end

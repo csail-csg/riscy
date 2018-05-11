@@ -734,15 +734,15 @@ typedef enum {
 
 // Traps are either an exception or an interrupt
 typedef union tagged {
-    ExceptionCause Exception;
-    InterruptCause Interrupt;
+    ExceptionCause TcException;
+    InterruptCause TcInterrupt;
 } TrapCause deriving (Bits, Eq, FShow);
 
 function Data toCauseCSR(TrapCause x);
     case (x) matches
-        tagged Exception .cause:
+        tagged TcException .cause:
             return {0, pack(cause)};
-        tagged Interrupt .cause:
+        tagged TcInterrupt .cause:
             return {1'b1, 0, pack(cause)};
         default:
             return 0;
