@@ -89,13 +89,13 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
         ws <= tagged Invalid;
 
 `ifdef CONFIG_M
-        if (dInst.execFunc matches tagged MulDiv .* &&& trap == tagged Invalid) begin
+        if (dInst.execFunc matches tagged EF_MulDiv .* &&& trap == tagged Invalid) begin
             data = mulDiv.result_data;
             mulDiv.result_deq;
         end
 `endif
 
-        if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
+        if (dInst.execFunc matches tagged EF_Mem .memInst &&& trap == tagged Invalid) begin
             if (getsResponse(memInst.op)) begin
                 data = dmemres.first.data >> {addr[1:0], 3'b0};
                 let extendFunc = memInst.isUnsigned ? zeroExtend : signExtend;
@@ -111,7 +111,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
         let csrfResult <- csrf.wr(
                 pc,
                 // performing system instructions
-                dInst.execFunc matches tagged System .sysInst ? tagged Valid sysInst : tagged Invalid,
+                dInst.execFunc matches tagged EF_System .sysInst ? tagged Valid sysInst : tagged Invalid,
                 getInstFields(inst).csr,
                 data, // either rf[rs1] or zimm, computed in basicExec
                 addr,

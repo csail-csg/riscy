@@ -158,7 +158,7 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
 
     // Immediate Field
     Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
-    if (dInst.execFunc matches tagged Mem .*) begin
+    if (dInst.execFunc matches tagged EF_Mem .*) begin
         if (!isValid(imm)) begin
             // Lr, Sc, and AMO instructions don't have immediate fields, so ovveride the immediate field here for address calculation
             imm = tagged Valid 0;
@@ -168,7 +168,7 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     // ALU
     Bit#(xlen) aluVal1 = rVal1;
     Bit#(xlen) aluVal2 = imm matches tagged Valid .validImm ? validImm : rVal2;
-    if (dInst.execFunc matches tagged Alu .aluInst) begin
+    if (dInst.execFunc matches tagged EF_Alu .aluInst) begin
         // Special functions use special inputs
         case (aluInst.op) matches
             AluAuipc: aluVal1 = pc;
@@ -176,12 +176,12 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
         endcase
     end
     // Use Add as default for memory instructions so alu result is the address
-    AluFunc aluF = dInst.execFunc matches tagged Alu .aluInst ? aluInst.op : AluAdd;
-    Bool w = dInst.execFunc matches tagged Alu .aluInst ? aluInst.w : False;
+    AluFunc aluF = dInst.execFunc matches tagged EF_Alu .aluInst ? aluInst.op : AluAdd;
+    Bool w = dInst.execFunc matches tagged EF_Alu .aluInst ? aluInst.w : False;
     Bit#(xlen) aluResult = alu(aluF, w, aluVal1, aluVal2);
 
     // Branch
-    if (dInst.execFunc matches tagged Br .brFunc) begin
+    if (dInst.execFunc matches tagged EF_Br .brFunc) begin
         taken = aluBr(brFunc, rVal1, rVal2);
         if (taken) begin
             // otherwise, nextPc is already pcPlus4
@@ -190,17 +190,17 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     end
 
     data = (case (dInst.execFunc) matches
-            tagged Alu .*:  aluResult;
-            tagged Br .*:   pcPlus4; // for jal and jalr
-            tagged Mem .*:  rVal2;
-            tagged System .*: (imm matches tagged Valid .validImm ? validImm : rVal1);
+            tagged EF_Alu .*:  aluResult;
+            tagged EF_Br .*:   pcPlus4; // for jal and jalr
+            tagged EF_Mem .*:  rVal2;
+            tagged EF_System .*: (imm matches tagged Valid .validImm ? validImm : rVal1);
             default:        ?;
         endcase);
 
     addr = (case (dInst.execFunc) matches
-            tagged Alu .*:  nextPc;
-            tagged Br .*:   nextPc;
-            tagged Mem .*:  aluResult;
+            tagged EF_Alu .*:  nextPc;
+            tagged EF_Br .*:   nextPc;
+            tagged EF_Mem .*:  aluResult;
             default:        ?;
         endcase);
 

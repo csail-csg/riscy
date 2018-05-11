@@ -124,12 +124,12 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
             end
 
 `ifdef CONFIG_M
-            if (dInst.execFunc matches tagged MulDiv .mulDivInst &&& trap == tagged Invalid) begin
+            if (dInst.execFunc matches tagged EF_MulDiv .mulDivInst &&& trap == tagged Invalid) begin
                 mulDiv.exec(mulDivInst, rVal1, rVal2);
             end
 `endif
 
-            if (dInst.execFunc matches tagged Mem .memInst &&& trap == tagged Invalid) begin
+            if (dInst.execFunc matches tagged EF_Mem .memInst &&& trap == tagged Invalid) begin
                 // check allignment
                 Bool aligned = (case (memInst.size)
                                     B: True;
@@ -148,7 +148,7 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
 
                     //// This assumes xlen == 32
                     Bit#(32) aligned_data = data << {addr[1:0], 3'b0};
-                    Bit#(4) write_en = dInst.execFunc.Mem.op == tagged MemOp Ld ? 0 : 
+                    Bit#(4) write_en = dInst.execFunc.EF_Mem.op == tagged MemOp Ld ? 0 : 
                                         (case(memInst.size)
                                             B: ('b0001 << addr[1:0]);
                                             H: ('b0011 << addr[1:0]);
