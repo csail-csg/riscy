@@ -144,7 +144,7 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
 
                     //// This assumes xlen == 32
                     Bit#(32) aligned_data = data << {addr[1:0], 3'b0};
-                    Bit#(4) write_en = dInst.execFunc.Mem.op == tagged Mem Ld ? 0 : 
+                    Bit#(4) write_en = dInst.execFunc.Mem.op == tagged MemOp Ld ? 0 : 
                                         (case(memInst.size)
                                             B: ('b0001 << addr[1:0]);
                                             H: ('b0011 << addr[1:0]);
@@ -157,7 +157,7 @@ module mkExecStage#(ExecRegs#(xlen) er)(ExecStage) provisos (NumAlias#(xlen, 32)
                         data: aligned_data} );
                 end else begin
                     // misaligned address exception
-                    if ((memInst.op == tagged Mem Ld) || (memInst.op == tagged Mem Lr)) begin
+                    if ((memInst.op == tagged MemOp Ld) || (memInst.op == tagged MemOp Lr)) begin
                         trap = tagged Valid (tagged Exception LoadAddrMisaligned);
                     end else begin
                         trap = tagged Valid (tagged Exception StoreAddrMisaligned);

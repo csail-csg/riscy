@@ -71,15 +71,15 @@ function Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
             `OR:      tagged Valid (tagged Alu AluInst{op: Or,    w: False});
             `AND:     tagged Valid (tagged Alu AluInst{op: And,   w: False});
             // LOAD
-            `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: B, isUnsigned: False});
-            `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: H, isUnsigned: False});
-            `LW:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: W, isUnsigned: False});
-            `LBU:     tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: B, isUnsigned: True});
-            `LHU:     tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: H, isUnsigned: True});
+            `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: False});
+            `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: False});
+            `LW:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: False});
+            `LBU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: True});
+            `LHU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: True});
             // STORE
-            `SB:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: B, isUnsigned: False});
-            `SH:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: H, isUnsigned: False});
-            `SW:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: W, isUnsigned: False});
+            `SB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: B, isUnsigned: False});
+            `SH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: H, isUnsigned: False});
+            `SW:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: W, isUnsigned: False});
             // MISC-MEM
             `FENCE:   tagged Valid (tagged Fence (tagged InterCore unpack(truncate(inst[27:20]))));
             `FENCE_I: tagged Valid (tagged Fence (tagged IntraCore FenceI));
@@ -128,17 +128,17 @@ endfunction
 
 function Maybe#(ExecFunc) toExecFuncRV32A(Instruction inst);
     return (case (inst) matches
-            `AMOADD_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Add,  size: W, isUnsigned: False});
-            `AMOXOR_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Xor,  size: W, isUnsigned: False});
-            `AMOOR_W:   tagged Valid (tagged Mem RVMemInst{op: tagged Amo Or,   size: W, isUnsigned: False});
-            `AMOAND_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo And,  size: W, isUnsigned: False});
-            `AMOMIN_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Min,  size: W, isUnsigned: False});
-            `AMOMAX_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Max,  size: W, isUnsigned: False});
-            `AMOMINU_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Minu, size: W, isUnsigned: False});
-            `AMOMAXU_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Maxu, size: W, isUnsigned: False});
-            `AMOSWAP_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Swap, size: W, isUnsigned: False});
-            `LR_W:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Lr,   size: W, isUnsigned: False});
-            `SC_W:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Sc,   size: W, isUnsigned: False});
+            `AMOADD_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Add,  size: W, isUnsigned: False});
+            `AMOXOR_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Xor,  size: W, isUnsigned: False});
+            `AMOOR_W:   tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Or,   size: W, isUnsigned: False});
+            `AMOAND_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp And,  size: W, isUnsigned: False});
+            `AMOMIN_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Min,  size: W, isUnsigned: False});
+            `AMOMAX_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Max,  size: W, isUnsigned: False});
+            `AMOMINU_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Minu, size: W, isUnsigned: False});
+            `AMOMAXU_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Maxu, size: W, isUnsigned: False});
+            `AMOSWAP_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Swap, size: W, isUnsigned: False});
+            `LR_W:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Lr,   size: W, isUnsigned: False});
+            `SC_W:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Sc,   size: W, isUnsigned: False});
 
             default:    tagged Invalid;
         endcase);
@@ -173,8 +173,8 @@ function Maybe#(ExecFunc) toExecFuncRV32F(Bool hasDiv, Bool hasSqrt, Instruction
             `FMV_S_X:   tagged Valid (tagged Fpu FpuInst{func: FMv_FX,   precision: Single});
 
             // Floating-Point Memory instructions
-            `FLW:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: W, isUnsigned: True});
-            `FSW:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: W, isUnsigned: True});
+            `FLW:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: True});
+            `FSW:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: W, isUnsigned: True});
 
             // FMA instructions
             `FMADD_S:   tagged Valid (tagged Fpu FpuInst{func: FMAdd,  precision: Single});
@@ -214,8 +214,8 @@ function Maybe#(ExecFunc) toExecFuncRV32D(Bool hasDiv, Bool hasSqrt, Instruction
             `FCVT_D_WU: tagged Valid (tagged Fpu FpuInst{func: FCvt_FWU, precision: Double});
 
             // Floating-Point Memory instructions
-            `FLD:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: D, isUnsigned: False});
-            `FSD:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: D, isUnsigned: False});
+            `FLD:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: D, isUnsigned: False});
+            `FSD:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: D, isUnsigned: False});
 
             // FMA instructions
             `FMADD_D:   tagged Valid (tagged Fpu FpuInst{func: FMAdd,  precision: Double});
@@ -268,15 +268,15 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
             `OR:      tagged Valid (tagged Alu AluInst{op: Or,    w: False});
             `AND:     tagged Valid (tagged Alu AluInst{op: And,   w: False});
             // LOAD
-            `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: B, isUnsigned: False});
-            `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: H, isUnsigned: False});
-            `LW:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: W, isUnsigned: False});
-            `LBU:     tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: B, isUnsigned: True});
-            `LHU:     tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: H, isUnsigned: True});
+            `LB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: False});
+            `LH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: False});
+            `LW:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: False});
+            `LBU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: B, isUnsigned: True});
+            `LHU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: H, isUnsigned: True});
             // STORE
-            `SB:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: B, isUnsigned: False});
-            `SH:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: H, isUnsigned: False});
-            `SW:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: W, isUnsigned: False});
+            `SB:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: B, isUnsigned: False});
+            `SH:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: H, isUnsigned: False});
+            `SW:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: W, isUnsigned: False});
             // MISC-MEM
             `FENCE:   tagged Valid (tagged Fence (tagged InterCore unpack(truncate(inst[27:20]))));
             `FENCE_I: tagged Valid (tagged Fence (tagged IntraCore FenceI));
@@ -298,10 +298,10 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
             `SRLW:    tagged Valid (tagged Alu AluInst{op: Srl,   w: True});
             `SRAW:    tagged Valid (tagged Alu AluInst{op: Sra,   w: True});
             // LOAD
-            `LD:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: D, isUnsigned: False});
-            `LWU:     tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: W, isUnsigned: True});
+            `LD:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: D, isUnsigned: False});
+            `LWU:     tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: True});
             // STORE
-            `SD:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: D, isUnsigned: False});
+            `SD:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: D, isUnsigned: False});
 
             default:  tagged Invalid;
         endcase);
@@ -333,30 +333,30 @@ endfunction
 function Maybe#(ExecFunc) toExecFuncRV64A(Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
-            `AMOADD_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Add,  size: W, isUnsigned: False});
-            `AMOXOR_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Xor,  size: W, isUnsigned: False});
-            `AMOOR_W:   tagged Valid (tagged Mem RVMemInst{op: tagged Amo Or,   size: W, isUnsigned: False});
-            `AMOAND_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo And,  size: W, isUnsigned: False});
-            `AMOMIN_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Min,  size: W, isUnsigned: False});
-            `AMOMAX_W:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Max,  size: W, isUnsigned: False});
-            `AMOMINU_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Minu, size: W, isUnsigned: False});
-            `AMOMAXU_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Maxu, size: W, isUnsigned: False});
-            `AMOSWAP_W: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Swap, size: W, isUnsigned: False});
-            `LR_W:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Lr,   size: W, isUnsigned: False});
-            `SC_W:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Sc,   size: W, isUnsigned: False});
+            `AMOADD_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Add,  size: W, isUnsigned: False});
+            `AMOXOR_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Xor,  size: W, isUnsigned: False});
+            `AMOOR_W:   tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Or,   size: W, isUnsigned: False});
+            `AMOAND_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp And,  size: W, isUnsigned: False});
+            `AMOMIN_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Min,  size: W, isUnsigned: False});
+            `AMOMAX_W:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Max,  size: W, isUnsigned: False});
+            `AMOMINU_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Minu, size: W, isUnsigned: False});
+            `AMOMAXU_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Maxu, size: W, isUnsigned: False});
+            `AMOSWAP_W: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Swap, size: W, isUnsigned: False});
+            `LR_W:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Lr,   size: W, isUnsigned: False});
+            `SC_W:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Sc,   size: W, isUnsigned: False});
 
             // RV64-specific instructions
-            `AMOADD_D:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Add,  size: D, isUnsigned: False});
-            `AMOXOR_D:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Xor,  size: D, isUnsigned: False});
-            `AMOOR_D:   tagged Valid (tagged Mem RVMemInst{op: tagged Amo Or,   size: D, isUnsigned: False});
-            `AMOAND_D:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo And,  size: D, isUnsigned: False});
-            `AMOMIN_D:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Min,  size: D, isUnsigned: False});
-            `AMOMAX_D:  tagged Valid (tagged Mem RVMemInst{op: tagged Amo Max,  size: D, isUnsigned: False});
-            `AMOMINU_D: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Minu, size: D, isUnsigned: False});
-            `AMOMAXU_D: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Maxu, size: D, isUnsigned: False});
-            `AMOSWAP_D: tagged Valid (tagged Mem RVMemInst{op: tagged Amo Swap, size: D, isUnsigned: False});
-            `LR_D:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Lr,   size: D, isUnsigned: False});
-            `SC_D:      tagged Valid (tagged Mem RVMemInst{op: tagged Mem Sc,   size: D, isUnsigned: False});
+            `AMOADD_D:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Add,  size: D, isUnsigned: False});
+            `AMOXOR_D:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Xor,  size: D, isUnsigned: False});
+            `AMOOR_D:   tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Or,   size: D, isUnsigned: False});
+            `AMOAND_D:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp And,  size: D, isUnsigned: False});
+            `AMOMIN_D:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Min,  size: D, isUnsigned: False});
+            `AMOMAX_D:  tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Max,  size: D, isUnsigned: False});
+            `AMOMINU_D: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Minu, size: D, isUnsigned: False});
+            `AMOMAXU_D: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Maxu, size: D, isUnsigned: False});
+            `AMOSWAP_D: tagged Valid (tagged Mem RVMemInst{op: tagged AmoOp Swap, size: D, isUnsigned: False});
+            `LR_D:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Lr,   size: D, isUnsigned: False});
+            `SC_D:      tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Sc,   size: D, isUnsigned: False});
 
             default:    tagged Invalid;
         endcase);
@@ -392,8 +392,8 @@ function Maybe#(ExecFunc) toExecFuncRV64F(Bool hasDiv, Bool hasSqrt, Instruction
             `FMV_S_X:   tagged Valid (tagged Fpu FpuInst{func: FMv_FX,   precision: Single});
 
             // Floating-Point Memory instructions
-            `FLW:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: W, isUnsigned: True});
-            `FSW:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: W, isUnsigned: True});
+            `FLW:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: W, isUnsigned: True});
+            `FSW:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: W, isUnsigned: True});
 
             // FMA instructions
             `FMADD_S:   tagged Valid (tagged Fpu FpuInst{func: FMAdd,  precision: Single});
@@ -440,8 +440,8 @@ function Maybe#(ExecFunc) toExecFuncRV64D(Bool hasDiv, Bool hasSqrt, Instruction
             `FCVT_D_WU: tagged Valid (tagged Fpu FpuInst{func: FCvt_FWU, precision: Double});
 
             // Floating-Point Memory instructions
-            `FLD:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem Ld, size: D, isUnsigned: False});
-            `FSD:       tagged Valid (tagged Mem RVMemInst{op: tagged Mem St, size: D, isUnsigned: False});
+            `FLD:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp Ld, size: D, isUnsigned: False});
+            `FSD:       tagged Valid (tagged Mem RVMemInst{op: tagged MemOp St, size: D, isUnsigned: False});
 
             // FMA instructions
             `FMADD_D:   tagged Valid (tagged Fpu FpuInst{func: FMAdd,  precision: Double});

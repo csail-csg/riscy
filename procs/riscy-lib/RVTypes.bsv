@@ -229,8 +229,8 @@ function DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
 endfunction
 
 typedef union tagged {
-    RVMemOp Mem;
-    RVAmoOp Amo;
+    RVMemOp MemOp;
+    RVAmoOp AmoOp;
 } RVMemAmoOp deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -290,38 +290,38 @@ endinstance
 instance IsMemOp#(RVMemAmoOp);
     function Bool isLoad(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: isLoad(mem);
-                tagged Amo .amo: isLoad(amo);
+                tagged MemOp .mem: isLoad(mem);
+                tagged AmoOp .amo: isLoad(amo);
             endcase);
     endfunction
     function Bool isStore(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: isStore(mem);
-                tagged Amo .amo: isStore(amo);
+                tagged MemOp .mem: isStore(mem);
+                tagged AmoOp .amo: isStore(amo);
             endcase);
     endfunction
     function Bool isAmo(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: isAmo(mem);
-                tagged Amo .amo: isAmo(amo);
+                tagged MemOp .mem: isAmo(mem);
+                tagged AmoOp .amo: isAmo(amo);
             endcase);
     endfunction
     function Bool getsReadPermission(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: getsReadPermission(mem);
-                tagged Amo .amo: getsReadPermission(amo);
+                tagged MemOp .mem: getsReadPermission(mem);
+                tagged AmoOp .amo: getsReadPermission(amo);
             endcase);
     endfunction
     function Bool getsWritePermission(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: getsWritePermission(mem);
-                tagged Amo .amo: getsWritePermission(amo);
+                tagged MemOp .mem: getsWritePermission(mem);
+                tagged AmoOp .amo: getsWritePermission(amo);
             endcase);
     endfunction
     function Bool getsResponse(RVMemAmoOp x);
         return (case (x) matches
-                tagged Mem .mem: getsResponse(mem);
-                tagged Amo .amo: getsResponse(amo);
+                tagged MemOp .mem: getsResponse(mem);
+                tagged AmoOp .amo: getsResponse(amo);
             endcase);
     endfunction
 endinstance
