@@ -35,24 +35,24 @@ function Bool aluBr(BrFunc brFunc, Bit#(xlen) a, Bit#(xlen) b);
     Bool lt = signedLT(a,b);
     Bool ltu = (a < b);
     Bool brTaken = (case(brFunc)
-            Eq:         eq;
-            Neq:        (!eq);
-            Lt:         lt;
-            Ltu:        ltu;
-            Ge:         (!lt);
-            Geu:        (!ltu);
-            Jal:        True;
-            Jalr:       True;
+            BrEq:         eq;
+            BrNeq:        (!eq);
+            BrLt:         lt;
+            BrLtu:        ltu;
+            BrGe:         (!lt);
+            BrGeu:        (!ltu);
+            BrJal:        True;
+            BrJalr:       True;
             default:    True;
         endcase);
     return brTaken;
 endfunction
 
 function Bit#(xlen) brAddrCalc(BrFunc brFunc, Bit#(xlen) pc, Bit#(xlen) val, Bit#(xlen) imm);
-    Bit#(xlen) in1 = (brFunc == Jalr) ? val : pc;
+    Bit#(xlen) in1 = (brFunc == BrJalr) ? val : pc;
     Bit#(xlen) addOut = in1 + imm;
     // if JALR, zero LSB
-    Bit#(xlen) targetAddr = (brFunc == Jalr) ? (addOut & (~1)) : addOut;
+    Bit#(xlen) targetAddr = (brFunc == BrJalr) ? (addOut & (~1)) : addOut;
     return targetAddr;
 
     // XXX: Old implementation

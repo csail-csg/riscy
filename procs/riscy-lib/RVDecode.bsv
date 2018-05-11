@@ -35,16 +35,16 @@ import DefaultValue::*;
 function Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
     return (case (inst) matches
             // BRANCH
-            `BEQ:     tagged Valid (tagged Br Eq);
-            `BNE:     tagged Valid (tagged Br Neq);
-            `BLT:     tagged Valid (tagged Br Lt);
-            `BGE:     tagged Valid (tagged Br Ge);
-            `BLTU:    tagged Valid (tagged Br Ltu);
-            `BGEU:    tagged Valid (tagged Br Geu);
+            `BEQ:     tagged Valid (tagged Br BrEq);
+            `BNE:     tagged Valid (tagged Br BrNeq);
+            `BLT:     tagged Valid (tagged Br BrLt);
+            `BGE:     tagged Valid (tagged Br BrGe);
+            `BLTU:    tagged Valid (tagged Br BrLtu);
+            `BGEU:    tagged Valid (tagged Br BrGeu);
             // JALR
-            `JALR:    tagged Valid (tagged Br Jalr);
+            `JALR:    tagged Valid (tagged Br BrJalr);
             // JAL
-            `JAL:     tagged Valid (tagged Br Jal);
+            `JAL:     tagged Valid (tagged Br BrJal);
             // LUI
             `LUI:     tagged Valid (tagged Alu AluInst{op: Lui,   w: False});
             // AUIPC
@@ -232,16 +232,16 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
             // BRANCH
-            `BEQ:     tagged Valid (tagged Br Eq);
-            `BNE:     tagged Valid (tagged Br Neq);
-            `BLT:     tagged Valid (tagged Br Lt);
-            `BGE:     tagged Valid (tagged Br Ge);
-            `BLTU:    tagged Valid (tagged Br Ltu);
-            `BGEU:    tagged Valid (tagged Br Geu);
+            `BEQ:     tagged Valid (tagged Br BrEq);
+            `BNE:     tagged Valid (tagged Br BrNeq);
+            `BLT:     tagged Valid (tagged Br BrLt);
+            `BGE:     tagged Valid (tagged Br BrGe);
+            `BLTU:    tagged Valid (tagged Br BrLtu);
+            `BGEU:    tagged Valid (tagged Br BrGeu);
             // JALR
-            `JALR:    tagged Valid (tagged Br Jalr);
+            `JALR:    tagged Valid (tagged Br BrJalr);
             // JAL
-            `JAL:     tagged Valid (tagged Br Jal);
+            `JAL:     tagged Valid (tagged Br BrJal);
             // LUI
             `LUI:     tagged Valid (tagged Alu AluInst{op: Lui,   w: False});
             // AUIPC

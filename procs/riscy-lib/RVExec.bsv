@@ -124,14 +124,14 @@ endfunction
 
 function Bool aluBr(BrFunc brFunc, Bit#(xlen) a, Bit#(xlen) b);
     Bool brTaken = (case(brFunc)
-            Eq:         (a == b);
-            Neq:        (a != b);
-            Lt:         signedLT(a, b);
-            Ltu:        (a < b);
-            Ge:         signedGE(a, b);
-            Geu:        (a >= b);
-            Jal:        True;
-            Jalr:       True;
+            BrEq:         (a == b);
+            BrNeq:        (a != b);
+            BrLt:         signedLT(a, b);
+            BrLtu:        (a < b);
+            BrGe:         signedGE(a, b);
+            BrGeu:        (a >= b);
+            BrJal:        True;
+            BrJalr:       True;
             default:    True;
         endcase);
     return brTaken;
@@ -139,9 +139,9 @@ endfunction
 
 function Bit#(xlen) brAddrCalc(BrFunc brFunc, Bit#(xlen) pc, Bit#(xlen) val, Bit#(xlen) imm) provisos (Add#(a__, 1, xlen));
     Bit#(xlen) targetAddr = (case (brFunc)
-            Jal:        (pc + imm);
-            Jalr:       {(val + imm)[valueOf(xlen)-1:1], 1'b0};
-            default:    (pc + imm);
+            BrJal:        (pc + imm);
+            BrJalr:       {(val + imm)[valueOf(xlen)-1:1], 1'b0};
+            default:      (pc + imm);
         endcase);
     return targetAddr;
 endfunction

@@ -553,14 +553,14 @@ endfunction
 
 // These enumeration values match the bit values for funct3
 typedef enum {
-    Eq   = 3'b000,
-    Neq  = 3'b001,
-    Jal  = 3'b010,
-    Jalr = 3'b011,
-    Lt   = 3'b100,
-    Ge   = 3'b101,
-    Ltu  = 3'b110,
-    Geu  = 3'b111
+    BrEq   = 3'b000,
+    BrNeq  = 3'b001,
+    BrJal  = 3'b010,
+    BrJalr = 3'b011,
+    BrLt   = 3'b100,
+    BrGe   = 3'b101,
+    BrLtu  = 3'b110,
+    BrGeu  = 3'b111
 } BrFunc deriving (Bits, Eq, FShow);
 
 // This encoding tries to match {inst[30], funct3}
