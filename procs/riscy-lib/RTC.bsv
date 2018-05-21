@@ -33,6 +33,7 @@ import Vector::*;
 import Ehr::*;
 import PolymorphicMem::*;
 import Port::*;
+import RegUtil::*;
 
 import Abstraction::*;
 
@@ -43,7 +44,9 @@ interface RTC#(numeric type cores, type memIfcT);
     // 0x0010 = timecmp1
     //  ...
     interface memIfcT memifc;
-    method Bit#(64) timerValue;
+    interface Reg#(Bit#(32)) timerRegMSB;
+    interface Reg#(Bit#(32)) timerRegLSB;
+    interface Reg#(Bit#(64)) timerReg;
     method Vector#(cores, Bool) timerInterrupt;
 endinterface
 
@@ -75,7 +78,16 @@ module mkRTC_RV32(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
     endrule
 
     interface ServerPort memifc = memoryMappedIfc;
-    method Bit#(64) timerValue = {timeRegHi, timeRegLo};
+   
+   interface Reg timerRegMSB = timeRegHi;
+   interface Reg timerRegLSB = timeRegLo;
+   interface Reg timerReg;
+      method Bit#(64) _read();
+         Bit#(64) v = {timeRegHi,timeRegLo};
+	 return v;
+      endmethod
+      method Action _write(Bit#(64) v); endmethod
+   endinterface
     method Vector#(1, Bool) timerInterrupt = vec1(timerInterruptEn);
 endmodule
 
@@ -100,7 +112,9 @@ module mkRTC_RV64(RTC#(1, ServerPort#(reqT, respT))) provisos (MkPolymorphicMemF
         timeReg <= timeReg + 1;
     endrule
 
+   Reg#(Bit#(64)) readOnlyTimeReg <- mkReadOnlyReg(timeReg);
+
     interface ServerPort memifc = memoryMappedIfc;
-    method Bit#(64) timerValue = timeReg;
+   method Reg#(Bit#(64)) timerReg = readOnlyTimeReg;
     method Vector#(1, Bool) timerInterrupt = vec1(timerInterruptEn);
 endmodule

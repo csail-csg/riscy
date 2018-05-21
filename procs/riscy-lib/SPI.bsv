@@ -60,7 +60,9 @@ interface SPIMaster;
     interface SPIMasterPins pins;
 endinterface
 
+`ifdef BSVTOKAMI
 (* nogen *)
+`endif
 module mkSPIMaster(SPIMaster);
     let clock <- exposeCurrentClock();
     // registers for the interface pins

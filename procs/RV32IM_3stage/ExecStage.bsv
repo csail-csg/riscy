@@ -79,6 +79,11 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
     RVRegFile#(xlen) rf
 )(ExecStage) provisos (NumAlias#(xlen, 32));
 
+   GetInstFields getInstFields <- mkGetInstFields();
+   RVDecode rvDecode <- mkRVDecode();
+   BasicExec basicExec <- mkBasicExec();
+   ToFullRegIndex tfri <- mkToFullRegIndex();
+
     rule doExecute(es matches tagged Valid .executeState
                     &&& ws == tagged Invalid);
         // get and clear the execute state
@@ -100,7 +105,7 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
 
             // decode the instruction
             RiscVISASubset misa = defaultValue;
-            let maybeDInst = decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, inst);
+            let maybeDInst = rvDecode.decodeInst(misa.rv64, misa.m, misa.a, misa.f, misa.d, inst);
             if (maybeDInst == tagged Invalid && trap == tagged Invalid) begin
                 trap = tagged Valid (tagged TcException IllegalInst);
             end
@@ -109,11 +114,11 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
             // $display("[Execute] pc: 0x%0x, inst: 0x%0x, dInst: ", pc, inst, fshow(dInst));
 
             // read registers
-            let rVal1 = rf.rd1(toFullRegIndex(dInst.rs1, getInstFields(inst).rs1));
-            let rVal2 = rf.rd2(toFullRegIndex(dInst.rs2, getInstFields(inst).rs2));
+            let rVal1 = rf.rd1(tfri.toFullRegIndex(dInst.rs1, getInstFields.getInstFields(inst).rs1));
+            let rVal2 = rf.rd2(tfri.toFullRegIndex(dInst.rs2, getInstFields.getInstFields(inst).rs2));
 
             // execute instruction
-            let execResult = basicExec(dInst, rVal1, rVal2, pc);
+            let execResult = basicExec.basicExec(dInst, rVal1, rVal2, pc);
             let data = execResult.data;
             let addr = execResult.addr;
             let nextPc = execResult.nextPc;

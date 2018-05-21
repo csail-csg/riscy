@@ -43,13 +43,13 @@ typedef struct {
     Bit#(5)  fflags;
 } FpuResult deriving(Bits, Eq, FShow);
 
-instance FullResultSubset#(FpuResult, 64);
-    function FullResult#(64) updateFullResult(FpuResult x, FullResult#(64) full_result);
+module mkFullResultSubset(FullResultSubset#(FpuResult, 64));
+    method FullResult#(64) updateFullResult(FpuResult x, FullResult#(64) full_result);
         full_result.data = x.data;
         full_result.fflags = x.fflags;
         return full_result;
-    endfunction
-endinstance
+    endmethod
+endmodule
 
 interface FpuExec;
     method Action       exec(FpuInst fInst, RVRoundMode rm, Bit#(64) rVal1, Bit#(64) rVal2, Bit#(64) rVal3);

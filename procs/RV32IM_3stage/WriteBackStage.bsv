@@ -77,6 +77,10 @@ module mkWriteBackStage#(
     Reg#(Maybe#(VerificationPacket)) verificationPackets,
 Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
 
+   GetInstFields getInstFields <- mkGetInstFields();
+   IsMemOp#(RVMemAmoOp) isMemOp <- mkIsMemOpRVMemAmoOp();
+   ToFullRegIndex tfri <- mkToFullRegIndex();
+
     rule doWriteBack(ws matches tagged Valid .writeBackState
                         &&& (writeBackState.dInst.execFunc != tagged EF_System WFI || csrf.wakeFromWFI())
                         &&& !stall);
@@ -96,7 +100,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
 `endif
 
         if (dInst.execFunc matches tagged EF_Mem .memInst &&& trap == tagged Invalid) begin
-            if (getsResponse(memInst.op)) begin
+            if (isMemOp.getsResponse(memInst.op)) begin
                 data = dmemres.first.data >> {addr[1:0], 3'b0};
                 let extendFunc = memInst.isUnsigned ? zeroExtend : signExtend;
                 data = (case (memInst.size)
@@ -112,7 +116,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
                 pc,
                 // performing system instructions
                 dInst.execFunc matches tagged EF_System .sysInst ? tagged Valid sysInst : tagged Invalid,
-                getInstFields(inst).csr,
+                getInstFields.getInstFields(inst).csr,
                 data, // either rf[rs1] or zimm, computed in basicExec
                 addr,
                 // handling exceptions
@@ -155,7 +159,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
                     trapCause = pack(x);
                 end
         endcase
-	InstructionFields instFields = getInstFields(inst);
+	InstructionFields instFields = getInstFields.getInstFields(inst);
         verificationPackets <= tagged Valid VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
@@ -179,7 +183,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
         end else begin
             // This instruction retired
             // write to the register file
-            rf.wr(toFullRegIndex(dInst.dst, getInstFields(inst).rd), fromMaybe(data, maybeData));
+            rf.wr(tfri.toFullRegIndex(dInst.dst, getInstFields.getInstFields(inst).rd), fromMaybe(data, maybeData));
         end
     endrule
 endmodule

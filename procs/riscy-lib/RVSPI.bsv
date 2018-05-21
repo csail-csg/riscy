@@ -81,9 +81,11 @@ module mkRVSPI(RVSPI#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromR
             endmethod
         endinterface);
 
+   Reg#(Bit#(8)) fmrTx <- fromMaybeReg(0, txDataReg);
+   Reg#(Bit#(8)) fmrRx <- fromMaybeReg(0, rxDataReg);
     Vector#(4, Reg#(Bit#(32))) memoryMappedRegisters = vec4(
-            concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fromMaybeReg(0, txDataReg)),
-            concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fromMaybeReg(0, rxDataReg)),
+            concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fmrTx),
+            concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fmrRx),
             enableReg,
             divReg);
 

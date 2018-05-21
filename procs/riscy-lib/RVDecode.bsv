@@ -31,8 +31,25 @@ import RVTypes::*;
 import Vector::*;
 import DefaultValue::*;
 
+interface RVDecodeInternal;
+   method  Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncPriv(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV32M(Bool hasDiv, Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV32A(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV32F(Bool hasDiv, Bool hasSqrt, Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV32D(Bool hasDiv, Bool hasSqrt, Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV64M(Bool hasDiv, Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV64A(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV64F(Bool hasDiv, Bool hasSqrt, Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV64D(Bool hasDiv, Bool hasSqrt, Instruction inst);
+endinterface
+
+module mkRVDecodeInternal(RVDecodeInternal);
+   GetInstFields getInstFields <- mkGetInstFields();
+
 // RV32 Decoding functions
-function Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
+   method Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
     return (case (inst) matches
             // BRANCH
             `BEQ:     tagged Valid (tagged EF_Br BrEq);
@@ -86,11 +103,11 @@ function Maybe#(ExecFunc) toExecFuncRV32I(Instruction inst);
 
             default:  tagged Invalid;
         endcase);
-endfunction
+endmethod
 
 // Same for RV32 and RV64
-function Maybe#(ExecFunc) toExecFuncPriv(Instruction inst);
-    InstructionFields instFields = unpack(inst);
+method Maybe#(ExecFunc) toExecFuncPriv(Instruction inst);
+    InstructionFields instFields = getInstFields.getInstFields(inst);
     return (case (inst) matches
             `ECALL:     tagged Valid (tagged EF_System ECall);
             `EBREAK:    tagged Valid (tagged EF_System EBreak);
@@ -109,9 +126,9 @@ function Maybe#(ExecFunc) toExecFuncPriv(Instruction inst);
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV32M(Bool hasDiv, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV32M(Bool hasDiv, Instruction inst);
     return (case(inst) matches
             `MUL:       tagged Valid (tagged EF_MulDiv MulDivInst{func: Mul,  w: False, sign: Signed});
             `MULH:      tagged Valid (tagged EF_MulDiv MulDivInst{func: Mulh, w: False, sign: Signed});
@@ -124,9 +141,9 @@ function Maybe#(ExecFunc) toExecFuncRV32M(Bool hasDiv, Instruction inst);
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV32A(Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV32A(Instruction inst);
     return (case (inst) matches
             `AMOADD_W:  tagged Valid (tagged EF_Mem RVMemInst{op: tagged AmoOp Add,  size: W, isUnsigned: False});
             `AMOXOR_W:  tagged Valid (tagged EF_Mem RVMemInst{op: tagged AmoOp Xor,  size: W, isUnsigned: False});
@@ -142,9 +159,9 @@ function Maybe#(ExecFunc) toExecFuncRV32A(Instruction inst);
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV32F(Bool hasDiv, Bool hasSqrt, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV32F(Bool hasDiv, Bool hasSqrt, Instruction inst);
     return (case (inst) matches
             `FADD_S:    tagged Valid (tagged EF_Fpu FpuInst{func: FAdd,     precision: Single});
             `FSUB_S:    tagged Valid (tagged EF_Fpu FpuInst{func: FSub,     precision: Single});
@@ -184,9 +201,9 @@ function Maybe#(ExecFunc) toExecFuncRV32F(Bool hasDiv, Bool hasSqrt, Instruction
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV32D(Bool hasDiv, Bool hasSqrt, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV32D(Bool hasDiv, Bool hasSqrt, Instruction inst);
     return (case (inst) matches
             `FADD_D:    tagged Valid (tagged EF_Fpu FpuInst{func: FAdd,     precision: Double});
             `FSUB_D:    tagged Valid (tagged EF_Fpu FpuInst{func: FSub,     precision: Double});
@@ -225,10 +242,10 @@ function Maybe#(ExecFunc) toExecFuncRV32D(Bool hasDiv, Bool hasSqrt, Instruction
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
 // RV64 Decoding functions
-function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
             // BRANCH
@@ -305,9 +322,9 @@ function Maybe#(ExecFunc) toExecFuncRV64I(Instruction inst);
 
             default:  tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV64M(Bool hasDiv, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV64M(Bool hasDiv, Instruction inst);
     return (case(inst) matches
             // RV32/64 instructions
             `MUL:       tagged Valid (tagged EF_MulDiv MulDivInst{func: Mul,  w: False, sign: Signed});
@@ -328,9 +345,9 @@ function Maybe#(ExecFunc) toExecFuncRV64M(Bool hasDiv, Instruction inst);
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV64A(Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV64A(Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
             `AMOADD_W:  tagged Valid (tagged EF_Mem RVMemInst{op: tagged AmoOp Add,  size: W, isUnsigned: False});
@@ -360,9 +377,9 @@ function Maybe#(ExecFunc) toExecFuncRV64A(Instruction inst);
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV64F(Bool hasDiv, Bool hasSqrt, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV64F(Bool hasDiv, Bool hasSqrt, Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
             `FADD_S:    tagged Valid (tagged EF_Fpu FpuInst{func: FAdd,     precision: Single});
@@ -409,9 +426,9 @@ function Maybe#(ExecFunc) toExecFuncRV64F(Bool hasDiv, Bool hasSqrt, Instruction
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Maybe#(ExecFunc) toExecFuncRV64D(Bool hasDiv, Bool hasSqrt, Instruction inst);
+method Maybe#(ExecFunc) toExecFuncRV64D(Bool hasDiv, Bool hasSqrt, Instruction inst);
     return (case (inst) matches
             // RV32/64 instructions
             `FADD_D:    tagged Valid (tagged EF_Fpu FpuInst{func: FAdd,     precision: Double});
@@ -459,20 +476,32 @@ function Maybe#(ExecFunc) toExecFuncRV64D(Bool hasDiv, Bool hasSqrt, Instruction
 
             default:    tagged Invalid;
         endcase);
-endfunction
+endmethod
+endmodule
+
+interface RVDecode;
+   method Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Bool hasF, Bool hasD, Instruction inst);
+   method Maybe#(Bit#(XLEN)) getImmediate(ImmType imm, Instruction inst);
+   method Bit#(2) getMinPriv(Instruction inst);
+endinterface
+
+module mkRVDecode(RVDecode);
+   GetInstFields getInstFields <- mkGetInstFields();
+   ToInstType toInstType <- mkToInstType();   
+   RVDecodeInternal decodeInternal <- mkRVDecodeInternal();   
 
 // This returns a valid result if the instruction is legal, otherwise it
 // returns a tagged invalid.
-function Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Bool hasF, Bool hasD, Instruction inst);
+method Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Bool hasF, Bool hasD, Instruction inst);
     // Construct a vector of all the results
     // We will apply a fold function on this vector to find the valid result
     let decoderResults = vec6(
-            isRV64 ? toExecFuncRV64I(inst) : toExecFuncRV32I(inst),
-            hasM ? (isRV64 ? toExecFuncRV64M(True, inst) : toExecFuncRV32M(True, inst)) : tagged Invalid,
-            hasA ? (isRV64 ? toExecFuncRV64A(inst) : toExecFuncRV32A(inst)) : tagged Invalid,
-            hasF ? (isRV64 ? toExecFuncRV64F(True, True, inst) : toExecFuncRV32F(True, True, inst)) : tagged Invalid,
-            hasD ? (isRV64 ? toExecFuncRV64D(True, True, inst) : toExecFuncRV32D(True, True, inst)) : tagged Invalid,
-            toExecFuncPriv(inst)
+            isRV64 ? decodeInternal.toExecFuncRV64I(inst) : decodeInternal.toExecFuncRV32I(inst),
+            hasM ? (isRV64 ? decodeInternal.toExecFuncRV64M(True, inst) : decodeInternal.toExecFuncRV32M(True, inst)) : tagged Invalid,
+            hasA ? (isRV64 ? decodeInternal.toExecFuncRV64A(inst) : decodeInternal.toExecFuncRV32A(inst)) : tagged Invalid,
+            hasF ? (isRV64 ? decodeInternal.toExecFuncRV64F(True, True, inst) : decodeInternal.toExecFuncRV32F(True, True, inst)) : tagged Invalid,
+            hasD ? (isRV64 ? decodeInternal.toExecFuncRV64D(True, True, inst) : decodeInternal.toExecFuncRV32D(True, True, inst)) : tagged Invalid,
+            decodeInternal.toExecFuncPriv(inst)
         );
 
     // This fold is equivalent to going down the list of decoder results and
@@ -483,7 +512,7 @@ function Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Boo
     let execFunc = fold(fold_op, decoderResults);
 
     if (execFunc matches tagged Valid .validExecFunc) begin
-        InstType instType = toInstType(inst);
+        InstType instType = toInstType.toInstType(inst);
         return tagged Valid (RVDecodedInst {
                 execFunc: validExecFunc,
                 imm: instType.imm,
@@ -495,21 +524,21 @@ function Maybe#(RVDecodedInst) decodeInst(Bool isRV64, Bool hasM, Bool hasA, Boo
     end else begin
         return tagged Invalid;
     end
-endfunction
+endmethod
 
 // This function is used to get the immediate value from a decoded instruction
-function Maybe#(Bit#(xlen)) getImmediate(ImmType imm, Instruction inst)
-        provisos (Add#(a__, 5, xlen),
-                  Add#(b__, 12, xlen),
-                  Add#(c__, 13, xlen),
-                  Add#(d__, 21, xlen),
-                  Add#(e__, 32, xlen));
-    Bit#(xlen) immI  = signExtend(inst[31:20]);
-    Bit#(xlen) immS  = signExtend({inst[31:25], inst[11:7]});
-    Bit#(xlen) immSB = signExtend({inst[31], inst[7], inst[30:25], inst[11:8], 1'b0});
-    Bit#(xlen) immU  = signExtend({inst[31:12], 12'b0});
-    Bit#(xlen) immUJ = signExtend({inst[31], inst[19:12], inst[20], inst[30:21], 1'b0});
-    Bit#(xlen) immZ  = zeroExtend(inst[19:15]);
+method Maybe#(Bit#(XLEN)) getImmediate(ImmType imm, Instruction inst)
+        provisos (Add#(a__, 5, XLEN),
+                  Add#(b__, 12, XLEN),
+                  Add#(c__, 13, XLEN),
+                  Add#(d__, 21, XLEN),
+                  Add#(e__, 32, XLEN));
+    Bit#(XLEN) immI  = signExtend(inst[31:20]);
+    Bit#(XLEN) immS  = signExtend({inst[31:25], inst[11:7]});
+    Bit#(XLEN) immSB = signExtend({inst[31], inst[7], inst[30:25], inst[11:8], 1'b0});
+    Bit#(XLEN) immU  = signExtend({inst[31:12], 12'b0});
+    Bit#(XLEN) immUJ = signExtend({inst[31], inst[19:12], inst[20], inst[30:21], 1'b0});
+    Bit#(XLEN) immZ  = zeroExtend(inst[19:15]);
     return (case (imm)
             ItS:  tagged Valid immS;
             ItSB: tagged Valid immSB;
@@ -519,8 +548,9 @@ function Maybe#(Bit#(xlen)) getImmediate(ImmType imm, Instruction inst)
             ItZ:  tagged Valid immZ;
             default: tagged Invalid;
         endcase);
-endfunction
+endmethod
 
-function Bit#(2) getMinPriv(Instruction inst);
-    return (getInstFields(inst).opcode == System) ? inst[29:28] : prvU;
-endfunction
+method Bit#(2) getMinPriv(Instruction inst);
+    return (getInstFields.getInstFields(inst).opcode == System) ? inst[29:28] : prvU;
+endmethod
+endmodule

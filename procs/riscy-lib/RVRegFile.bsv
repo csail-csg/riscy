@@ -41,8 +41,8 @@ module mkRVRegFile#(Bool hasFPU)(RVRegFile#(xlen));
     File fout = stdout;
 
     Vector#(32, Reg#(Bit#(xlen))) gpr_rfile <- replicateM(mkReg(0));
-    gpr_rfile[0] = readOnlyReg(0);
-    Vector#(32, Reg#(Bit#(xlen))) fpu_rfile <- hasFPU ? replicateM(mkReg(0)) : replicateM(mkReadOnlyRegError(0, "Trying to write to FPU registers in RVRegFile without FPU registers. Use mkRVRegFile(True) instead."));
+    //gpr_rfile[0] = readOnlyReg(0);
+    Vector#(32, Reg#(Bit#(xlen))) fpu_rfile <- replicateM(mkReg(0));
 
     function Bit#(xlen) read(Maybe#(FullRegIndex) fullRegIndex);
         return (case (fullRegIndex) matches
@@ -74,8 +74,8 @@ module mkRVRegFileBypass#(Bool hasFPU)(RVRegFile#(xlen));
     File fout = stdout;
 
     Vector#(32, Reg#(Bit#(xlen))) gpr_rfile <- replicateM(mkReg(0));
-    gpr_rfile[0] = readOnlyReg(0);
-    Vector#(32, Reg#(Bit#(xlen))) fpu_rfile <- hasFPU ? replicateM(mkReg(0)) : replicateM(mkReadOnlyRegError(0, "Trying to write to FPU registers in RVRegFile without FPU registers. Use mkRVRegFileBypass(True) instead."));
+    //gpr_rfile[0] = readOnlyReg(0);
+    Vector#(32, Reg#(Bit#(xlen))) fpu_rfile <- replicateM(mkReg(0));
 
     // A write req to gpr 0 is the same as no write request
     Ehr#(2, Tuple2#(FullRegIndex, Bit#(xlen))) writeReq <- mkEhr(tuple2(tagged Gpr 0, 0));

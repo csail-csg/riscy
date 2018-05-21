@@ -35,7 +35,14 @@ typedef struct {
     ImmType imm;
 } InstType deriving (Bits, Eq, FShow);
 
-function InstType toInstType(Instruction inst);
+interface ToInstType;
+   method InstType toInstType(Instruction inst);
+endinterface
+   
+module mkToInstType(ToInstType);
+   GetInstFields getInstFields <- mkGetInstFields();
+
+   method InstType toInstType(Instruction inst);
     Maybe#(RegType) i = tagged Valid RtGpr;
     Maybe#(RegType) f = tagged Valid RtFpu;
     Maybe#(RegType) n = tagged Invalid;
@@ -208,8 +215,9 @@ function InstType toInstType(Instruction inst);
             `FMV_D_X:       InstType{rs1: i, rs2: n, rs3: n, dst: f, imm: ItNone};
             default:        ?;
         endcase);
-    if ((ret.dst == tagged Valid RtGpr) && (getInstFields(inst).rd == 0)) begin
+    if ((ret.dst == tagged Valid RtGpr) && (getInstFields.getInstFields(inst).rd == 0)) begin
         ret.dst = tagged Invalid;
     end
     return ret;
-endfunction
+   endmethod
+endmodule

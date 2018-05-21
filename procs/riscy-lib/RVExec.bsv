@@ -32,25 +32,33 @@ import RVControl::*;
 import RVMemory::*;
 
 typedef struct {
-    Bit#(xlen) data;
-    Bit#(xlen) addr;
+    Bit#(XLEN) data;
+    Bit#(XLEN) addr;
     Bool taken;
-    Bit#(xlen) nextPc;
+    Bit#(XLEN) nextPc;
 } ExecResult#(numeric type xlen) deriving (Bits, Eq, FShow);
 
+interface RVExec;
+   method ExecResult#(XLEN) execRef(RVDecodedInst dInst, Bit#(XLEN) rVal1, Bit#(XLEN) rVal2, Bit#(XLEN) pc);
+endinterface
+  
+
+module mkRVExec(RVExec);
 // Reference implementation of the exec function
 // This is an inefficient implementation because many of the functions used
 // in the case statement can reuse hardware
-(* noinline *)
-function ExecResult#(xlen) execRef(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2, Bit#(xlen) pc)
-        provisos (NumAlias#(XLEN, xlen));
-    Bit#(xlen) data = 0;
-    Bit#(xlen) addr = 0;
-    Bit#(xlen) pcPlus4 = pc + 4;
-    Bool taken = False;
-    Bit#(xlen) nextPc = pcPlus4;
 
-    Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
+   RVDecode rvDecoder <- mkRVDecode();
+
+method ExecResult#(XLEN) execRef(RVDecodedInst dInst, Bit#(XLEN) rVal1, Bit#(XLEN) rVal2, Bit#(XLEN) pc)
+        provisos (NumAlias#(XLEN, XLEN));
+    Bit#(XLEN) data = 0;
+    Bit#(XLEN) addr = 0;
+    Bit#(XLEN) pcPlus4 = pc + 4;
+    Bool taken = False;
+    Bit#(XLEN) nextPc = pcPlus4;
+
+    Maybe#(Bit#(XLEN)) imm = rvDecoder.getImmediate(dInst.imm, dInst.inst);
     case (dInst.execFunc) matches
         tagged EF_Alu    .aluInst:
             begin
@@ -82,13 +90,31 @@ function ExecResult#(xlen) execRef(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(x
             taken: taken,
             nextPc: nextPc
         };
-endfunction
+endmethod
+endmodule
+
+interface BasicExecInternal;
+   method Bit#(XLEN) brAddrCalc(BrFunc brFunc, Bit#(XLEN) pc, Bit#(XLEN) val, Bit#(XLEN) imm) provisos (Add#(a__, 1, XLEN));
+   method Bit#(XLEN) alu(AluFunc func, Bool w, Bit#(XLEN) a, Bit#(XLEN) b);
+   method Bool aluBr(BrFunc brFunc, Bit#(XLEN) a, Bit#(XLEN) b);
+endinterface
+
+
+
+module mkBasicExecInternal(BasicExecInternal);
+method Bit#(XLEN) brAddrCalc(BrFunc brFunc, Bit#(XLEN) pc, Bit#(XLEN) val, Bit#(XLEN) imm) provisos (Add#(a__, 1, XLEN));
+    Bit#(XLEN) targetAddr = (case (brFunc)
+            BrJal:        (pc + imm);
+            BrJalr:       {(val + imm)[valueOf(XLEN)-1:1], 1'b0};
+            default:      (pc + imm);
+        endcase);
+    return targetAddr;
+endmethod
 
 // functions for execBasic
-(* noinline *)
-function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
-        provisos (NumAlias#(XLEN, xlen));
-    if (valueOf(xlen) == 32) begin
+method Bit#(XLEN) alu(AluFunc func, Bool w, Bit#(XLEN) a, Bit#(XLEN) b)
+        provisos (NumAlias#(XLEN, XLEN));
+    if (valueOf(XLEN) == 32) begin
         w = True;
     end
     // setup inputs
@@ -101,7 +127,7 @@ function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
         shamt = {1'b0, shamt[4:0]};
     end
 
-    Bit#(xlen) res = (case(func)
+    Bit#(XLEN) res = (case(func)
             AluAdd, AluAuipc, AluLui: (a + b);
             AluSub:        (a - b);
             AluAnd:        (a & b);
@@ -120,9 +146,9 @@ function Bit#(xlen) alu(AluFunc func, Bool w, Bit#(xlen) a, Bit#(xlen) b)
     end
 
     return res;
-endfunction
+endmethod
 
-function Bool aluBr(BrFunc brFunc, Bit#(xlen) a, Bit#(xlen) b);
+method Bool aluBr(BrFunc brFunc, Bit#(XLEN) a, Bit#(XLEN) b);
     Bool brTaken = (case(brFunc)
             BrEq:         (a == b);
             BrNeq:        (a != b);
@@ -135,29 +161,30 @@ function Bool aluBr(BrFunc brFunc, Bit#(xlen) a, Bit#(xlen) b);
             default:    True;
         endcase);
     return brTaken;
-endfunction
+endmethod
 
-function Bit#(xlen) brAddrCalc(BrFunc brFunc, Bit#(xlen) pc, Bit#(xlen) val, Bit#(xlen) imm) provisos (Add#(a__, 1, xlen));
-    Bit#(xlen) targetAddr = (case (brFunc)
-            BrJal:        (pc + imm);
-            BrJalr:       {(val + imm)[valueOf(xlen)-1:1], 1'b0};
-            default:      (pc + imm);
-        endcase);
-    return targetAddr;
-endfunction
+endmodule
 
-function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#(xlen) rVal2, Bit#(xlen) pc) provisos (NumAlias#(XLEN, xlen));
+interface BasicExec;
+method ExecResult#(XLEN) basicExec(RVDecodedInst dInst, Bit#(XLEN) rVal1, Bit#(XLEN) rVal2, Bit#(XLEN) pc) provisos (NumAlias#(XLEN, XLEN));
+endinterface
+
+module mkBasicExec(BasicExec);
+   BasicExecInternal basicExecInternal <- mkBasicExecInternal();
+   RVDecode rvDecoder <- mkRVDecode();
+
+   method ExecResult#(XLEN) basicExec(RVDecodedInst dInst, Bit#(XLEN) rVal1, Bit#(XLEN) rVal2, Bit#(XLEN) pc) provisos (NumAlias#(XLEN, XLEN));
     // PC+4 is used in a few places
-    Bit#(xlen) pcPlus4 = pc + 4;
+    Bit#(XLEN) pcPlus4 = pc + 4;
 
     // just data, addr, and control flow
-    Bit#(xlen) data = 0;
-    Bit#(xlen) addr = 0;
+    Bit#(XLEN) data = 0;
+    Bit#(XLEN) addr = 0;
     Bool taken = False;
-    Bit#(xlen) nextPc = pcPlus4;
+    Bit#(XLEN) nextPc = pcPlus4;
 
     // Immediate Field
-    Maybe#(Bit#(xlen)) imm = getImmediate(dInst.imm, dInst.inst);
+    Maybe#(Bit#(XLEN)) imm = rvDecoder.getImmediate(dInst.imm, dInst.inst);
     if (dInst.execFunc matches tagged EF_Mem .*) begin
         if (!isValid(imm)) begin
             // Lr, Sc, and AMO instructions don't have immediate fields, so ovveride the immediate field here for address calculation
@@ -166,8 +193,8 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     end
 
     // ALU
-    Bit#(xlen) aluVal1 = rVal1;
-    Bit#(xlen) aluVal2 = imm matches tagged Valid .validImm ? validImm : rVal2;
+    Bit#(XLEN) aluVal1 = rVal1;
+    Bit#(XLEN) aluVal2 = imm matches tagged Valid .validImm ? validImm : rVal2;
     if (dInst.execFunc matches tagged EF_Alu .aluInst) begin
         // Special functions use special inputs
         case (aluInst.op) matches
@@ -178,14 +205,14 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
     // Use Add as default for memory instructions so alu result is the address
     AluFunc aluF = dInst.execFunc matches tagged EF_Alu .aluInst ? aluInst.op : AluAdd;
     Bool w = dInst.execFunc matches tagged EF_Alu .aluInst ? aluInst.w : False;
-    Bit#(xlen) aluResult = alu(aluF, w, aluVal1, aluVal2);
+    Bit#(XLEN) aluResult = basicExecInternal.alu(aluF, w, aluVal1, aluVal2);
 
     // Branch
     if (dInst.execFunc matches tagged EF_Br .brFunc) begin
-        taken = aluBr(brFunc, rVal1, rVal2);
+        taken = basicExecInternal.aluBr(brFunc, rVal1, rVal2);
         if (taken) begin
             // otherwise, nextPc is already pcPlus4
-            nextPc = brAddrCalc(brFunc, pc, rVal1, fromMaybe(?, imm));
+            nextPc = basicExecInternal.brAddrCalc(brFunc, pc, rVal1, fromMaybe(?, imm));
         end
     end
 
@@ -205,31 +232,41 @@ function ExecResult#(xlen) basicExec(RVDecodedInst dInst, Bit#(xlen) rVal1, Bit#
         endcase);
 
     return ExecResult{data: data, addr: addr, taken: taken, nextPc: nextPc};
-endfunction
+endmethod
+endmodule
 
-function Bit#(xlen) gatherLoad(Bit#(TLog#(TDiv#(xlen,8))) byteSel, RVMemSize size, Bool isUnsigned, Bit#(xlen) data)
-        provisos (Add#(a__, 32, xlen),
-                  Add#(b__, 16, xlen),
-                  Add#(c__, 8, xlen));
-    function extend = isUnsigned ? zeroExtend : signExtend;
+interface ScatterGatherLoadStore;
+   method Bit#(XLEN) gatherLoad(Bit#(TLog#(TDiv#(XLEN,8))) byteSel, RVMemSize size, Bool isUnsigned, Bit#(XLEN) data);
+   method Tuple2#(DataByteEn, Bit#(XLEN)) scatterStore(DataByteSel byteSel, RVMemSize size, Bit#(XLEN) data);
+endinterface
+   
+module mkScatterGatherLoadStore(ScatterGatherLoadStore);
 
-    let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
-    data = data >> bitsToShiftBy;
-    data = (case (size)
-            B: extend(data[7:0]);
-            H: extend(data[15:0]);
-            W: extend(data[31:0]);
-            D: data;
-        endcase);
+   ToPermutedDataByteEn toPermutedDataByteEn <- mkToPermutedDataByteEn();
 
-    return data;
-endfunction
+   method Bit#(XLEN) gatherLoad(Bit#(TLog#(TDiv#(XLEN,8))) byteSel, RVMemSize size, Bool isUnsigned, Bit#(XLEN) data)
+      provisos (Add#(a__, 32, XLEN),
+		Add#(b__, 16, XLEN),
+		Add#(c__, 8, XLEN));
+      function extend = isUnsigned ? zeroExtend : signExtend;
 
-function Tuple2#(DataByteEn, Bit#(xlen)) scatterStore(DataByteSel byteSel, RVMemSize size, Bit#(xlen) data)
-        provisos (NumAlias#(XLEN, xlen));
-    let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
-    data = data << bitsToShiftBy;
-    DataByteEn permutedByteEn = toPermutedDataByteEn(size, byteSel);
-    return tuple2(permutedByteEn, data);
-endfunction
+      let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
+      data = data >> bitsToShiftBy;
+      data = (case (size)
+	      B: extend(data[7:0]);
+	      H: extend(data[15:0]);
+	      W: extend(data[31:0]);
+	      D: data;
+         endcase);
+
+      return data;
+   endmethod
+   method Tuple2#(DataByteEn, Bit#(XLEN)) scatterStore(DataByteSel byteSel, RVMemSize size, Bit#(XLEN) data)
+      provisos (NumAlias#(XLEN, XLEN));
+      let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
+      data = data << bitsToShiftBy;
+      DataByteEn permutedByteEn = toPermutedDataByteEn.toPermutedDataByteEn(size, byteSel);
+      return tuple2(permutedByteEn, data);
+   endmethod
+endmodule
 

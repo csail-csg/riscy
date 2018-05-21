@@ -67,7 +67,7 @@ module mkThreeStageCore#(
             AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen,8))) dmem,
             Bool ipi,
             Bool timerInterrupt,
-            Bit#(64) timer,
+            Reg#(Bit#(64)) timer,
             Bool externalInterrupt,
             Bit#(xlen) hartID
         )(Core#(xlen)) provisos (NumAlias#(xlen, 32));

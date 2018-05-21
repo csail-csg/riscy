@@ -216,28 +216,41 @@ typedef struct {
     CSR         csr;
 } InstructionFields;
 // XXX: probably don't want a Bits instance for this type
+`ifdef UNUSED
 instance Bits#(InstructionFields, 32);
     function Bit#(32) pack(InstructionFields x);
         return x.inst;
     endfunction
-    function InstructionFields unpack(Bit#(32) x);
-        return getInstFields(x);
-    endfunction
+   //function InstructionFields unpack(Bit#(32) x);
+   //     return getInstFields(x);
+   // endfunction
 endinstance
+`endif
+
 // XXX: ... or an Eq instance
+`ifdef UNUSED
 instance Eq#(InstructionFields);
     function Bool \== (InstructionFields a, InstructionFields b);
         return a.inst == b.inst;
     endfunction
 endinstance
+`endif
 // XXX: ... or an FShow instance
+`ifdef UNUSED
 instance FShow#(InstructionFields);
     function Fmt fshow(InstructionFields x);
         return $format("{InstructionFields: 0x%08x}",x);
     endfunction
 endinstance
+`endif
+
 // XXX: we probably just want this function
-function InstructionFields getInstFields(Instruction x);
+interface GetInstFields;
+   method InstructionFields getInstFields(Instruction x);
+endinterface
+
+module mkGetInstFields(GetInstFields);
+   method InstructionFields getInstFields(Instruction x);
     return InstructionFields {
             inst:       x,
             rd:         x[11:7],
@@ -254,7 +267,8 @@ function InstructionFields getInstFields(Instruction x);
             csrAddr:    x[31:20],
             csr:        unpack(x[31:20])
         };
-endfunction
+   endmethod
+endmodule
 
 // This encoding partially matches rocket, one day we may be able to use the same caches
 // These are requests that a processor may send to the 
@@ -331,13 +345,13 @@ typedef enum {
     D   = 2'b11
 } RVMemSize deriving (Bits, Eq, FShow);
 
-typeclass ToDataByteEn#(numeric type n);
-    function Bit#(n) toDataByteEn(RVMemSize size);
-endtypeclass
+interface ToDataByteEn#(numeric type n);
+    method Bit#(n) toDataByteEn(RVMemSize size);
+endinterface
 
 // RV32 Instance
-instance ToDataByteEn#(4);
-    function Bit#(4) toDataByteEn(RVMemSize size);
+module mkToDataByteEn4(ToDataByteEn#(4));
+    method Bit#(4) toDataByteEn(RVMemSize size);
         return (case (size)
                 B:       4'b0001;
                 H:       4'b0011;
@@ -345,12 +359,12 @@ instance ToDataByteEn#(4);
                 // D is illegal
                 default: 4'b0000;
             endcase);
-    endfunction
-endinstance
+    endmethod
+endmodule
 
 // RV64 Instance
-instance ToDataByteEn#(8);
-    function Bit#(8) toDataByteEn(RVMemSize size);
+module mkToDataByteEn8(ToDataByteEn#(8));
+    method Bit#(8) toDataByteEn(RVMemSize size);
         return (case (size)
                 B:       8'b00000001;
                 H:       8'b00000011;
@@ -358,12 +372,20 @@ instance ToDataByteEn#(8);
                 D:       8'b11111111;
                 default: 8'b00000000;
             endcase);
-    endfunction
-endinstance
+    endmethod
+endmodule
 
-function DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
-    return toDataByteEn(size) << addrLSB;
-endfunction
+interface ToPermutedDataByteEn;
+   method DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
+endinterface
+
+module mkToPermutedDataByteEn(ToPermutedDataByteEn);
+   //FIXME hardcoded
+   ToDataByteEn#(4) tdbe <- mkToDataByteEn4();
+   method DataByteEn toPermutedDataByteEn(RVMemSize size, DataByteSel addrLSB);
+      return tdbe.toDataByteEn(size) << addrLSB;
+   endmethod
+endmodule
 
 typedef union tagged {
     RVMemOp MemOp;
@@ -376,92 +398,97 @@ typedef struct {
     Bool        isUnsigned;
 } RVMemInst deriving (Bits, Eq, FShow);
 
-typeclass IsMemOp#(type t);
-    function Bool isLoad(t x);
-    function Bool isStore(t x);
-    function Bool isAmo(t x);
-    function Bool getsReadPermission(t x);
-    function Bool getsWritePermission(t x);
-    function Bool getsResponse(t x);
-endtypeclass
-instance IsMemOp#(RVMemOp);
-    function Bool isLoad(RVMemOp x);
+interface IsMemOp#(type t);
+    method Bool isLoad(t x);
+    method Bool isStore(t x);
+    method Bool isAmo(t x);
+    method Bool getsReadPermission(t x);
+    method Bool getsWritePermission(t x);
+    method Bool getsResponse(t x);
+endinterface
+
+module mkIsMemOpRVMemOp(IsMemOp#(RVMemOp));
+    method Bool isLoad(RVMemOp x);
         return ((x == Ld) || (x == Lr));
-    endfunction
-    function Bool isStore(RVMemOp x);
+    endmethod
+    method Bool isStore(RVMemOp x);
         return ((x == St) || (x == Sc));
-    endfunction
-    function Bool isAmo(RVMemOp x);
+    endmethod
+    method Bool isAmo(RVMemOp x);
         return False;
-    endfunction
-    function Bool getsReadPermission(RVMemOp x);
+    endmethod
+    method Bool getsReadPermission(RVMemOp x);
         return ((x == Ld) || (x == PrefetchForLd));
-    endfunction
-    function Bool getsWritePermission(RVMemOp x);
-        return (isStore(x) || (x == Lr) || (x == PrefetchForSt));
-    endfunction
-    function Bool getsResponse(RVMemOp x);
-        return (isLoad(x) || isAmo(x) || (x == Sc));
-    endfunction
-endinstance
-instance IsMemOp#(RVAmoOp);
-    function Bool isLoad(RVAmoOp x);
+    endmethod
+    method Bool getsWritePermission(RVMemOp x);
+        return ((x == St) || (x == Sc) || (x == Lr) || (x == PrefetchForSt));
+    endmethod
+    method Bool getsResponse(RVMemOp x);
+        return ((x == Ld) || (x == Lr) || (x == Sc));
+    endmethod
+endmodule
+
+module mkIsMemOpRVAmoOp(IsMemOp#(RVAmoOp));
+    method Bool isLoad(RVAmoOp x);
         return False;
-    endfunction
-    function Bool isStore(RVAmoOp x);
+    endmethod
+    method Bool isStore(RVAmoOp x);
         return False;
-    endfunction
-    function Bool isAmo(RVAmoOp x);
+    endmethod
+    method Bool isAmo(RVAmoOp x);
         return True;
-    endfunction
-    function Bool getsReadPermission(RVAmoOp x);
+    endmethod
+    method Bool getsReadPermission(RVAmoOp x);
         return False;
-    endfunction
-    function Bool getsWritePermission(RVAmoOp x);
+    endmethod
+    method Bool getsWritePermission(RVAmoOp x);
         return True;
-    endfunction
-    function Bool getsResponse(RVAmoOp x);
+    endmethod
+    method Bool getsResponse(RVAmoOp x);
         return True;
-    endfunction
-endinstance
-instance IsMemOp#(RVMemAmoOp);
-    function Bool isLoad(RVMemAmoOp x);
+    endmethod
+endmodule
+
+module mkIsMemOpRVMemAmoOp(IsMemOp#(RVMemAmoOp));
+   IsMemOp#(RVMemOp) isMemOpMem <- mkIsMemOpRVMemOp();
+   IsMemOp#(RVAmoOp) isMemOpAmo <- mkIsMemOpRVAmoOp();
+    method Bool isLoad(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: isLoad(mem);
-                tagged AmoOp .amo: isLoad(amo);
+                tagged MemOp .mem: isMemOpMem.isLoad(mem);
+                tagged AmoOp .amo: isMemOpAmo.isLoad(amo);
             endcase);
-    endfunction
-    function Bool isStore(RVMemAmoOp x);
+    endmethod
+    method Bool isStore(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: isStore(mem);
-                tagged AmoOp .amo: isStore(amo);
+                tagged MemOp .mem: isMemOpMem.isStore(mem);
+                tagged AmoOp .amo: isMemOpAmo.isStore(amo);
             endcase);
-    endfunction
-    function Bool isAmo(RVMemAmoOp x);
+    endmethod
+    method Bool isAmo(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: isAmo(mem);
-                tagged AmoOp .amo: isAmo(amo);
+                tagged MemOp .mem: isMemOpMem.isAmo(mem);
+                tagged AmoOp .amo: isMemOpAmo.isAmo(amo);
             endcase);
-    endfunction
-    function Bool getsReadPermission(RVMemAmoOp x);
+    endmethod
+    method Bool getsReadPermission(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: getsReadPermission(mem);
-                tagged AmoOp .amo: getsReadPermission(amo);
+                tagged MemOp .mem: isMemOpMem.getsReadPermission(mem);
+                tagged AmoOp .amo: isMemOpAmo.getsReadPermission(amo);
             endcase);
-    endfunction
-    function Bool getsWritePermission(RVMemAmoOp x);
+    endmethod
+    method Bool getsWritePermission(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: getsWritePermission(mem);
-                tagged AmoOp .amo: getsWritePermission(amo);
+                tagged MemOp .mem: isMemOpMem.getsWritePermission(mem);
+                tagged AmoOp .amo: isMemOpAmo.getsWritePermission(amo);
             endcase);
-    endfunction
-    function Bool getsResponse(RVMemAmoOp x);
+    endmethod
+    method Bool getsResponse(RVMemAmoOp x);
         return (case (x) matches
-                tagged MemOp .mem: getsResponse(mem);
-                tagged AmoOp .amo: getsResponse(amo);
+                tagged MemOp .mem: isMemOpMem.getsResponse(mem);
+                tagged AmoOp .amo: isMemOpAmo.getsResponse(amo);
             endcase);
-    endfunction
-endinstance
+    endmethod
+endmodule
 
 typedef struct {
     Bool rv64;
@@ -478,6 +505,9 @@ typedef struct {
     Bool x;
 } RiscVISASubset deriving (Bits, Eq, FShow);
 
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 instance DefaultValue#(RiscVISASubset);
     function RiscVISASubset defaultValue = RiscVISASubset{
 `ifdef CONFIG_RV64
@@ -520,7 +550,12 @@ instance DefaultValue#(RiscVISASubset);
     };
 endinstance
 
-function Data getMISA(RiscVISASubset isa);
+interface GetMISA;
+   method Data getMISA(RiscVISASubset isa);
+endinterface
+
+module mkGetMISA(GetMISA);
+method Data getMISA(RiscVISASubset isa);
     // include I by default
     Data misa = {2'b00, 4'd0, 26'b00000000000000000100000000};
     if (isa.rv64) begin
@@ -537,20 +572,29 @@ function Data getMISA(RiscVISASubset isa);
     if (isa.f) misa = misa | {2'b00, 4'd0,  26'b00000000000000000000100000};
     if (isa.d) misa = misa | {2'b00, 4'd0,  26'b00000000000000000000001000};
     return misa;
-endfunction
+endmethod
+endmodule
 
 typedef Bit#(5) RegIndex;
 typedef union tagged {
     RegIndex Gpr;
     RegIndex Fpu;
 } FullRegIndex deriving (Bits, Eq, FShow, Bounded);
-function Maybe#(FullRegIndex) toFullRegIndex(Maybe#(RegType) rType, RegIndex index);
+
+interface ToFullRegIndex;
+   method Maybe#(FullRegIndex) toFullRegIndex(Maybe#(RegType) rType, RegIndex index);
+endinterface
+
+module mkToFullRegIndex(ToFullRegIndex);
+method Maybe#(FullRegIndex) toFullRegIndex(Maybe#(RegType) rType, RegIndex index);
     return (case (rType)
             tagged Valid RtGpr: tagged Valid tagged Gpr index;
             tagged Valid RtFpu: tagged Valid tagged Fpu index;
             default: tagged Invalid;
         endcase);
-endfunction
+endmethod
+endmodule
+
 typedef 64 NumArchReg;
 
 `ifdef PHYS_REG_COUNT
@@ -559,10 +603,16 @@ typedef `PHYS_REG_COUNT NumPhyReg;
 typedef NumArchReg NumPhyReg;
 `endif
 
-function Bool hasCSRPermission(CSR csr, Bit#(2) prv, Bool write);
+interface HasCSRPermission;
+   method Bool hasCSRPermission(CSR csr, Bit#(2) prv, Bool write);
+endinterface
+
+module mkHasCSRPermission(HasCSRPermission);
+method Bool hasCSRPermission(CSR csr, Bit#(2) prv, Bool write);
     Bit#(12) csr_index = pack(csr);
     return ((prv >= csr_index[9:8]) && (!write || (csr_index[11:10] != 2'b11)));
-endfunction
+endmethod
+endmodule
 
 // These enumeration values match the bit values for funct3
 typedef enum {
@@ -741,7 +791,12 @@ typedef union tagged {
     InterruptCause TcInterrupt;
 } TrapCause deriving (Bits, Eq, FShow);
 
-function Data toCauseCSR(TrapCause x);
+interface ToCauseCSR;
+   method Data toCauseCSR(TrapCause x);
+endinterface
+
+module mkToCauseCSR(ToCauseCSR);
+method Data toCauseCSR(TrapCause x);
     case (x) matches
         tagged TcException .cause: begin
 	   Bit#(4) pcause = pack(cause);
@@ -754,7 +809,8 @@ function Data toCauseCSR(TrapCause x);
         default:
             return 0;
     endcase
-endfunction
+endmethod
+endmodule
 
 typedef struct {
     Bit#(2) prv;
@@ -793,15 +849,22 @@ typedef struct {
     Maybe#(ExceptionCause)  cause;
 } FullResult#(numeric type xlen) deriving (Bits, Eq, FShow);
 
-typeclass FullResultSubset#(type t, numeric type xlen);
-    function FullResult#(xlen) updateFullResult(t x, FullResult#(xlen) full_result);
-endtypeclass
+interface FullResultSubset#(type t, numeric type xlen);
+    method FullResult#(xlen) updateFullResult(t x, FullResult#(xlen) full_result);
+endinterface
+
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 instance DefaultValue#(ControlFlow);
     function ControlFlow defaultValue = ControlFlow{pc: 0,
                                                     nextPc: 0,
                                                     taken: False,
                                                     mispredict: False};
 endinstance
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 instance DefaultValue#(FullResult#(xlen));
     function FullResult#(xlen) defaultValue = FullResult{  data: 0,
                                                     fflags: 0,
@@ -810,9 +873,14 @@ instance DefaultValue#(FullResult#(xlen));
                                                     controlFlow: defaultValue,
                                                     cause: tagged Invalid};
 endinstance
-function FullResult#(xlen) toFullResult(t x) provisos (FullResultSubset#(t, xlen));
+
+`ifdef UNUSED
+module mkToFullResult(ToFullResult);
+   method FullResult#(xlen) toFullResult(t x) provisos (FullResultSubset#(t, xlen));
     return updateFullResult(x, defaultValue);
-endfunction
+   endmethod
+endmodule
+`endif
 
 typedef struct {
     Bit#(2)    prv;
@@ -823,6 +891,9 @@ typedef struct {
     Bit#(xlen) base;
     Bit#(xlen) bound;
 } VMInfo#(numeric type xlen) deriving (Bits, Eq, FShow);
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 instance DefaultValue#(VMInfo#(xlen));
     function VMInfo#(xlen) defaultValue = VMInfo {prv: prvM, asid: 0, vm: 0, mxr: False, pum: False, base: 0, bound: 0};
 endinstance
@@ -836,12 +907,18 @@ typedef enum {
     IOEmpty     // no R, W, or X
 } PMA deriving (Bits, Eq, FShow);
 
-function Bool isCacheable(PMA pma);
+interface IsCacheable;
+method Bool isCacheable(PMA pma);
+endinterface
+
+module mkIsCacheable(IsCacheable);
+method Bool isCacheable(PMA pma);
     return (case (pma)
                 MainMemory, IORom: True;
                 default: False;
             endcase);
-endfunction
+endmethod
+endmodule
 
 Bit#(2) prvU = 0;
 Bit#(2) prvS = 1;
@@ -879,6 +956,10 @@ typedef struct {
     Bool r;
     Bool valid;
 } PTE_Sv39 deriving (Eq, FShow); // Has custom Bits implementation
+
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 instance Bits#(PTE_Sv39, 64);
     function Bit#(64) pack(PTE_Sv39 x);
         return {x.reserved, x.ppn2, x.ppn1, x.ppn0, x.reserved_sw, pack(x.d), pack(x.a), pack(x.g), pack(x.u), pack(x.x), pack(x.w), pack(x.r), pack(x.valid)};
@@ -901,9 +982,16 @@ instance Bits#(PTE_Sv39, 64);
             });
     endfunction
 endinstance
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
 function Bool isLegalPTE(PTE_Sv39 pte);
     return pte.valid && !(pte.w && !(pte.r));
 endfunction
+`ifdef BSVTOKAMI
+(* nogen *)
+`endif
+
 function Bool isLeafPTE(PTE_Sv39 pte);
     return pte.valid && (pte.r || pte.w || pte.x);
 endfunction

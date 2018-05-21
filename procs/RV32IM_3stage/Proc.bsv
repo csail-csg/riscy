@@ -82,7 +82,7 @@ module mkProc(Proc#(DataSz));
     RVSPI#(ByteEnMemServerPort#(32,2)) spi_module <- mkRVSPI();
 
     Bool timer_interrupt = rtc.timerInterrupt[0];
-    Bit#(64) timer_value = rtc.timerValue;
+    Reg#(Bit#(64)) timer_value = rtc.timerReg;
 
     Wire#(Bool) extInterruptWire <- mkDWire(False);
 
@@ -120,6 +120,8 @@ module mkProc(Proc#(DataSz));
                     extInterruptWire, // external interrupt
                     0); // hart ID
 
+   let ramPort <- nullClientPort();
+
     // Processor Control
     method Action start();
         core.start(0);
@@ -134,7 +136,7 @@ module mkProc(Proc#(DataSz));
     endmethod
 
     // Main Memory Connection
-    interface CoarseMemClientPort ram = nullClientPort;
+    interface CoarseMemClientPort ram = ramPort;
 
     interface CoarseMemServerPort mmio = mmio_client;
 

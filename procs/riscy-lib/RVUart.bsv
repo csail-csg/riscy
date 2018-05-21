@@ -48,6 +48,7 @@ interface RVUart#(type memIfcT);
     method Bool interrupt;
 endinterface
 
+
 module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(ServerPort#(reqT, respT))) provisos (MkPolymorphicMemFromRegs#(reqT, respT, 5, 32));
     Bool verbose = False;
 
@@ -58,13 +59,16 @@ module mkRVUart_RV32#(Bit#(16) divisor)(RVUart#(ServerPort#(reqT, respT))) provi
     Reg#(Bit#(32)) rxCtrlReg <- mkReg(0);
     Reg#(Bit#(16)) divReg <- mkReg(divisor);
 
+   Reg#(Bit#(8)) fmrTx <- fromMaybeReg(0, txDataReg);
+   Reg#(Bit#(8)) fmrRx <- fromMaybeReg(0, rxDataReg);
+   Reg#(Bit#(32)) extendedDivReg <- zeroExtendReg(divReg);
     Vector#(5, Reg#(Bit#(32))) memoryMappedRegisters =
         vec5(
-            concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fromMaybeReg(0, txDataReg)),
-            concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fromMaybeReg(0, rxDataReg)),
+            concatReg3(readOnlyReg(pack(isValid(txDataReg))), readOnlyReg(0), fmrTx),
+            concatReg3(readOnlyReg(pack(isValid(rxDataReg))), readOnlyReg(0), fmrRx),
             txCtrlReg,
             rxCtrlReg,
-            zeroExtendReg(divReg)
+            extendedDivReg
         );
     ServerPort#(reqT, respT) memoryMappedIfc <- mkPolymorphicMemFromRegs(memoryMappedRegisters);
 
