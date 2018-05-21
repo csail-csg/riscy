@@ -60,6 +60,7 @@ interface SPIMaster;
     interface SPIMasterPins pins;
 endinterface
 
+(* nogen *)
 module mkSPIMaster(SPIMaster);
     let clock <- exposeCurrentClock();
     // registers for the interface pins

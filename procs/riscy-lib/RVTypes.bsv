@@ -34,9 +34,12 @@ typedef 32 XLEN;
 `endif
 
 typedef XLEN DataSz;
-typedef Bit#(DataSz) Data;
-typedef Bit#(TDiv#(DataSz,8)) DataByteEn;
-typedef Bit#(TLog#(TDiv#(DataSz,8))) DataByteSel; // Type of byte select value for Data
+//typedef Bit#(DataSz) Data;
+//typedef Bit#(TDiv#(DataSz,8)) DataByteEn;
+//typedef Bit#(TLog#(TDiv#(DataSz,8))) DataByteSel; // Type of byte select value for Data
+typedef Bit#(32) Data;
+typedef Bit#(4) DataByteEn;
+typedef Bit#(2) DataByteSel; // Type of byte select value for Data
 
 typedef 512 CacheLineSz; // Used in DCache.bsv
 
@@ -58,6 +61,140 @@ typedef 26 AsidSz;
 typedef 10 AsidSz;
 `endif
 typedef Bit#(AsidSz) Asid;
+
+// Rounding Modes
+typedef enum {
+    RNE  = 3'b000,
+    RTZ  = 3'b001,
+    RDN  = 3'b010,
+    RUP  = 3'b011,
+    RMM  = 3'b100,
+    RDyn = 3'b111
+} RVRoundMode deriving (Bits, Eq, FShow);
+
+typedef enum {
+    Load    = 7'b0000011,
+    LoadFp  = 7'b0000111,
+    MiscMem = 7'b0001111,
+    OpImm   = 7'b0010011,
+    Auipc   = 7'b0010111,
+    OpImm32 = 7'b0011011,
+    Store   = 7'b0100011,
+    StoreFp = 7'b0100111,
+    Amo     = 7'b0101111,
+    Op      = 7'b0110011,
+    Lui     = 7'b0110111,
+    Op32    = 7'b0111011,
+    Fmadd   = 7'b1000011,
+    Fmsub   = 7'b1000111,
+    Fnmsub  = 7'b1001011,
+    Fnmadd  = 7'b1001111,
+    OpFp    = 7'b1010011,
+    Branch  = 7'b1100011,
+    Jalr    = 7'b1100111,
+    Jal     = 7'b1101111,
+    System  = 7'b1110011
+} Opcode deriving (Bits, Eq, FShow);
+
+typedef enum {
+    CSRustatus          = 12'h000,
+    CSRuie              = 12'h004,
+    CSRutvec            = 12'h005,
+    CSRuscratch         = 12'h040,
+    CSRuepc             = 12'h041,
+    CSRucause           = 12'h042,
+    CSRubadaddr         = 12'h043,
+    CSRuip              = 12'h044,
+    CSRfflags           = 12'h001,
+    CSRfrm              = 12'h002,
+    CSRfcsr             = 12'h003,
+    CSRcycle            = 12'hc00,
+    CSRtime             = 12'hc01,
+    CSRinstret          = 12'hc02,
+    CSRcycleh           = 12'hc80,
+    CSRtimeh            = 12'hc81,
+    CSRinstreth         = 12'hc82,
+    CSRsstatus          = 12'h100,
+    CSRsedeleg          = 12'h102,
+    CSRsideleg          = 12'h103,
+    CSRsie              = 12'h104,
+    CSRstvec            = 12'h105,
+    CSRsscratch         = 12'h140,
+    CSRsepc             = 12'h141,
+    CSRscause           = 12'h142,
+    CSRsbadaddr         = 12'h143,
+    CSRsip              = 12'h144,
+    CSRsptbr            = 12'h180,
+    CSRscycle           = 12'hd00,
+    CSRstime            = 12'hd01,
+    CSRsinstret         = 12'hd02,
+    CSRscycleh          = 12'hd80,
+    CSRstimeh           = 12'hd81,
+    CSRsinstreth        = 12'hd82,
+    CSRhstatus          = 12'h200,
+    CSRhedeleg          = 12'h202,
+    CSRhideleg          = 12'h203,
+    CSRhie              = 12'h204,
+    CSRhtvec            = 12'h205,
+    CSRhscratch         = 12'h240,
+    CSRhepc             = 12'h241,
+    CSRhcause           = 12'h242,
+    CSRhbadaddr         = 12'h243,
+    CSRhcycle           = 12'he00,
+    CSRhtime            = 12'he01,
+    CSRhinstret         = 12'he02,
+    CSRhcycleh          = 12'he80,
+    CSRhtimeh           = 12'he81,
+    CSRhinstreth        = 12'he82,
+    CSRmisa             = 12'hf10,
+    CSRmvendorid        = 12'hf11,
+    CSRmarchid          = 12'hf12,
+    CSRmimpid           = 12'hf13,
+    CSRmhartid          = 12'hf14,
+    CSRmstatus          = 12'h300,
+    CSRmedeleg          = 12'h302,
+    CSRmideleg          = 12'h303,
+    CSRmie              = 12'h304,
+    CSRmtvec            = 12'h305,
+    CSRmscratch         = 12'h340,
+    CSRmepc             = 12'h341,
+    CSRmcause           = 12'h342,
+    CSRmbadaddr         = 12'h343,
+    CSRmip              = 12'h344,
+    CSRmbase            = 12'h380,
+    CSRmbound           = 12'h381,
+    CSRmibase           = 12'h382,
+    CSRmibound          = 12'h383,
+    CSRmdbase           = 12'h384,
+    CSRmdbound          = 12'h385,
+    CSRmcycle           = 12'hf00,
+    CSRmtime            = 12'hf01,
+    CSRminstret         = 12'hf02,
+    CSRmcycleh          = 12'hf80,
+    CSRmtimeh           = 12'hf81,
+    CSRminstreth        = 12'hf82,
+    CSRmucounteren      = 12'h310,
+    CSRmscounteren      = 12'h311,
+    CSRmhcounteren      = 12'h312,
+    CSRmucycle_delta    = 12'h700,
+    CSRmutime_delta     = 12'h701,
+    CSRmuinstret_delta  = 12'h702,
+    CSRmscycle_delta    = 12'h704,
+    CSRmstime_delta     = 12'h705,
+    CSRmsinstret_delta  = 12'h706,
+    CSRmhcycle_delta    = 12'h708,
+    CSRmhtime_delta     = 12'h709,
+    CSRmhinstret_delta  = 12'h70a,
+    CSRmucycle_deltah   = 12'h780,
+    CSRmutime_deltah    = 12'h781,
+    CSRmuinstret_deltah = 12'h782,
+    CSRmscycle_deltah   = 12'h784,
+    CSRmstime_deltah    = 12'h785,
+    CSRmsinstret_deltah = 12'h786,
+    CSRmhcycle_deltah   = 12'h788,
+    CSRmhtime_deltah    = 12'h789,
+    CSRmhinstret_deltah = 12'h78a
+} CSR deriving (Bits, Eq, FShow);
 
 // WARNING: Don't try updating fields when using this type.
 typedef struct {
@@ -385,20 +522,20 @@ endinstance
 
 function Data getMISA(RiscVISASubset isa);
     // include I by default
-    Data misa = {2'b00, 0, 26'b00000000000000000100000000};
+    Data misa = {2'b00, 4'd0, 26'b00000000000000000100000000};
     if (isa.rv64) begin
         // rv64
-        misa = misa | {2'b10, 0, 26'b00000000000000000000000000};
+        misa = misa | {2'b10, 4'd0, 26'b00000000000000000000000000};
     end else begin
         // rv32
-        misa = misa | {2'b01, 0, 26'b00000000000000000000000000};
+        misa = misa | {2'b01, 4'd0, 26'b00000000000000000000000000};
     end
-    if (isa.s) misa = misa | {2'b00, 0, 26'b00000001000000000000000000};
-    if (isa.u) misa = misa | {2'b00, 0, 26'b00000100000000000000000000};
-    if (isa.m) misa = misa | {2'b00, 0, 26'b00000000000001000000000000};
-    if (isa.a) misa = misa | {2'b00, 0, 26'b00000000000000000000000001};
-    if (isa.f) misa = misa | {2'b00, 0, 26'b00000000000000000000100000};
-    if (isa.d) misa = misa | {2'b00, 0, 26'b00000000000000000000001000};
+    if (isa.s) misa = misa | {2'b00, 4'd0,  26'b00000001000000000000000000};
+    if (isa.u) misa = misa | {2'b00, 4'd0,  26'b00000100000000000000000000};
+    if (isa.m) misa = misa | {2'b00, 4'd0,  26'b00000000000001000000000000};
+    if (isa.a) misa = misa | {2'b00, 4'd0,  26'b00000000000000000000000001};
+    if (isa.f) misa = misa | {2'b00, 4'd0,  26'b00000000000000000000100000};
+    if (isa.d) misa = misa | {2'b00, 4'd0,  26'b00000000000000000000001000};
     return misa;
 endfunction
 
@@ -421,130 +558,6 @@ typedef `PHYS_REG_COUNT NumPhyReg;
 `else
 typedef NumArchReg NumPhyReg;
 `endif
-
-typedef enum {
-    Load    = 7'b0000011,
-    LoadFp  = 7'b0000111,
-    MiscMem = 7'b0001111,
-    OpImm   = 7'b0010011,
-    Auipc   = 7'b0010111,
-    OpImm32 = 7'b0011011,
-    Store   = 7'b0100011,
-    StoreFp = 7'b0100111,
-    Amo     = 7'b0101111,
-    Op      = 7'b0110011,
-    Lui     = 7'b0110111,
-    Op32    = 7'b0111011,
-    Fmadd   = 7'b1000011,
-    Fmsub   = 7'b1000111,
-    Fnmsub  = 7'b1001011,
-    Fnmadd  = 7'b1001111,
-    OpFp    = 7'b1010011,
-    Branch  = 7'b1100011,
-    Jalr    = 7'b1100111,
-    Jal     = 7'b1101111,
-    System  = 7'b1110011
-} Opcode deriving (Bits, Eq, FShow);
-
-typedef enum {
-    CSRustatus          = 12'h000,
-    CSRuie              = 12'h004,
-    CSRutvec            = 12'h005,
-    CSRuscratch         = 12'h040,
-    CSRuepc             = 12'h041,
-    CSRucause           = 12'h042,
-    CSRubadaddr         = 12'h043,
-    CSRuip              = 12'h044,
-    CSRfflags           = 12'h001,
-    CSRfrm              = 12'h002,
-    CSRfcsr             = 12'h003,
-    CSRcycle            = 12'hc00,
-    CSRtime             = 12'hc01,
-    CSRinstret          = 12'hc02,
-    CSRcycleh           = 12'hc80,
-    CSRtimeh            = 12'hc81,
-    CSRinstreth         = 12'hc82,
-    CSRsstatus          = 12'h100,
-    CSRsedeleg          = 12'h102,
-    CSRsideleg          = 12'h103,
-    CSRsie              = 12'h104,
-    CSRstvec            = 12'h105,
-    CSRsscratch         = 12'h140,
-    CSRsepc             = 12'h141,
-    CSRscause           = 12'h142,
-    CSRsbadaddr         = 12'h143,
-    CSRsip              = 12'h144,
-    CSRsptbr            = 12'h180,
-    CSRscycle           = 12'hd00,
-    CSRstime            = 12'hd01,
-    CSRsinstret         = 12'hd02,
-    CSRscycleh          = 12'hd80,
-    CSRstimeh           = 12'hd81,
-    CSRsinstreth        = 12'hd82,
-    CSRhstatus          = 12'h200,
-    CSRhedeleg          = 12'h202,
-    CSRhideleg          = 12'h203,
-    CSRhie              = 12'h204,
-    CSRhtvec            = 12'h205,
-    CSRhscratch         = 12'h240,
-    CSRhepc             = 12'h241,
-    CSRhcause           = 12'h242,
-    CSRhbadaddr         = 12'h243,
-    CSRhcycle           = 12'he00,
-    CSRhtime            = 12'he01,
-    CSRhinstret         = 12'he02,
-    CSRhcycleh          = 12'he80,
-    CSRhtimeh           = 12'he81,
-    CSRhinstreth        = 12'he82,
-    CSRmisa             = 12'hf10,
-    CSRmvendorid        = 12'hf11,
-    CSRmarchid          = 12'hf12,
-    CSRmimpid           = 12'hf13,
-    CSRmhartid          = 12'hf14,
-    CSRmstatus          = 12'h300,
-    CSRmedeleg          = 12'h302,
-    CSRmideleg          = 12'h303,
-    CSRmie              = 12'h304,
-    CSRmtvec            = 12'h305,
-    CSRmscratch         = 12'h340,
-    CSRmepc             = 12'h341,
-    CSRmcause           = 12'h342,
-    CSRmbadaddr         = 12'h343,
-    CSRmip              = 12'h344,
-    CSRmbase            = 12'h380,
-    CSRmbound           = 12'h381,
-    CSRmibase           = 12'h382,
-    CSRmibound          = 12'h383,
-    CSRmdbase           = 12'h384,
-    CSRmdbound          = 12'h385,
-    CSRmcycle           = 12'hf00,
-    CSRmtime            = 12'hf01,
-    CSRminstret         = 12'hf02,
-    CSRmcycleh          = 12'hf80,
-    CSRmtimeh           = 12'hf81,
-    CSRminstreth        = 12'hf82,
-    CSRmucounteren      = 12'h310,
-    CSRmscounteren      = 12'h311,
-    CSRmhcounteren      = 12'h312,
-    CSRmucycle_delta    = 12'h700,
-    CSRmutime_delta     = 12'h701,
-    CSRmuinstret_delta  = 12'h702,
-    CSRmscycle_delta    = 12'h704,
-    CSRmstime_delta     = 12'h705,
-    CSRmsinstret_delta  = 12'h706,
-    CSRmhcycle_delta    = 12'h708,
-    CSRmhtime_delta     = 12'h709,
-    CSRmhinstret_delta  = 12'h70a,
-    CSRmucycle_deltah   = 12'h780,
-    CSRmutime_deltah    = 12'h781,
-    CSRmuinstret_deltah = 12'h782,
-    CSRmscycle_deltah   = 12'h784,
-    CSRmstime_deltah    = 12'h785,
-    CSRmsinstret_deltah = 12'h786,
-    CSRmhcycle_deltah   = 12'h788,
-    CSRmhtime_deltah    = 12'h789,
-    CSRmhinstret_deltah = 12'h78a
-} CSR deriving (Bits, Eq, FShow);
 
 function Bool hasCSRPermission(CSR csr, Bit#(2) prv, Bool write);
     Bit#(12) csr_index = pack(csr);
@@ -690,16 +703,6 @@ typedef struct {
     Instruction     inst;
 } RVDecodedInst deriving (Bits, Eq, FShow);
 
-// Rounding Modes
-typedef enum {
-    RNE  = 3'b000,
-    RTZ  = 3'b001,
-    RDN  = 3'b010,
-    RUP  = 3'b011,
-    RMM  = 3'b100,
-    RDyn = 3'b111
-} RVRoundMode deriving (Bits, Eq, FShow);
-
 typedef enum {
     InstAddrMisaligned  = 4'd0,
     InstAccessFault     = 4'd1,
@@ -740,10 +743,14 @@ typedef union tagged {
 
 function Data toCauseCSR(TrapCause x);
     case (x) matches
-        tagged TcException .cause:
-            return {0, pack(cause)};
-        tagged TcInterrupt .cause:
-            return {1'b1, 0, pack(cause)};
+        tagged TcException .cause: begin
+	   Bit#(4) pcause = pack(cause);
+            return {28'd0, pcause};
+	end
+        tagged TcInterrupt .cause: begin
+	   Bit#(4) pcause = pack(cause);
+            return {1'b1, 27'd0, pcause};
+	   end
         default:
             return 0;
     endcase

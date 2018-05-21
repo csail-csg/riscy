@@ -62,6 +62,7 @@ interface RVCsrFile#(numeric type xlen);
     method Bool wakeFromWFI;
 endinterface
 
+
 module mkRVCsrFile#(
             Data hartid,                      // Compile-time constant
             Bit#(64) time_counter, Bool mtip, // From RTC
@@ -173,15 +174,15 @@ module mkRVCsrFile#(
     // Priv 1.9 CSRs
 
     // Machine Timers and Counters
-    Reg#(Data) mcycle_csr   = readOnlyReg(truncate(cycle_counter));
-    Reg#(Data) mtime_csr    = readOnlyReg(truncate(time_counter));
-    Reg#(Data) minstret_csr = readOnlyReg(truncate(instret_counter));
+    CSRReg#(Data) mcycle_csr   = readOnlyReg(truncate(cycle_counter));
+    CSRReg#(Data) mtime_csr    = readOnlyReg(truncate(time_counter));
+    CSRReg#(Data) minstret_csr = readOnlyReg(truncate(instret_counter));
 
     // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
     // the other cycle/time/instret registers for RV64)
-    Reg#(Data) mcycleh_csr   = readOnlyReg(truncateLSB(cycle_counter));
-    Reg#(Data) mtimeh_csr    = readOnlyReg(truncateLSB(time_counter));
-    Reg#(Data) minstreth_csr = readOnlyReg(truncateLSB(instret_counter));
+    CSRReg#(Data) mcycleh_csr   = readOnlyReg(truncateLSB(cycle_counter));
+    CSRReg#(Data) mtimeh_csr    = readOnlyReg(truncateLSB(time_counter));
+    CSRReg#(Data) minstreth_csr = readOnlyReg(truncateLSB(instret_counter));
 
     // Machine Counter-Delta Registers
     Reg#(Bit#(64)) mucycle_delta_field   <- mkReg(0);
@@ -191,41 +192,41 @@ module mkRVCsrFile#(
     Reg#(Bit#(64)) mstime_delta_field    <- mkReg(0);
     Reg#(Bit#(64)) msinstret_delta_field <- mkReg(0);
 
-    Reg#(Data) mucycle_delta_csr    = truncateReg(mucycle_delta_field);
-    Reg#(Data) mutime_delta_csr     = truncateReg(mutime_delta_field);
-    Reg#(Data) muinstret_delta_csr  = truncateReg(muinstret_delta_field);
-    Reg#(Data) mscycle_delta_csr    = truncateReg(mscycle_delta_field);
-    Reg#(Data) mstime_delta_csr     = truncateReg(mstime_delta_field);
-    Reg#(Data) msinstret_delta_csr  = truncateReg(msinstret_delta_field);
-    Reg#(Data) mucycle_deltah_csr   = truncateRegLSB(mucycle_delta_field);
-    Reg#(Data) mutime_deltah_csr    = truncateRegLSB(mutime_delta_field);
-    Reg#(Data) muinstret_deltah_csr = truncateRegLSB(muinstret_delta_field);
-    Reg#(Data) mscycle_deltah_csr   = truncateRegLSB(mscycle_delta_field);
-    Reg#(Data) mstime_deltah_csr    = truncateRegLSB(mstime_delta_field);
-    Reg#(Data) msinstret_deltah_csr = truncateRegLSB(msinstret_delta_field);
+    CSRReg#(Data) mucycle_delta_csr    <- truncateReg(mucycle_delta_field);
+    CSRReg#(Data) mutime_delta_csr     <- truncateReg(mutime_delta_field);
+    CSRReg#(Data) muinstret_delta_csr  <- truncateReg(muinstret_delta_field);
+    CSRReg#(Data) mscycle_delta_csr    <- truncateReg(mscycle_delta_field);
+    CSRReg#(Data) mstime_delta_csr     <- truncateReg(mstime_delta_field);
+    CSRReg#(Data) msinstret_delta_csr  <- truncateReg(msinstret_delta_field);
+    CSRReg#(Data) mucycle_deltah_csr   <- truncateRegLSB(mucycle_delta_field);
+    CSRReg#(Data) mutime_deltah_csr    <- truncateRegLSB(mutime_delta_field);
+    CSRReg#(Data) muinstret_deltah_csr <- truncateRegLSB(muinstret_delta_field);
+    CSRReg#(Data) mscycle_deltah_csr   <- truncateRegLSB(mscycle_delta_field);
+    CSRReg#(Data) mstime_deltah_csr    <- truncateRegLSB(mstime_delta_field);
+    CSRReg#(Data) msinstret_deltah_csr <- truncateRegLSB(msinstret_delta_field);
 
     // User FPU
-    Reg#(Data) fflags_csr = addWriteSideEffect(zeroExtendReg(fflags_field), fs_field._write(2'b11));
-    Reg#(Data) frm_csr    = addWriteSideEffect(zeroExtendReg(frm_field), fs_field._write(2'b11));
-    Reg#(Data) fcsr_csr   = addWriteSideEffect(zeroExtendReg(concatReg2(frm_field, fflags_field)), fs_field._write(2'b11));
+    CSRReg#(Data) fflags_csr <- addWriteSideEffect(zeroExtendReg(fflags_field), fs_field._write(2'b11));
+    CSRReg#(Data) frm_csr    <- addWriteSideEffect(zeroExtendReg(frm_field), fs_field._write(2'b11));
+    CSRReg#(Data) fcsr_csr   <- addWriteSideEffect(zeroExtendReg(concatReg2(frm_field, fflags_field)), fs_field._write(2'b11));
 
     // User Timers and Counters
     Bit#(64) ucycle_counter   = cycle_counter + mucycle_delta_field;
     Bit#(64) utime_counter    = time_counter + mutime_delta_field;
     Bit#(64) uinstret_counter = instret_counter + muinstret_delta_field;
 
-    Reg#(Data) cycle_csr   = readOnlyReg(truncate(ucycle_counter));
-    Reg#(Data) time_csr    = readOnlyReg(truncate(utime_counter));
-    Reg#(Data) instret_csr = readOnlyReg(truncate(uinstret_counter));
+    CSRReg#(Data) cycle_csr   <- readOnlyReg(truncate(ucycle_counter));
+    CSRReg#(Data) time_csr    <- readOnlyReg(truncate(utime_counter));
+    CSRReg#(Data) instret_csr <- readOnlyReg(truncate(uinstret_counter));
 
     // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
     // the other cycle/time/instret registers for RV64)
-    Reg#(Data) cycleh_csr   = readOnlyReg(truncateLSB(ucycle_counter));
-    Reg#(Data) timeh_csr    = readOnlyReg(truncateLSB(utime_counter));
-    Reg#(Data) instreth_csr = readOnlyReg(truncateLSB(uinstret_counter));
+    CSRReg#(Data) cycleh_csr   <- readOnlyReg(truncateLSB(ucycle_counter));
+    CSRReg#(Data) timeh_csr    <- readOnlyReg(truncateLSB(utime_counter));
+    CSRReg#(Data) instreth_csr <- readOnlyReg(truncateLSB(uinstret_counter));
 
     // Supervisor
-    Reg#(Data) sstatus_csr =  concatReg20(
+    CSRReg#(Data) sstatus_csr <-  concatReg20(
             sd_field,
             readOnlyReg(0), // flexible width to support XLEN = 32 or 64
             vm_field,
@@ -235,49 +236,49 @@ module mkRVCsrFile#(
             readOnlyReg(2'b0), readOnlyReg(2'b0), spp_field, // previous privileges
             readOnlyReg(1'b0), readOnlyReg(1'b0), spie_field, upie_field, // previous interrupt enables
             readOnlyReg(1'b0), readOnlyReg(1'b0), sie_field, uie_field); // interrupt enables
-    Reg#(Data) sedeleg_csr  =  concatReg2(readOnlyReg(0), sedeleg_field); // WARL - 12 legal exceptions
-    Reg#(Data) sideleg_csr  =  concatReg2(readOnlyReg(0), sideleg_field); // WARL - 12 legal interrupts
-    Reg#(Data) sie_csr      =  concatReg13(
+    CSRReg#(Data) sedeleg_csr  =  concatReg2(readOnlyReg(0), sedeleg_field); // WARL - 12 legal exceptions
+    CSRReg#(Data) sideleg_csr  =  concatReg2(readOnlyReg(0), sideleg_field); // WARL - 12 legal interrupts
+    CSRReg#(Data) sie_csr      =  concatReg13(
             readOnlyReg(0),
             readOnlyReg(1'b0), readOnlyReg(1'b0), seie_field, ueie_field,
             readOnlyReg(1'b0), readOnlyReg(1'b0), stie_field, utie_field,
             readOnlyReg(1'b0), readOnlyReg(1'b0), ssie_field, usie_field);
-    Reg#(Data) stvec_csr    =  concatReg2(stvec_field, readOnlyReg(2'd0));
-    Reg#(Data) sscratch_csr <- mkReg(0);
-    Reg#(Data) sepc_csr     <- mkReg(0);
-    Reg#(Data) scause_csr   <- mkReg(0);
-    Reg#(Data) sbadaddr_csr <- mkReg(0);
-    Reg#(Data) sip_csr      =  concatReg13(
+    CSRReg#(Data) stvec_csr    =  concatReg2(stvec_field, readOnlyReg(2'd0));
+    CSRReg#(Data) sscratch_csr <- mkCSRReg(0);
+    CSRReg#(Data) sepc_csr     <- mkCSRReg(0);
+    CSRReg#(Data) scause_csr   <- mkCSRReg(0);
+    CSRReg#(Data) sbadaddr_csr <- mkCSRReg(0);
+    CSRReg#(Data) sip_csr      =  concatReg13(
             readOnlyReg(0),
             readOnlyReg(1'b0), readOnlyReg(1'b0), readOnlyReg(seip_field), readOnlyReg(ueip_field),
             readOnlyReg(1'b0), readOnlyReg(1'b0), readOnlyReg(stip_field), readOnlyReg(utip_field),
             readOnlyReg(1'b0), readOnlyReg(1'b0), ssip_field, usip_field);
 
-    Reg#(Data) sptbr_csr    = concatReg2(asid_field, sptbr_ppn_field);
+    CSRReg#(Data) sptbr_csr    = concatReg2(asid_field, sptbr_ppn_field);
 
     Bit#(64) scycle_counter   = cycle_counter + mscycle_delta_field;
     Bit#(64) stime_counter    = time_counter + mstime_delta_field;
     Bit#(64) sinstret_counter = instret_counter + msinstret_delta_field;
 
-    Reg#(Data) scycle_csr   = readOnlyReg(truncate(scycle_counter));
-    Reg#(Data) stime_csr    = readOnlyReg(truncate(stime_counter));
-    Reg#(Data) sinstret_csr = readOnlyReg(truncate(sinstret_counter));
+    CSRReg#(Data) scycle_csr   <- readOnlyReg(truncate(scycle_counter));
+    CSRReg#(Data) stime_csr    <- readOnlyReg(truncate(stime_counter));
+    CSRReg#(Data) sinstret_csr <- readOnlyReg(truncate(sinstret_counter));
 
     // Upper 32-bits of CSRs for RV32: (these will just be unused copies of
     // the other cycle/time/instret registers for RV64)
-    Reg#(Data) scycleh_csr   = readOnlyReg(truncateLSB(scycle_counter));
-    Reg#(Data) stimeh_csr    = readOnlyReg(truncateLSB(stime_counter));
-    Reg#(Data) sinstreth_csr = readOnlyReg(truncateLSB(sinstret_counter));
+    CSRReg#(Data) scycleh_csr   <- readOnlyReg(truncateLSB(scycle_counter));
+    CSRReg#(Data) stimeh_csr    <- readOnlyReg(truncateLSB(stime_counter));
+    CSRReg#(Data) sinstreth_csr <- readOnlyReg(truncateLSB(sinstret_counter));
 
     // Machine Information Registers
-    Reg#(Data) misa_csr      = readOnlyReg(getMISA(isa));
-    Reg#(Data) mvendorid_csr = readOnlyReg(mvendorid);
-    Reg#(Data) marchid_csr   = readOnlyReg(marchid);
-    Reg#(Data) mimpid_csr    = readOnlyReg(mimpid);
-    Reg#(Data) mhartid_csr   = readOnlyReg(hartid);
+    CSRReg#(Data) misa_csr      <- readOnlyReg(getMISA(isa));
+    CSRReg#(Data) mvendorid_csr <- readOnlyReg(mvendorid);
+    CSRReg#(Data) marchid_csr   <- readOnlyReg(marchid);
+    CSRReg#(Data) mimpid_csr    <- readOnlyReg(mimpid);
+    CSRReg#(Data) mhartid_csr   <- readOnlyReg(hartid);
 
     // Machine Trap Setup
-    Reg#(Data) mstatus_csr =  concatReg20(
+    CSRReg#(Data) mstatus_csr =  concatReg20(
             sd_field,
             readOnlyReg(0),
             vm_field,
@@ -287,39 +288,39 @@ module mkRVCsrFile#(
             mpp_field, hpp_field, spp_field, // previous privileges
             mpie_field, hpie_field, spie_field, upie_field, // previous interrupt enables
             mie_field, hie_field, sie_field, uie_field); // interrupt enables
-    Reg#(Data) medeleg_csr =  concatReg2(readOnlyReg(0), medeleg_field); // WARL - 12 legal exceptions
-    Reg#(Data) mideleg_csr =  concatReg2(readOnlyReg(0), mideleg_field); // WARL - 12 legal interrupts
-    Reg#(Data) mie_csr     =  concatReg13(
+    CSRReg#(Data) medeleg_csr =  concatReg2(readOnlyReg(0), medeleg_field); // WARL - 12 legal exceptions
+    CSRReg#(Data) mideleg_csr =  concatReg2(readOnlyReg(0), mideleg_field); // WARL - 12 legal interrupts
+    CSRReg#(Data) mie_csr     =  concatReg13(
             readOnlyReg(0),
             meie_field, heie_field, seie_field, ueie_field,
             mtie_field, htie_field, stie_field, utie_field,
             msie_field, hsie_field, ssie_field, usie_field);
-    Reg#(Data) mtvec_csr   =  concatReg2(mtvec_field, readOnlyReg(2'd0));
+    CSRReg#(Data) mtvec_csr   =  concatReg2(mtvec_field, readOnlyReg(2'd0));
 
     // Machine Trap Handling
-    Reg#(Data) mscratch_csr <- mkReg(0);
-    Reg#(Data) mepc_csr     <- mkReg(0);
-    Reg#(Data) mcause_csr   <- mkReg(0);
-    Reg#(Data) mbadaddr_csr <- mkReg(0);
-    Reg#(Data) mip_csr      =  concatReg13(
+    CSRReg#(Data) mscratch_csr <- mkCSRReg(0);
+    CSRReg#(Data) mepc_csr     <- mkCSRReg(0);
+    CSRReg#(Data) mcause_csr   <- mkCSRReg(0);
+    CSRReg#(Data) mbadaddr_csr <- mkCSRReg(0);
+    CSRReg#(Data) mip_csr      =  concatReg13(
             readOnlyReg(0),
             readOnlyReg(meip_field), readOnlyReg(heip_field), readOnlyReg(seip_field), readOnlyReg(ueip_field),
             readOnlyReg(mtip_field), htip_field, stip_field, utip_field,
             readOnlyReg(msip_field), hsip_field, ssip_field, usip_field);
 
     // Machine Protection and Translation
-    Reg#(Data) mbase_csr   <- mkReg(0);
-    Reg#(Data) mbound_csr  <- mkReg(0);
-    Reg#(Data) mibase_csr  <- mkReg(0);
-    Reg#(Data) mibound_csr <- mkReg(0);
-    Reg#(Data) mdbase_csr  <- mkReg(0);
-    Reg#(Data) mdbound_csr <- mkReg(0);
+    CSRReg#(Data) mbase_csr   <- mkCSRReg(0);
+    CSRReg#(Data) mbound_csr  <- mkCSRReg(0);
+    CSRReg#(Data) mibase_csr  <- mkCSRReg(0);
+    CSRReg#(Data) mibound_csr <- mkCSRReg(0);
+    CSRReg#(Data) mdbase_csr  <- mkCSRReg(0);
+    CSRReg#(Data) mdbound_csr <- mkCSRReg(0);
 
     // Machine Counter Setup
-    Reg#(Data) mucounteren_csr = concatReg4(readOnlyReg(0), u_ir_field, u_tm_field, u_cy_field);
-    Reg#(Data) mscounteren_csr = concatReg4(readOnlyReg(0), s_ir_field, s_tm_field, s_cy_field);
+    CSRReg#(Data) mucounteren_csr = concatReg4(readOnlyReg(0), u_ir_field, u_tm_field, u_cy_field);
+    CSRReg#(Data) mscounteren_csr = concatReg4(readOnlyReg(0), s_ir_field, s_tm_field, s_cy_field);
 
-    function Reg#(Data) getCSR(CSR csr);
+    function CSRReg#(Data) getCSR(CSR csr);
         return (case (csr)
                 CSRfflags:              fflags_csr;
                 CSRfrm:                 frm_csr;
@@ -703,15 +704,15 @@ module mkRVCsrFile#(
                         Bool read = (validSysInst != CSRW);
                         Bool write = (validSysInst != CSRR);
                         // CSR read/write operation
-			Reg#(Data) csrReg = getCSR(csr);
-                        Data oldVal = csrReg;
+			CSRReg#(Data) csrReg = getCSR(csr);
+                        Data oldVal = csrReg.read();
                         Data newVal = (case(validSysInst)
                                 CSRW, CSRR, CSRRW: data;
                                 CSRRS: (oldVal | data);
                                 CSRRC: (oldVal & (~data));
                             endcase);
                         if (write) begin
-			    csrReg <= newVal;
+			    csrReg.write(newVal);
                         end
                         return tagged CsrData oldVal;
                     end
