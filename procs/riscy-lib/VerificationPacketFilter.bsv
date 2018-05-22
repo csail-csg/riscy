@@ -40,6 +40,9 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
     Reg#(Bool) sendSynchronization <- mkReg(False);
     FIFOLevelIfc#(VerificationPacket, 4) packets <- mkFIFOLevel;
 
+   Pack#(CSR,12) packCSR <- mkPackCSR();
+
+
 `ifdef CONFIG_TEXTFILE_DEBUG
     Reg#(Bit#(64)) packet_count <- mkReg(1);
     Reg#(Bit#(64)) time_init <- mkReg('1);
@@ -94,7 +97,7 @@ module mkVerificationPacketFilter#(function ActionValue#(VerificationPacket) pac
         end
 
         if ((packet.instruction[6:0] == 7'b1110011) && (packet.instruction[14:12] != 0)) begin
-            CSR csr = unpack(packet.instruction[31:20]);
+            CSR csr = packCSR.unpack(packet.instruction[31:20]);
             case (csr)
                 CSRmtime, CSRstime, CSRtime, CSRcycle, CSRinstret, CSRmip:
                     isSynchronizationPacket = True;
