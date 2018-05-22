@@ -88,8 +88,12 @@ Module nullServerPort.
     Variable req_t : Kind.
     Variable resp_t : Kind.
     Variable instancePrefix: string.
-            Definition nullServerPortModule :=
+                       Let nip := nullInputPort (instancePrefix--"nip").
+       Let nop := nullOutputPort (instancePrefix--"nop").
+    Definition nullServerPortModule :=
         (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance nip :: nil))
+       with (BKMod (FIXME'InterfaceName'instance nop :: nil))
     }). (* nullServerPort *)
 
     Definition nullServerPort := Build_ServerPort req_t resp_t nullServerPortModule%kami (instancePrefix--"request") (instancePrefix--"response").
@@ -101,8 +105,12 @@ Module nullClientPort.
     Variable req_t : Kind.
     Variable resp_t : Kind.
     Variable instancePrefix: string.
-            Definition nullClientPortModule :=
+                       Let nop := nullOutputPort (instancePrefix--"nop").
+       Let nip := nullInputPort (instancePrefix--"nip").
+    Definition nullClientPortModule :=
         (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance nop :: nil))
+       with (BKMod (FIXME'InterfaceName'instance nip :: nil))
     }). (* nullClientPort *)
 
     Definition nullClientPort := Build_ClientPort req_t resp_t nullClientPortModule%kami (instancePrefix--"request") (instancePrefix--"response").

@@ -152,3 +152,5 @@ Notation "'Method3' name ( p1 : d1 ) ( p2 : d2 )  ( p3 : d3 ) : retT := c" :=
 Notation "'MethodSig3' name ( arg1T ) ( arg2T ) (arg3T ) : retT" :=
   (Build_Attribute name {| arg := argT; ret := retT |})
   (at level 0, name at level 0, argT at level 200, retT at level 200). *)
+
+

@@ -21,7 +21,7 @@ Definition alu64 (func: AluFunc) (w: bool) (a: word 64) (b: word 64): (word 64) 
 
                 If #w
         then                 BKSTMTS {
-                Assign shamt = (BinBit (Concat 1 tvar1563) $1'b0 #shamt[$4 : $0])
+                Assign shamt = (BinBit (Concat 1 tvar1592) $1'b0 #shamt[$4 : $0])
 ;
         Retv
 

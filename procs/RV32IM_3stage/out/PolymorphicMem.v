@@ -21,7 +21,7 @@ Module mkPolymorphicBRAM.
     Variable numWords: nat.
             Definition mkPolymorphicBRAMModule :=
         (BKMODULE {
-                   Call _m : tvar556 <-  mkPolymorphicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
+                   Call _m : tvar601 <-  mkPolymorphicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
        with         Ret #_m
     }). (* mkPolymorphicBRAM *)
 

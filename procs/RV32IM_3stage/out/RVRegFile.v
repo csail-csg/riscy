@@ -26,7 +26,7 @@ Module mkRVRegFile.
     Variable xlen : Kind.
     Variable instancePrefix: string.
     Variable hasFPU: bool.
-                        Definition read (fullRegIndex: Maybe FullRegIndex): (Bit xlen) := 
+                    Definition read (fullRegIndex: Maybe FullRegIndex): (Bit xlen) := 
                 Ret null
 
 .
@@ -38,7 +38,6 @@ Module mkRVRegFile.
                    LET verbose : Bool = #False
        with         LET fout : File <- #stdout
        with (BKMod (FIXME'InterfaceName'instance gpr_rfile :: nil))
-       with         Assign gpr_rfile[0] =  readOnlyReg($0)
        with (BKMod (FIXME'InterfaceName'instance fpu_rfile :: nil))
        with Method2 instancePrefix--"wr" (fullRegIndex : (Maybe FullRegIndex)) (data : (Bit xlen)) : Void :=
         If #verbose
@@ -79,7 +78,7 @@ Module mkRVRegFileBypass.
     Variable xlen : Kind.
     Variable instancePrefix: string.
     Variable hasFPU: bool.
-                                Definition read (fullRegIndex: Maybe FullRegIndex): (Bit xlen) := 
+                            Definition read (fullRegIndex: Maybe FullRegIndex): (Bit xlen) := 
                 LET result : (Bit xlen) <- $0
 
                 If #fullRegIndex$taggedValid.validIndex
@@ -114,7 +113,6 @@ Module mkRVRegFileBypass.
                    LET verbose : Bool = #False
        with         LET fout : File <- #stdout
        with (BKMod (FIXME'InterfaceName'instance gpr_rfile :: nil))
-       with         Assign gpr_rfile[0] =  readOnlyReg($0)
        with (BKMod (FIXME'InterfaceName'instance fpu_rfile :: nil))
        with (BKMod (FIXME'InterfaceName'instance writeReq :: nil))
        with Rule instancePrefix--"performWrite" :=
@@ -162,7 +160,7 @@ Module mkRVRegFile32WithFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFile32WithFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1180 <-  mkRVRegFile(#True)
+                   Call _m : tvar1221 <-  mkRVRegFile(#True)
        with         Ret #_m
     }). (* mkRVRegFile32WithFPU *)
 
@@ -175,7 +173,7 @@ Module mkRVRegFile32WithoutFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFile32WithoutFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1182 <-  mkRVRegFile(#False)
+                   Call _m : tvar1223 <-  mkRVRegFile(#False)
        with         Ret #_m
     }). (* mkRVRegFile32WithoutFPU *)
 
@@ -188,7 +186,7 @@ Module mkRVRegFileBypass32WithFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFileBypass32WithFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1184 <-  mkRVRegFileBypass(#True)
+                   Call _m : tvar1225 <-  mkRVRegFileBypass(#True)
        with         Ret #_m
     }). (* mkRVRegFileBypass32WithFPU *)
 
@@ -201,7 +199,7 @@ Module mkRVRegFileBypass32WithoutFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFileBypass32WithoutFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1186 <-  mkRVRegFileBypass(#False)
+                   Call _m : tvar1227 <-  mkRVRegFileBypass(#False)
        with         Ret #_m
     }). (* mkRVRegFileBypass32WithoutFPU *)
 
@@ -214,7 +212,7 @@ Module mkRVRegFile64WithFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFile64WithFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1188 <-  mkRVRegFile(#True)
+                   Call _m : tvar1229 <-  mkRVRegFile(#True)
        with         Ret #_m
     }). (* mkRVRegFile64WithFPU *)
 
@@ -227,7 +225,7 @@ Module mkRVRegFile64WithoutFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFile64WithoutFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1190 <-  mkRVRegFile(#False)
+                   Call _m : tvar1231 <-  mkRVRegFile(#False)
        with         Ret #_m
     }). (* mkRVRegFile64WithoutFPU *)
 
@@ -240,7 +238,7 @@ Module mkRVRegFileBypass64WithFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFileBypass64WithFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1192 <-  mkRVRegFileBypass(#True)
+                   Call _m : tvar1233 <-  mkRVRegFileBypass(#True)
        with         Ret #_m
     }). (* mkRVRegFileBypass64WithFPU *)
 
@@ -253,7 +251,7 @@ Module mkRVRegFileBypass64WithoutFPU.
     Variable instancePrefix: string.
             Definition mkRVRegFileBypass64WithoutFPUModule :=
         (BKMODULE {
-                   Call _m : tvar1194 <-  mkRVRegFileBypass(#False)
+                   Call _m : tvar1235 <-  mkRVRegFileBypass(#False)
        with         Ret #_m
     }). (* mkRVRegFileBypass64WithoutFPU *)
 

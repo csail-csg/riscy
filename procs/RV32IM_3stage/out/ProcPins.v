@@ -13,6 +13,7 @@ Require Import SPI.
 (* * interface ProcPins *)
 Record ProcPins := {
     ProcPins'interface: Modules;
+    ProcPins'uart : RS232;
     ProcPins'spi : SPIMasterPins;
     ProcPins'deleteme_unused_clock : Clock;
 }.

@@ -31,7 +31,7 @@ Module mkFIFOG.
     Variable instancePrefix: string.
             Definition mkFIFOGModule :=
         (BKMODULE {
-                   Call _m : tvar369 <-  mkFIFOGfromFIFOF(#mkFIFOF)
+                   Call _m : tvar414 <-  mkFIFOGfromFIFOF(#mkFIFOF)
        with         Ret #_m
     }). (* mkFIFOG *)
 
@@ -46,7 +46,7 @@ Module mkSizedFIFOG.
     Variable n: nat.
             Definition mkSizedFIFOGModule :=
         (BKMODULE {
-                   Call _m : tvar372 <-  mkFIFOGfromFIFOF( mkSizedFIFOF($n))
+                   Call _m : tvar417 <-  mkFIFOGfromFIFOF( mkSizedFIFOF($n))
        with         Ret #_m
     }). (* mkSizedFIFOG *)
 
@@ -60,7 +60,7 @@ Module mkFIFOG1.
     Variable instancePrefix: string.
             Definition mkFIFOG1Module :=
         (BKMODULE {
-                   Call _m : tvar374 <-  mkFIFOGfromFIFOF(#mkFIFOF1)
+                   Call _m : tvar419 <-  mkFIFOGfromFIFOF(#mkFIFOF1)
        with         Ret #_m
     }). (* mkFIFOG1 *)
 
@@ -74,7 +74,7 @@ Module mkLFIFOG.
     Variable instancePrefix: string.
             Definition mkLFIFOGModule :=
         (BKMODULE {
-                   Call _m : tvar376 <-  mkFIFOGfromFIFOF(#mkLFIFOF)
+                   Call _m : tvar421 <-  mkFIFOGfromFIFOF(#mkLFIFOF)
        with         Ret #_m
     }). (* mkLFIFOG *)
 
@@ -88,7 +88,7 @@ Module mkBypassFIFOG.
     Variable instancePrefix: string.
             Definition mkBypassFIFOGModule :=
         (BKMODULE {
-                   Call _m : tvar378 <-  mkFIFOGfromFIFOF(#mkBypassFIFOF)
+                   Call _m : tvar423 <-  mkFIFOGfromFIFOF(#mkBypassFIFOF)
        with         Ret #_m
     }). (* mkBypassFIFOG *)
 
@@ -102,7 +102,7 @@ Module mkPipelineFIFOG.
     Variable instancePrefix: string.
             Definition mkPipelineFIFOGModule :=
         (BKMODULE {
-                   Call _m : tvar380 <-  mkFIFOGfromFIFOF(#mkPipelineFIFOF)
+                   Call _m : tvar425 <-  mkFIFOGfromFIFOF(#mkPipelineFIFOF)
        with         Ret #_m
     }). (* mkPipelineFIFOG *)
 

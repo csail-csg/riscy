@@ -8,13 +8,6 @@ Require Import FunctionalExtensionality.
 Set Implicit Arguments.
 
 
-(* * interface CSRReg#(a) *)
-Record CSRReg (a : Kind) := {
-    CSRReg'interface: Modules;
-    CSRReg'read : string;
-    CSRReg'write : string;
-}.
-
 Module mkCSRReg.
     Section Section'mkCSRReg.
     Variable asz : nat.
@@ -23,40 +16,40 @@ Module mkCSRReg.
     Definition mkCSRRegModule :=
         (BKMODULE {
            Register r : Bit asz <- $0
-       with Method instancePrefix--"read" () : (Bit asz) :=
+       with Method instancePrefix--"_read" () : (Bit asz) :=
         Read r_v : Bit asz <- "r";        Ret #r_v
 
-       with Method instancePrefix--"write" (v : (Bit asz)) : Void :=
+       with Method instancePrefix--"_write" (v : (Bit asz)) : Void :=
         Write r : Bit asz <- #v;
         Retv
 
     }). (* mkCSRReg *)
 
-    Definition mkCSRReg := Build_CSRReg asz mkCSRRegModule%kami (instancePrefix--"read") (instancePrefix--"write").
+    Definition mkCSRReg := Build_Reg asz mkCSRRegModule%kami (instancePrefix--"_read") (instancePrefix--"_write").
     End Section'mkCSRReg.
 End mkCSRReg.
 
 Module truncateReg.
     Section Section'truncateReg.
-    Variable m : Kind.
+    Variable k : Kind.
     Variable n : Kind.
     Variable instancePrefix: string.
-    Variable r: (Reg (word (TAdd n m))).
+    Variable r: (Reg (word k)).
             Definition truncateRegModule :=
         (BKMODULE {
-           Method instancePrefix--"read" () : (Bit n) :=
-        Read r_v : Bit TAdd n m <- "r";LET v : (Bit n) <- (UniBit (Trunc TAdd#(n, m) (n - TAdd#(n, m))) #r_v);
+           Method instancePrefix--"_read" () : (Bit n) :=
+        Read r_v : Bit k <- "r";LET v : (Bit n) <- (UniBit (Trunc k (n - k)) #r_v);
         Ret #v
 
-       with Method instancePrefix--"write" (x : (Bit n)) : Void :=
-        Read r_v : Bit TAdd n m <- "r";LET vmsb : (Bit m) <- (UniBit (TruncLsb TAdd#(n, m) (m - TAdd#(n, m))) #r_v);
+       with Method instancePrefix--"_write" (x : (Bit n)) : Void :=
+        Read r_v : Bit k <- "r";LET vmsb : (Bit m) <- (UniBit (TruncLsb k (m - k)) #r_v);
         LET v : (Bit (TAdd n m)) <- (BinBit (Concat m n) #vmsb #x);
-        Write r : Bit TAdd n m <- #v;
+        Write r : Bit k <- #v;
         Retv
 
     }). (* truncateReg *)
 
-    Definition truncateReg := Build_CSRReg m n truncateRegModule%kami (instancePrefix--"read") (instancePrefix--"write").
+    Definition truncateReg := Build_Reg k n truncateRegModule%kami (instancePrefix--"_read") (instancePrefix--"_write").
     End Section'truncateReg.
 End truncateReg.
 

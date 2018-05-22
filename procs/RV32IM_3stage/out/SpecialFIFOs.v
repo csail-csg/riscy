@@ -153,7 +153,7 @@ Module mkDFIFOF.
     Variable dflt: a.
             Definition mkDFIFOFModule :=
         (BKMODULE {
-                   Call _ifc : tvar278 <-  mkSizedDFIFOF($2, #dflt)
+                   Call _ifc : tvar323 <-  mkSizedDFIFOF($2, #dflt)
        with         Ret #_ifc
     }). (* mkDFIFOF *)
 
@@ -200,8 +200,8 @@ Module mkSizedDFIFOF.
        with (BKMod (FIXME'InterfaceName'instance enqueueing :: nil))
        with (BKMod (FIXME'InterfaceName'instance x_wire :: nil))
        with (BKMod (FIXME'InterfaceName'instance dequeueing :: nil))
-       with         Call empty : tvar280 <-  cntrisEq($0)
-       with         Call full : tvar281 <-  cntrisEq($n)
+       with         Call empty : tvar325 <-  cntrisEq($0)
+       with         Call full : tvar326 <-  cntrisEq($n)
        with Rule instancePrefix--"incCtr" :=
         Read q_v : a <- q;
         Assert((#enqueueing && !#dequeueing));
@@ -331,7 +331,7 @@ Module mkSCounter.
     Variable m: nat.
                 Definition mkSCounterModule :=
         (BKMODULE {
-                   LET _i : tvar312 = null
+                   LET _i : tvar357 = null
        with         If ($m < $2)
         then                 (BKBlock (
         let r : string := instancePrefix--"r" in
@@ -507,8 +507,8 @@ Module mkSizedBypassFIFOF.
        with (BKMod (FIXME'InterfaceName'instance dequeueing :: nil))
        with         LET empty : Bool = !#ff
        with         LET full : Bool = !#ff
-       with         Call enqueueing : tvar331 <-  isValid(#enqw)
-       with         LET bypassing : tvar331 = ((#enqueueing && #dequeueing) && #empty)
+       with         Call enqueueing : tvar376 <-  isValid(#enqw)
+       with         LET bypassing : tvar376 = ((#enqueueing && #dequeueing) && #empty)
        with Rule instancePrefix--"enqueue" :=
         Assert((#enqueueing && !#bypassing));
         ffenq( validValue(#enqw));

@@ -13,105 +13,124 @@ Require Import Opcodes.
 Require Import RVTypes.
 Require Import Vector.
 Require Import DefaultValue.
-Definition toExecFuncRV32I (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+(* * interface RVDecodeInternal *)
+Record RVDecodeInternal := {
+    RVDecodeInternal'interface: Modules;
+    RVDecodeInternal'toExecFuncRV32I : string;
+    RVDecodeInternal'toExecFuncPriv : string;
+    RVDecodeInternal'toExecFuncRV32M : string;
+    RVDecodeInternal'toExecFuncRV32A : string;
+    RVDecodeInternal'toExecFuncRV32F : string;
+    RVDecodeInternal'toExecFuncRV32D : string;
+    RVDecodeInternal'toExecFuncRV64I : string;
+    RVDecodeInternal'toExecFuncRV64M : string;
+    RVDecodeInternal'toExecFuncRV64A : string;
+    RVDecodeInternal'toExecFuncRV64F : string;
+    RVDecodeInternal'toExecFuncRV64D : string;
+}.
 
-.
+Module mkRVDecodeInternal.
+    Section Section'mkRVDecodeInternal.
+    Variable instancePrefix: string.
+    Let getInstFieldsgetInstFields := MethodSig (GetInstFields'getInstFields getInstFields) (Instruction) : InstructionFields.
+                                                       Let getInstFields := mkGetInstFields (instancePrefix--"getInstFields").
+    Definition mkRVDecodeInternalModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance getInstFields :: nil))
+       with Method instancePrefix--"toExecFuncRV32I" (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-Definition toExecFuncPriv (inst: Instruction): (Maybe ExecFunc) := 
-        LET instFields <- 
+       with Method instancePrefix--"toExecFuncPriv" (inst : Instruction) : (Maybe ExecFunc) :=
+LET instFields <- ;
+        Ret null
 
-                Ret null
+       with Method2 instancePrefix--"toExecFuncRV32M" (hasDiv : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-.
+       with Method instancePrefix--"toExecFuncRV32A" (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-Definition toExecFuncRV32M (hasDiv: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+       with Method3 instancePrefix--"toExecFuncRV32F" (hasDiv : Bool) (hasSqrt : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-.
+       with Method3 instancePrefix--"toExecFuncRV32D" (hasDiv : Bool) (hasSqrt : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-Definition toExecFuncRV32A (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+       with Method instancePrefix--"toExecFuncRV64I" (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-.
+       with Method2 instancePrefix--"toExecFuncRV64M" (hasDiv : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-Definition toExecFuncRV32F (hasDiv: bool) (hasSqrt: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+       with Method instancePrefix--"toExecFuncRV64A" (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-.
+       with Method3 instancePrefix--"toExecFuncRV64F" (hasDiv : Bool) (hasSqrt : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-Definition toExecFuncRV32D (hasDiv: bool) (hasSqrt: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+       with Method3 instancePrefix--"toExecFuncRV64D" (hasDiv : Bool) (hasSqrt : Bool) (inst : Instruction) : (Maybe ExecFunc) :=
+        Ret null
 
-.
+    }). (* mkRVDecodeInternal *)
 
-Definition toExecFuncRV64I (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
+    Definition mkRVDecodeInternal := Build_RVDecodeInternal mkRVDecodeInternalModule%kami (instancePrefix--"toExecFuncPriv") (instancePrefix--"toExecFuncRV32A") (instancePrefix--"toExecFuncRV32D") (instancePrefix--"toExecFuncRV32F") (instancePrefix--"toExecFuncRV32I") (instancePrefix--"toExecFuncRV32M") (instancePrefix--"toExecFuncRV64A") (instancePrefix--"toExecFuncRV64D") (instancePrefix--"toExecFuncRV64F") (instancePrefix--"toExecFuncRV64I") (instancePrefix--"toExecFuncRV64M").
+    End Section'mkRVDecodeInternal.
+End mkRVDecodeInternal.
 
-.
+(* * interface RVDecode *)
+Record RVDecode := {
+    RVDecode'interface: Modules;
+    RVDecode'decodeInst : string;
+    RVDecode'getImmediate : string;
+    RVDecode'getMinPriv : string;
+}.
 
-Definition toExecFuncRV64M (hasDiv: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
-
-.
-
-Definition toExecFuncRV64A (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
-
-.
-
-Definition toExecFuncRV64F (hasDiv: bool) (hasSqrt: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
-
-.
-
-Definition toExecFuncRV64D (hasDiv: bool) (hasSqrt: bool) (inst: Instruction): (Maybe ExecFunc) := 
-                Ret null
-
-.
-
-Definition decodeInst (isRV64: bool) (hasM: bool) (hasA: bool) (hasF: bool) (hasD: bool) (inst: Instruction): (Maybe RVDecodedInst) := 
-Definition fold_op (x: Maybe t) (y: Maybe t): (Maybe t) := 
+Module mkRVDecode.
+    Section Section'mkRVDecode.
+    Variable instancePrefix: string.
+    Let toInstTypetoInstType := MethodSig (ToInstType'toInstType toInstType) (Instruction) : InstType.
+                Definition fold_op (x: Maybe t) (y: Maybe t): (Maybe t) := 
                 Ret  isValid(#x)#x#y
 
 .
 
-                Call decoderResults : tvar1543 <-  vec6(#isRV64 toExecFuncRV64I(#inst) toExecFuncRV32I(#inst), #hasM#isRV64 toExecFuncRV64M(#True, #inst) toExecFuncRV32M(#True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasA#isRV64 toExecFuncRV64A(#inst) toExecFuncRV32A(#inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasF#isRV64 toExecFuncRV64F(#True, #True, #inst) toExecFuncRV32F(#True, #True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasD#isRV64 toExecFuncRV64D(#True, #True, #inst) toExecFuncRV32D(#True, #True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 },  toExecFuncPriv(#inst))
-
-                Call execFunc : tvar1546 <-  fold(#fold_op, #decoderResults)
-
-                If #execFunc$taggedValid.validExecFunc
+               Let getInstFields := mkGetInstFields (instancePrefix--"getInstFields").
+       Let toInstType := mkToInstType (instancePrefix--"toInstType").
+       Let decodeInternal := mkRVDecodeInternal (instancePrefix--"decodeInternal").
+    Definition mkRVDecodeModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance getInstFields :: nil))
+       with (BKMod (FIXME'InterfaceName'instance toInstType :: nil))
+       with (BKMod (FIXME'InterfaceName'instance decodeInternal :: nil))
+       with Method6 instancePrefix--"decodeInst" (isRV64 : Bool) (hasM : Bool) (hasA : Bool) (hasF : Bool) (hasD : Bool) (inst : Instruction) : (Maybe RVDecodedInst) :=
+        Call decoderResults : tvar1570 <-  vec6(#isRV64 decodeInternaltoExecFuncRV64I(#inst) decodeInternaltoExecFuncRV32I(#inst), #hasM#isRV64 decodeInternaltoExecFuncRV64M(#True, #inst) decodeInternaltoExecFuncRV32M(#True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasA#isRV64 decodeInternaltoExecFuncRV64A(#inst) decodeInternaltoExecFuncRV32A(#inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasF#isRV64 decodeInternaltoExecFuncRV64F(#True, #True, #inst) decodeInternaltoExecFuncRV32F(#True, #True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }, #hasD#isRV64 decodeInternaltoExecFuncRV64D(#True, #True, #inst) decodeInternaltoExecFuncRV32D(#True, #True, #inst)STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 },  decodeInternaltoExecFuncPriv(#inst));
+        Call execFunc : tvar1573 <-  fold(#fold_op, #decoderResults);
+        If #execFunc$taggedValid.validExecFunc
         then                 BKSTMTS {
-        LET instType <- 
-        with         Ret STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "execFunc" ::= #validExecFunc; "imm" ::= #instType; "rs1" ::= #instType; "rs2" ::= #instType; "rs3" ::= #instType; "dst" ::= #instType; "inst" ::= #inst  }; "Invalid" ::= $0 }
+        LET instType <- ;
+                Ret STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "execFunc" ::= #validExecFunc; "imm" ::= #instType; "rs1" ::= #instType; "rs2" ::= #instType; "rs3" ::= #instType; "dst" ::= #instType; "inst" ::= #inst  }; "Invalid" ::= $0 };
 ;
         Retv
         else                 BKSTMTS {
-                Ret STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }
+                Ret STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
 ;
         Retv;
 
-.
+       with Method2 instancePrefix--"getImmediate" (imm : ImmType) (inst : Instruction) : (Maybe (Bit XLEN)) :=
+LET immI <- ;
+LET immS <- ;
+LET immSB <- ;
+LET immU <- ;
+LET immUJ <- ;
+LET immZ <- ;
+        Ret null
 
-Definition getImmediate (imm: ImmType) (inst: Instruction): (Maybe (word xlen)) := 
-        LET immI <- 
+       with Method instancePrefix--"getMinPriv" (inst : Instruction) : (Bit 2) :=
+        Ret ( getInstFieldsgetInstFields(#inst) == #System)#inst[$29 : $28]#prvU
 
-        LET immS <- 
+    }). (* mkRVDecode *)
 
-        LET immSB <- 
-
-        LET immU <- 
-
-        LET immUJ <- 
-
-        LET immZ <- 
-
-                Ret null
-
-.
-
-Definition getMinPriv (inst: Instruction): (word 2) := 
-                Ret (==  getInstFields(#inst) #System)#inst[$29 : $28]#prvU
-
-.
+    Definition mkRVDecode := Build_RVDecode mkRVDecodeModule%kami (instancePrefix--"decodeInst") (instancePrefix--"getImmediate") (instancePrefix--"getMinPriv").
+    End Section'mkRVDecode.
+End mkRVDecode.
 

@@ -38,11 +38,12 @@ Module mkRVCsrFile.
     Variable xlen : Kind.
     Variable instancePrefix: string.
     Variable hartid: Data.
-    Variable time_counter: (word 64).
+    Variable time_counter: (Reg (word 64)).
     Variable mtip: bool.
     Variable msip: bool.
     Variable meip: bool.
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Definition getCSR (csr: CSR): (CSRReg Data) := 
+    Let toCauseCSRtoCauseCSR := MethodSig (ToCauseCSR'toCauseCSR toCauseCSR) (TrapCause) : Data.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        Definition getCSR (csr: CSR): (Reg Data) := 
                 Ret null
 
 .

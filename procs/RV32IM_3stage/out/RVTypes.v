@@ -25,7 +25,7 @@ Definition CacheLineSz := 512.
 
 Definition InstSz := 32.
 
-Definition Instruction := (Bit InstSz).
+Definition Instruction := (word InstSz).
 
 Definition AddrSz := XLEN.
 
@@ -39,16 +39,65 @@ Definition AsidSz := 10.
 
 Definition Asid := (word AsidSz).
 
-Notation RVRoundModeFields := (STRUCT { "$tag" :: (Bit 8) }).
-Definition RVRoundMode : Kind := (Struct RVRoundModeFields).
+Definition RVRoundModeFields := (STRUCT { "$tag" :: (Bit 8) }).
+Definition RVRoundMode := (Struct RVRoundModeFields).
+Print RVRoundMode.
+
 Notation RNE := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation RTZ := (STRUCT { "$tag" ::= $1 })%kami_expr.
 Notation RDN := (STRUCT { "$tag" ::= $2 })%kami_expr.
 Notation RUP := (STRUCT { "$tag" ::= $3 })%kami_expr.
 Notation RMM := (STRUCT { "$tag" ::= $4 })%kami_expr.
 Notation RDyn := (STRUCT { "$tag" ::= $7 })%kami_expr.
+(* * interface Pack#(t, sz) *)
+Record Pack (sz : nat) (t : Kind) := {
+    Pack'interface: Modules;
+    Pack'unpack : string;
+    Pack'pack : string;
+}.
+
+Module mkPackRVRoundMode.
+    Section Section'mkPackRVRoundMode.
+    Variable instancePrefix: string.
+            Definition mkPackRVRoundModeModule :=
+        (BKMODULE {
+           Method instancePrefix--"unpack" (v : (Bit 3)) : RVRoundMode :=
+             If (#v == $0) then
+                Ret RNE
+             else
+               Ret RDyn as retval;
+              Ret #retval
+
+       with Method instancePrefix--"pack" (v : RVRoundMode) : (Bit 3) :=
+    If (#v!RVRoundModeFields@."$tag" == $0) then
+        Ret $0
+    else (If (#v!RVRoundModeFields@."$tag" == $1) then
+        Ret $1
+    else (If (#v!RVRoundModeFields@."$tag" == $2) then
+        Ret $2
+    else (If (#v!RVRoundModeFields@."$tag" == $3) then
+        Ret $3
+    else (If (#v!RVRoundModeFields@."$tag" == $4) then
+        Ret $4
+    else (If (#v!RVRoundModeFields@."$tag" == $7) then
+            Ret $7
+          else Ret $7 as retval; Ret #retval)
+      as retval;
+          Ret #retval) as retval;
+          Ret #retval) as retval;
+          Ret #retval) as retval;
+          Ret #retval) as retval;
+           Ret #retval
+                            
+
+    }). (* mkPackRVRoundMode *)
+
+    Definition mkPackRVRoundMode := Build_Pack 32 RVRoundMode mkPackRVRoundModeModule%kami (instancePrefix--"pack") (instancePrefix--"unpack").
+    End Section'mkPackRVRoundMode.
+End mkPackRVRoundMode.
+
 Definition OpcodeFields := (STRUCT { "$tag" :: (Bit 8) }).
-Definition Opcode : Kind := (Struct OpcodeFields).
+Definition Opcode := (Struct OpcodeFields).
 Notation Load := (STRUCT { "$tag" ::= $3 })%kami_expr.
 Notation LoadFp := (STRUCT { "$tag" ::= $7 })%kami_expr.
 Notation MiscMem := (STRUCT { "$tag" ::= $15 })%kami_expr.
@@ -70,8 +119,194 @@ Notation Branch := (STRUCT { "$tag" ::= $99 })%kami_expr.
 Notation Jalr := (STRUCT { "$tag" ::= $103 })%kami_expr.
 Notation Jal := (STRUCT { "$tag" ::= $111 })%kami_expr.
 Notation System := (STRUCT { "$tag" ::= $115 })%kami_expr.
+Module mkPackOpcode.
+    Section Section'mkPackOpcode.
+    Variable instancePrefix: string.
+            Definition mkPackOpcodeModule :=
+        (BKMODULE {
+           Method instancePrefix--"unpack" (v : (Bit 7)) : Opcode :=
+             If (#v == $3) then
+             Ret #Load
+           else
+             (If (#v == $7) then
+                Ret #LoadFp
+              else
+                (If (#v == $15) then
+                   Ret #MiscMem
+                 else
+                   (If (#v == $19) then
+                      Ret #OpImm
+                    else
+                      (If (#v == $23) then
+                         Ret #Auipc
+                       else
+                         (If (#v == $27) then
+                            Ret #OpImm32
+                          else
+                            (If (#v == $35) then
+                               Ret #Store
+                             else
+                               (If (#v == $39) then
+                                  Ret #StoreFp
+                                else
+                                  (If (#v == $47) then
+                                     Ret #Amo
+                                   else
+                                     (If (#v == $51) then
+                                        Ret #Op
+                                      else
+                                        (If (#v == $55) then
+                                           Ret #Lui
+                                         else
+                                           (If (#v == $59) then
+                                              Ret #Op32
+                                            else
+                                              (If (#v == $67) then
+                                                 Ret #Fmadd
+                                               else
+                                                 (If (#v == $71) then
+                                                    Ret #Fmsub
+                                                  else
+                                                    (If (#v == $75) then
+                                                       Ret #Fnmsub
+                                                     else
+                                                       (If (#v == $79) then
+                                                          Ret #Fnmadd
+                                                        else
+                                                          (If (#v == $83) then
+                                                             Ret #OpFp
+                                                           else
+                                                             (If (#v == $99) then
+                                                                Ret #Branch
+                                                              else
+                                                                (If (#v == $103) then
+                                                                   Ret #Jalr
+                                                                 else
+                                                                   (If (#v == $111) then
+                                                                      Ret #Jal
+                                                                    else
+                                                                      (If (#v == $115) then
+                                                                         Ret #System
+                                                                       else
+                                                                         Retv as retval;
+                                                                       Ret #retval) as retval;
+                                                                    Ret #retval) as retval;
+                                                                 Ret #retval) as retval;
+                                                              Ret #retval) as retval;
+                                                           Ret #retval) as retval;
+                                                        Ret #retval) as retval;
+                                                     Ret #retval) as retval;
+                                                  Ret #retval) as retval;
+                                               Ret #retval) as retval;
+                                            Ret #retval) as retval;
+                                         Ret #retval) as retval;
+                                      Ret #retval) as retval;
+                                   Ret #retval) as retval;
+                                Ret #retval) as retval;
+                             Ret #retval) as retval;
+                          Ret #retval) as retval;
+                       Ret #retval) as retval;
+                    Ret #retval) as retval;
+                 Ret #retval) as retval;
+              Ret #retval) as retval;
+           Ret #retval
+        
+
+       with Method instancePrefix--"pack" (v : Opcode) : (Bit 7) :=
+    If (#v!OpcodeFields@."$tag" == $3) then
+        Ret $7'b0000011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $7) then
+        Ret $7'b0000111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $15) then
+        Ret $7'b0001111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $19) then
+        Ret $7'b0010011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $23) then
+        Ret $7'b0010111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $27) then
+        Ret $7'b0011011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $35) then
+        Ret $7'b0100011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $39) then
+        Ret $7'b0100111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $47) then
+        Ret $7'b0101111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $51) then
+        Ret $7'b0110011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $55) then
+        Ret $7'b0110111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $59) then
+        Ret $7'b0111011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $67) then
+        Ret $7'b1000011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $71) then
+        Ret $7'b1000111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $75) then
+        Ret $7'b1001011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $79) then
+        Ret $7'b1001111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $83) then
+        Ret $7'b1010011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $99) then
+        Ret $7'b1100011;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $103) then
+        Ret $7'b1100111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $111) then
+        Ret $7'b1101111;
+        Retv
+    else
+    If (#v!OpcodeFields@."$tag" == $115) then
+        Ret $7'b1110011;
+        Retv
+    else
+        Retv
+
+    }). (* mkPackOpcode *)
+
+    Definition mkPackOpcode := Build_Pack mkPackOpcodeModule%kami (instancePrefix--"pack") (instancePrefix--"unpack").
+    End Section'mkPackOpcode.
+End mkPackOpcode.
+
 Definition CSRFields := (STRUCT { "$tag" :: (Bit 8) }).
-Definition CSR : Kind := (Struct CSRFields).
+Definition CSR := (Struct CSRFields).
 Notation CSRustatus := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation CSRuie := (STRUCT { "$tag" ::= $4 })%kami_expr.
 Notation CSRutvec := (STRUCT { "$tag" ::= $5 })%kami_expr.
@@ -169,8 +404,801 @@ Notation CSRmsinstret_deltah := (STRUCT { "$tag" ::= $1926 })%kami_expr.
 Notation CSRmhcycle_deltah := (STRUCT { "$tag" ::= $1928 })%kami_expr.
 Notation CSRmhtime_deltah := (STRUCT { "$tag" ::= $1929 })%kami_expr.
 Notation CSRmhinstret_deltah := (STRUCT { "$tag" ::= $1930 })%kami_expr.
-Definition InstructionFields'Fields := (STRUCT {
-    "inst" :: (Bit InstSz);
+Module mkPackCSR.
+    Section Section'mkPackCSR.
+    Variable instancePrefix: string.
+            Definition mkPackCSRModule :=
+        (BKMODULE {
+           Method instancePrefix--"unpack" (v : (Bit 12)) : CSR :=
+    If (#v == $0) then
+        Ret #CSRustatus;
+        Retv
+    else
+    If (#v == $4) then
+        Ret #CSRuie;
+        Retv
+    else
+    If (#v == $5) then
+        Ret #CSRutvec;
+        Retv
+    else
+    If (#v == $64) then
+        Ret #CSRuscratch;
+        Retv
+    else
+    If (#v == $65) then
+        Ret #CSRuepc;
+        Retv
+    else
+    If (#v == $66) then
+        Ret #CSRucause;
+        Retv
+    else
+    If (#v == $67) then
+        Ret #CSRubadaddr;
+        Retv
+    else
+    If (#v == $68) then
+        Ret #CSRuip;
+        Retv
+    else
+    If (#v == $1) then
+        Ret #CSRfflags;
+        Retv
+    else
+    If (#v == $2) then
+        Ret #CSRfrm;
+        Retv
+    else
+    If (#v == $3) then
+        Ret #CSRfcsr;
+        Retv
+    else
+    If (#v == $3072) then
+        Ret #CSRcycle;
+        Retv
+    else
+    If (#v == $3073) then
+        Ret #CSRtime;
+        Retv
+    else
+    If (#v == $3074) then
+        Ret #CSRinstret;
+        Retv
+    else
+    If (#v == $3200) then
+        Ret #CSRcycleh;
+        Retv
+    else
+    If (#v == $3201) then
+        Ret #CSRtimeh;
+        Retv
+    else
+    If (#v == $3202) then
+        Ret #CSRinstreth;
+        Retv
+    else
+    If (#v == $256) then
+        Ret #CSRsstatus;
+        Retv
+    else
+    If (#v == $258) then
+        Ret #CSRsedeleg;
+        Retv
+    else
+    If (#v == $259) then
+        Ret #CSRsideleg;
+        Retv
+    else
+    If (#v == $260) then
+        Ret #CSRsie;
+        Retv
+    else
+    If (#v == $261) then
+        Ret #CSRstvec;
+        Retv
+    else
+    If (#v == $320) then
+        Ret #CSRsscratch;
+        Retv
+    else
+    If (#v == $321) then
+        Ret #CSRsepc;
+        Retv
+    else
+    If (#v == $322) then
+        Ret #CSRscause;
+        Retv
+    else
+    If (#v == $323) then
+        Ret #CSRsbadaddr;
+        Retv
+    else
+    If (#v == $324) then
+        Ret #CSRsip;
+        Retv
+    else
+    If (#v == $384) then
+        Ret #CSRsptbr;
+        Retv
+    else
+    If (#v == $3328) then
+        Ret #CSRscycle;
+        Retv
+    else
+    If (#v == $3329) then
+        Ret #CSRstime;
+        Retv
+    else
+    If (#v == $3330) then
+        Ret #CSRsinstret;
+        Retv
+    else
+    If (#v == $3456) then
+        Ret #CSRscycleh;
+        Retv
+    else
+    If (#v == $3457) then
+        Ret #CSRstimeh;
+        Retv
+    else
+    If (#v == $3458) then
+        Ret #CSRsinstreth;
+        Retv
+    else
+    If (#v == $512) then
+        Ret #CSRhstatus;
+        Retv
+    else
+    If (#v == $514) then
+        Ret #CSRhedeleg;
+        Retv
+    else
+    If (#v == $515) then
+        Ret #CSRhideleg;
+        Retv
+    else
+    If (#v == $516) then
+        Ret #CSRhie;
+        Retv
+    else
+    If (#v == $517) then
+        Ret #CSRhtvec;
+        Retv
+    else
+    If (#v == $576) then
+        Ret #CSRhscratch;
+        Retv
+    else
+    If (#v == $577) then
+        Ret #CSRhepc;
+        Retv
+    else
+    If (#v == $578) then
+        Ret #CSRhcause;
+        Retv
+    else
+    If (#v == $579) then
+        Ret #CSRhbadaddr;
+        Retv
+    else
+    If (#v == $3584) then
+        Ret #CSRhcycle;
+        Retv
+    else
+    If (#v == $3585) then
+        Ret #CSRhtime;
+        Retv
+    else
+    If (#v == $3586) then
+        Ret #CSRhinstret;
+        Retv
+    else
+    If (#v == $3712) then
+        Ret #CSRhcycleh;
+        Retv
+    else
+    If (#v == $3713) then
+        Ret #CSRhtimeh;
+        Retv
+    else
+    If (#v == $3714) then
+        Ret #CSRhinstreth;
+        Retv
+    else
+    If (#v == $3856) then
+        Ret #CSRmisa;
+        Retv
+    else
+    If (#v == $3857) then
+        Ret #CSRmvendorid;
+        Retv
+    else
+    If (#v == $3858) then
+        Ret #CSRmarchid;
+        Retv
+    else
+    If (#v == $3859) then
+        Ret #CSRmimpid;
+        Retv
+    else
+    If (#v == $3860) then
+        Ret #CSRmhartid;
+        Retv
+    else
+    If (#v == $768) then
+        Ret #CSRmstatus;
+        Retv
+    else
+    If (#v == $770) then
+        Ret #CSRmedeleg;
+        Retv
+    else
+    If (#v == $771) then
+        Ret #CSRmideleg;
+        Retv
+    else
+    If (#v == $772) then
+        Ret #CSRmie;
+        Retv
+    else
+    If (#v == $773) then
+        Ret #CSRmtvec;
+        Retv
+    else
+    If (#v == $832) then
+        Ret #CSRmscratch;
+        Retv
+    else
+    If (#v == $833) then
+        Ret #CSRmepc;
+        Retv
+    else
+    If (#v == $834) then
+        Ret #CSRmcause;
+        Retv
+    else
+    If (#v == $835) then
+        Ret #CSRmbadaddr;
+        Retv
+    else
+    If (#v == $836) then
+        Ret #CSRmip;
+        Retv
+    else
+    If (#v == $896) then
+        Ret #CSRmbase;
+        Retv
+    else
+    If (#v == $897) then
+        Ret #CSRmbound;
+        Retv
+    else
+    If (#v == $898) then
+        Ret #CSRmibase;
+        Retv
+    else
+    If (#v == $899) then
+        Ret #CSRmibound;
+        Retv
+    else
+    If (#v == $900) then
+        Ret #CSRmdbase;
+        Retv
+    else
+    If (#v == $901) then
+        Ret #CSRmdbound;
+        Retv
+    else
+    If (#v == $3840) then
+        Ret #CSRmcycle;
+        Retv
+    else
+    If (#v == $3841) then
+        Ret #CSRmtime;
+        Retv
+    else
+    If (#v == $3842) then
+        Ret #CSRminstret;
+        Retv
+    else
+    If (#v == $3968) then
+        Ret #CSRmcycleh;
+        Retv
+    else
+    If (#v == $3969) then
+        Ret #CSRmtimeh;
+        Retv
+    else
+    If (#v == $3970) then
+        Ret #CSRminstreth;
+        Retv
+    else
+    If (#v == $784) then
+        Ret #CSRmucounteren;
+        Retv
+    else
+    If (#v == $785) then
+        Ret #CSRmscounteren;
+        Retv
+    else
+    If (#v == $786) then
+        Ret #CSRmhcounteren;
+        Retv
+    else
+    If (#v == $1792) then
+        Ret #CSRmucycle_delta;
+        Retv
+    else
+    If (#v == $1793) then
+        Ret #CSRmutime_delta;
+        Retv
+    else
+    If (#v == $1794) then
+        Ret #CSRmuinstret_delta;
+        Retv
+    else
+    If (#v == $1796) then
+        Ret #CSRmscycle_delta;
+        Retv
+    else
+    If (#v == $1797) then
+        Ret #CSRmstime_delta;
+        Retv
+    else
+    If (#v == $1798) then
+        Ret #CSRmsinstret_delta;
+        Retv
+    else
+    If (#v == $1800) then
+        Ret #CSRmhcycle_delta;
+        Retv
+    else
+    If (#v == $1801) then
+        Ret #CSRmhtime_delta;
+        Retv
+    else
+    If (#v == $1802) then
+        Ret #CSRmhinstret_delta;
+        Retv
+    else
+    If (#v == $1920) then
+        Ret #CSRmucycle_deltah;
+        Retv
+    else
+    If (#v == $1921) then
+        Ret #CSRmutime_deltah;
+        Retv
+    else
+    If (#v == $1922) then
+        Ret #CSRmuinstret_deltah;
+        Retv
+    else
+    If (#v == $1924) then
+        Ret #CSRmscycle_deltah;
+        Retv
+    else
+    If (#v == $1925) then
+        Ret #CSRmstime_deltah;
+        Retv
+    else
+    If (#v == $1926) then
+        Ret #CSRmsinstret_deltah;
+        Retv
+    else
+    If (#v == $1928) then
+        Ret #CSRmhcycle_deltah;
+        Retv
+    else
+    If (#v == $1929) then
+        Ret #CSRmhtime_deltah;
+        Retv
+    else
+    If (#v == $1930) then
+        Ret #CSRmhinstret_deltah;
+        Retv
+    else
+        Retv
+
+       with Method instancePrefix--"pack" (v : CSR) : (Bit 12) :=
+    If (#v!CSRFields@."$tag" == $0) then
+        Ret $12'h000;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $4) then
+        Ret $12'h004;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $5) then
+        Ret $12'h005;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $64) then
+        Ret $12'h040;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $65) then
+        Ret $12'h041;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $66) then
+        Ret $12'h042;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $67) then
+        Ret $12'h043;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $68) then
+        Ret $12'h044;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1) then
+        Ret $12'h001;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $2) then
+        Ret $12'h002;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3) then
+        Ret $12'h003;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3072) then
+        Ret $12'hc00;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3073) then
+        Ret $12'hc01;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3074) then
+        Ret $12'hc02;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3200) then
+        Ret $12'hc80;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3201) then
+        Ret $12'hc81;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3202) then
+        Ret $12'hc82;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $256) then
+        Ret $12'h100;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $258) then
+        Ret $12'h102;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $259) then
+        Ret $12'h103;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $260) then
+        Ret $12'h104;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $261) then
+        Ret $12'h105;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $320) then
+        Ret $12'h140;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $321) then
+        Ret $12'h141;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $322) then
+        Ret $12'h142;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $323) then
+        Ret $12'h143;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $324) then
+        Ret $12'h144;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $384) then
+        Ret $12'h180;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3328) then
+        Ret $12'hd00;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3329) then
+        Ret $12'hd01;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3330) then
+        Ret $12'hd02;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3456) then
+        Ret $12'hd80;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3457) then
+        Ret $12'hd81;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3458) then
+        Ret $12'hd82;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $512) then
+        Ret $12'h200;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $514) then
+        Ret $12'h202;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $515) then
+        Ret $12'h203;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $516) then
+        Ret $12'h204;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $517) then
+        Ret $12'h205;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $576) then
+        Ret $12'h240;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $577) then
+        Ret $12'h241;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $578) then
+        Ret $12'h242;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $579) then
+        Ret $12'h243;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3584) then
+        Ret $12'he00;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3585) then
+        Ret $12'he01;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3586) then
+        Ret $12'he02;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3712) then
+        Ret $12'he80;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3713) then
+        Ret $12'he81;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3714) then
+        Ret $12'he82;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3856) then
+        Ret $12'hf10;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3857) then
+        Ret $12'hf11;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3858) then
+        Ret $12'hf12;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3859) then
+        Ret $12'hf13;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3860) then
+        Ret $12'hf14;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $768) then
+        Ret $12'h300;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $770) then
+        Ret $12'h302;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $771) then
+        Ret $12'h303;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $772) then
+        Ret $12'h304;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $773) then
+        Ret $12'h305;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $832) then
+        Ret $12'h340;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $833) then
+        Ret $12'h341;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $834) then
+        Ret $12'h342;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $835) then
+        Ret $12'h343;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $836) then
+        Ret $12'h344;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $896) then
+        Ret $12'h380;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $897) then
+        Ret $12'h381;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $898) then
+        Ret $12'h382;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $899) then
+        Ret $12'h383;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $900) then
+        Ret $12'h384;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $901) then
+        Ret $12'h385;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3840) then
+        Ret $12'hf00;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3841) then
+        Ret $12'hf01;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3842) then
+        Ret $12'hf02;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3968) then
+        Ret $12'hf80;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3969) then
+        Ret $12'hf81;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $3970) then
+        Ret $12'hf82;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $784) then
+        Ret $12'h310;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $785) then
+        Ret $12'h311;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $786) then
+        Ret $12'h312;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1792) then
+        Ret $12'h700;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1793) then
+        Ret $12'h701;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1794) then
+        Ret $12'h702;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1796) then
+        Ret $12'h704;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1797) then
+        Ret $12'h705;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1798) then
+        Ret $12'h706;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1800) then
+        Ret $12'h708;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1801) then
+        Ret $12'h709;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1802) then
+        Ret $12'h70a;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1920) then
+        Ret $12'h780;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1921) then
+        Ret $12'h781;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1922) then
+        Ret $12'h782;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1924) then
+        Ret $12'h784;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1925) then
+        Ret $12'h785;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1926) then
+        Ret $12'h786;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1928) then
+        Ret $12'h788;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1929) then
+        Ret $12'h789;
+        Retv
+    else
+    If (#v!CSRFields@."$tag" == $1930) then
+        Ret $12'h78a;
+        Retv
+    else
+        Retv
+
+    }). (* mkPackCSR *)
+
+    Definition mkPackCSR := Build_Pack mkPackCSRModule%kami (instancePrefix--"pack") (instancePrefix--"unpack").
+    End Section'mkPackCSR.
+End mkPackCSR.
+
+Definition InstructionFieldsFields := (STRUCT {
+    "inst" :: (Bit 32);
     "rd" :: (Bit 5);
     "rs1" :: (Bit 5);
     "rs2" :: (Bit 5);
@@ -184,12 +1212,36 @@ Definition InstructionFields'Fields := (STRUCT {
     "opcode" :: Opcode;
     "csrAddr" :: (Bit 12);
     "csr" :: CSR}).
-Definition InstructionFields  := Struct (InstructionFields'Fields).
+Definition InstructionFields  := Struct (InstructionFieldsFields).
 
-Definition getInstFields (x: (Bit 32)): InstructionFields := 
-                Ret STRUCT { "inst" ::= #x; "rd" ::= #x[$11 : $7]; "rs1" ::= #x[$19 : $15]; "rs2" ::= #x[$24 : $20]; "rs3" ::= #x[$31 : $27]; "funct2" ::= #x[$26 : $25]; "funct3" ::= #x[$14 : $12]; "funct5" ::= #x[$31 : $27]; "funct7" ::= #x[$31 : $25]; "fmt" ::= #x[$26 : $25]; "rm" ::=  unpack(#x[$14 : $12]); "opcode" ::=  unpack(#x[$6 : $0]); "csrAddr" ::= #x[$31 : $20]; "csr" ::=  unpack(#x[$31 : $20])  }
+(* * interface GetInstFields *)
+Record GetInstFields := {
+    GetInstFields'interface: Modules;
+    GetInstFields'getInstFields : string;
+}.
 
-.
+Module mkGetInstFields.
+    Section Section'mkGetInstFields.
+    Variable instancePrefix: string.
+    Let packCSRunpack := MethodSig (Pack'unpack packCSR) (Bit sz) : t.
+    Let packOpcodeunpack := MethodSig (Pack'unpack packOpcode) (Bit sz) : t.
+    Let packRVRoundModeunpack := MethodSig (Pack'unpack packRVRoundMode) (Bit sz) : t.
+                       Let packRVRoundMode := mkPackRVRoundMode (instancePrefix--"packRVRoundMode").
+       Let packOpcode := mkPackOpcode (instancePrefix--"packOpcode").
+       Let packCSR := mkPackCSR (instancePrefix--"packCSR").
+    Definition mkGetInstFieldsModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance packRVRoundMode :: nil))
+       with (BKMod (FIXME'InterfaceName'instance packOpcode :: nil))
+       with (BKMod (FIXME'InterfaceName'instance packCSR :: nil))
+       with Method instancePrefix--"getInstFields" (x : Instruction) : InstructionFields :=
+        Ret STRUCT { "inst" ::= #x; "rd" ::= #x[$11 : $7]; "rs1" ::= #x[$19 : $15]; "rs2" ::= #x[$24 : $20]; "rs3" ::= #x[$31 : $27]; "funct2" ::= #x[$26 : $25]; "funct3" ::= #x[$14 : $12]; "funct5" ::= #x[$31 : $27]; "funct7" ::= #x[$31 : $25]; "fmt" ::= #x[$26 : $25]; "rm" ::=  packRVRoundModeunpack(#x[$14 : $12]); "opcode" ::=  packOpcodeunpack(#x[$6 : $0]); "csrAddr" ::= #x[$31 : $20]; "csr" ::=  packCSRunpack(#x[$31 : $20])  }
+
+    }). (* mkGetInstFields *)
+
+    Definition mkGetInstFields := Build_GetInstFields mkGetInstFieldsModule%kami (instancePrefix--"getInstFields").
+    End Section'mkGetInstFields.
+End mkGetInstFields.
 
 Definition RVMemOpFields := (STRUCT { "$tag" :: (Bit 8) }).
 Definition RVMemOp := (Struct RVMemOpFields).
@@ -216,10 +1268,61 @@ Notation B := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation H := (STRUCT { "$tag" ::= $1 })%kami_expr.
 Notation W := (STRUCT { "$tag" ::= $2 })%kami_expr.
 Notation D := (STRUCT { "$tag" ::= $3 })%kami_expr.
-Definition toPermutedDataByteEn (size: RVMemSize) (addrLSB: DataByteSel): DataByteEn := 
-                Ret (<<  toDataByteEn(#size) #addrLSB)
+(* * interface ToDataByteEn#(n) *)
+Record ToDataByteEn (n : nat) := {
+    ToDataByteEn'interface: Modules;
+    ToDataByteEn'toDataByteEn : string;
+}.
 
-.
+Module mkToDataByteEn4.
+    Section Section'mkToDataByteEn4.
+    Variable instancePrefix: string.
+        Definition mkToDataByteEn4Module :=
+        (BKMODULE {
+           Method instancePrefix--"toDataByteEn" (size : RVMemSize) : (Bit 4) :=
+        Ret null
+
+    }). (* mkToDataByteEn4 *)
+
+    Definition mkToDataByteEn4 := Build_ToDataByteEn mkToDataByteEn4Module%kami (instancePrefix--"toDataByteEn").
+    End Section'mkToDataByteEn4.
+End mkToDataByteEn4.
+
+Module mkToDataByteEn8.
+    Section Section'mkToDataByteEn8.
+    Variable instancePrefix: string.
+        Definition mkToDataByteEn8Module :=
+        (BKMODULE {
+           Method instancePrefix--"toDataByteEn" (size : RVMemSize) : (Bit 8) :=
+        Ret null
+
+    }). (* mkToDataByteEn8 *)
+
+    Definition mkToDataByteEn8 := Build_ToDataByteEn mkToDataByteEn8Module%kami (instancePrefix--"toDataByteEn").
+    End Section'mkToDataByteEn8.
+End mkToDataByteEn8.
+
+(* * interface ToPermutedDataByteEn *)
+Record ToPermutedDataByteEn := {
+    ToPermutedDataByteEn'interface: Modules;
+    ToPermutedDataByteEn'toPermutedDataByteEn : string;
+}.
+
+Module mkToPermutedDataByteEn.
+    Section Section'mkToPermutedDataByteEn.
+    Variable instancePrefix: string.
+               Let tdbe := mkToDataByteEn4 (instancePrefix--"tdbe").
+    Definition mkToPermutedDataByteEnModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance tdbe :: nil))
+       with Method2 instancePrefix--"toPermutedDataByteEn" (size : RVMemSize) (addrLSB : DataByteSel) : DataByteEn :=
+        Ret ( tdbetoDataByteEn(#size) << #addrLSB)
+
+    }). (* mkToPermutedDataByteEn *)
+
+    Definition mkToPermutedDataByteEn := Build_ToPermutedDataByteEn mkToPermutedDataByteEnModule%kami (instancePrefix--"toPermutedDataByteEn").
+    End Section'mkToPermutedDataByteEn.
+End mkToPermutedDataByteEn.
 
 Definition RVMemAmoOpFields := (STRUCT {
     "$tag" :: (Bit 8);
@@ -231,6 +1334,120 @@ Definition RVMemInstFields := (STRUCT {
     "size" :: RVMemSize;
     "isUnsigned" :: Bool}).
 Definition RVMemInst  := Struct (RVMemInstFields).
+
+(* * interface IsMemOp#(t) *)
+Record IsMemOp (t : Kind) := {
+    IsMemOp'interface: Modules;
+    IsMemOp'isLoad : string;
+    IsMemOp'isStore : string;
+    IsMemOp'isAmo : string;
+    IsMemOp'getsReadPermission : string;
+    IsMemOp'getsWritePermission : string;
+    IsMemOp'getsResponse : string;
+}.
+
+Module mkIsMemOpRVMemOp.
+    Section Section'mkIsMemOpRVMemOp.
+    Variable instancePrefix: string.
+                            Definition mkIsMemOpRVMemOpModule :=
+        (BKMODULE {
+           Method instancePrefix--"isLoad" (x : RVMemOp) : Bool :=
+        Ret ((#x == #Ld) || (#x == #Lr))
+
+       with Method instancePrefix--"isStore" (x : RVMemOp) : Bool :=
+        Ret ((#x == #St) || (#x == #Sc))
+
+       with Method instancePrefix--"isAmo" (x : RVMemOp) : Bool :=
+        Ret #False
+
+       with Method instancePrefix--"getsReadPermission" (x : RVMemOp) : Bool :=
+        Ret ((#x == #Ld) || (#x == #PrefetchForLd))
+
+       with Method instancePrefix--"getsWritePermission" (x : RVMemOp) : Bool :=
+        Ret ((((#x == #St) || (#x == #Sc)) || (#x == #Lr)) || (#x == #PrefetchForSt))
+
+       with Method instancePrefix--"getsResponse" (x : RVMemOp) : Bool :=
+        Ret (((#x == #Ld) || (#x == #Lr)) || (#x == #Sc))
+
+    }). (* mkIsMemOpRVMemOp *)
+
+    Definition mkIsMemOpRVMemOp := Build_IsMemOp mkIsMemOpRVMemOpModule%kami (instancePrefix--"getsReadPermission") (instancePrefix--"getsResponse") (instancePrefix--"getsWritePermission") (instancePrefix--"isAmo") (instancePrefix--"isLoad") (instancePrefix--"isStore").
+    End Section'mkIsMemOpRVMemOp.
+End mkIsMemOpRVMemOp.
+
+Module mkIsMemOpRVAmoOp.
+    Section Section'mkIsMemOpRVAmoOp.
+    Variable instancePrefix: string.
+                            Definition mkIsMemOpRVAmoOpModule :=
+        (BKMODULE {
+           Method instancePrefix--"isLoad" (x : RVAmoOp) : Bool :=
+        Ret #False
+
+       with Method instancePrefix--"isStore" (x : RVAmoOp) : Bool :=
+        Ret #False
+
+       with Method instancePrefix--"isAmo" (x : RVAmoOp) : Bool :=
+        Ret #True
+
+       with Method instancePrefix--"getsReadPermission" (x : RVAmoOp) : Bool :=
+        Ret #False
+
+       with Method instancePrefix--"getsWritePermission" (x : RVAmoOp) : Bool :=
+        Ret #True
+
+       with Method instancePrefix--"getsResponse" (x : RVAmoOp) : Bool :=
+        Ret #True
+
+    }). (* mkIsMemOpRVAmoOp *)
+
+    Definition mkIsMemOpRVAmoOp := Build_IsMemOp mkIsMemOpRVAmoOpModule%kami (instancePrefix--"getsReadPermission") (instancePrefix--"getsResponse") (instancePrefix--"getsWritePermission") (instancePrefix--"isAmo") (instancePrefix--"isLoad") (instancePrefix--"isStore").
+    End Section'mkIsMemOpRVAmoOp.
+End mkIsMemOpRVAmoOp.
+
+Module mkIsMemOpRVMemAmoOp.
+    Section Section'mkIsMemOpRVMemAmoOp.
+    Variable instancePrefix: string.
+    Let isMemOpAmogetsReadPermission := MethodSig (IsMemOp'getsReadPermission isMemOpAmo) (t) : Bool.
+    Let isMemOpAmogetsResponse := MethodSig (IsMemOp'getsResponse isMemOpAmo) (t) : Bool.
+    Let isMemOpAmogetsWritePermission := MethodSig (IsMemOp'getsWritePermission isMemOpAmo) (t) : Bool.
+    Let isMemOpAmoisAmo := MethodSig (IsMemOp'isAmo isMemOpAmo) (t) : Bool.
+    Let isMemOpAmoisLoad := MethodSig (IsMemOp'isLoad isMemOpAmo) (t) : Bool.
+    Let isMemOpAmoisStore := MethodSig (IsMemOp'isStore isMemOpAmo) (t) : Bool.
+    Let isMemOpMemgetsReadPermission := MethodSig (IsMemOp'getsReadPermission isMemOpMem) (t) : Bool.
+    Let isMemOpMemgetsResponse := MethodSig (IsMemOp'getsResponse isMemOpMem) (t) : Bool.
+    Let isMemOpMemgetsWritePermission := MethodSig (IsMemOp'getsWritePermission isMemOpMem) (t) : Bool.
+    Let isMemOpMemisAmo := MethodSig (IsMemOp'isAmo isMemOpMem) (t) : Bool.
+    Let isMemOpMemisLoad := MethodSig (IsMemOp'isLoad isMemOpMem) (t) : Bool.
+    Let isMemOpMemisStore := MethodSig (IsMemOp'isStore isMemOpMem) (t) : Bool.
+                                       Let isMemOpMem := mkIsMemOpRVMemOp (instancePrefix--"isMemOpMem").
+       Let isMemOpAmo := mkIsMemOpRVAmoOp (instancePrefix--"isMemOpAmo").
+    Definition mkIsMemOpRVMemAmoOpModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance isMemOpMem :: nil))
+       with (BKMod (FIXME'InterfaceName'instance isMemOpAmo :: nil))
+       with Method instancePrefix--"isLoad" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+       with Method instancePrefix--"isStore" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+       with Method instancePrefix--"isAmo" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+       with Method instancePrefix--"getsReadPermission" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+       with Method instancePrefix--"getsWritePermission" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+       with Method instancePrefix--"getsResponse" (x : RVMemAmoOp) : Bool :=
+        Ret null
+
+    }). (* mkIsMemOpRVMemAmoOp *)
+
+    Definition mkIsMemOpRVMemAmoOp := Build_IsMemOp mkIsMemOpRVMemAmoOpModule%kami (instancePrefix--"getsReadPermission") (instancePrefix--"getsResponse") (instancePrefix--"getsWritePermission") (instancePrefix--"isAmo") (instancePrefix--"isLoad") (instancePrefix--"isStore").
+    End Section'mkIsMemOpRVMemAmoOp.
+End mkIsMemOpRVMemAmoOp.
 
 Definition RiscVISASubsetFields := (STRUCT {
     "rv64" :: Bool;
@@ -244,46 +1461,53 @@ Definition RiscVISASubsetFields := (STRUCT {
     "x" :: Bool}).
 Definition RiscVISASubset  := Struct (RiscVISASubsetFields).
 
-Definition getMISA (isa: RiscVISASubset): Data := 
-                LET misa : Data <- (BinBit (Concat 2 4) $2'b00 $4'd0)
+(* * interface GetMISA *)
+Record GetMISA := {
+    GetMISA'interface: Modules;
+    GetMISA'getMISA : string;
+}.
 
-                If #isa
+Module mkGetMISA.
+    Section Section'mkGetMISA.
+    Variable instancePrefix: string.
+        Definition mkGetMISAModule :=
+        (BKMODULE {
+           Method instancePrefix--"getMISA" (isa : RiscVISASubset) : Data :=
+        LET misa : Data <- (BinBit (Concat 2 4) $2'b00 $4'd0);
+        If #isa
         then                 BKSTMTS {
-                Assign misa = (| #misa (BinBit (Concat 2 4) $2'b10 $4'd0))
+                Assign misa = (#misa | (BinBit (Concat 2 4) $2'b10 $4'd0));
 ;
         Retv
         else                 BKSTMTS {
-                Assign misa = (| #misa (BinBit (Concat 2 4) $2'b01 $4'd0))
+                Assign misa = (#misa | (BinBit (Concat 2 4) $2'b01 $4'd0));
 ;
+        Retv;;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
         Retv;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
+        Retv;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
+        Retv;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
+        Retv;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
+        Retv;
+        If #isa
+        then                 Assign misa = (#misa | (BinBit (Concat 2 4) $2'b00 $4'd0));
+        Retv;
+        Ret #misa
 
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
+    }). (* mkGetMISA *)
 
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
-
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
-
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
-
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
-
-                If #isa
-        then                 Assign misa = (| #misa (BinBit (Concat 2 4) $2'b00 $4'd0));
-        Retv
-
-                Ret #misa
-
-.
+    Definition mkGetMISA := Build_GetMISA mkGetMISAModule%kami (instancePrefix--"getMISA").
+    End Section'mkGetMISA.
+End mkGetMISA.
 
 Definition RegIndex := (word 5).
 
@@ -292,21 +1516,53 @@ Definition FullRegIndexFields := (STRUCT {
     "Gpr" :: RegIndex;
     "Fpu" :: RegIndex}).
 Definition FullRegIndex := Struct (FullRegIndexFields).
-Definition toFullRegIndex (rType: Maybe RegType) (index: RegIndex): (Maybe FullRegIndex) := 
-                Ret null
+(* * interface ToFullRegIndex *)
+Record ToFullRegIndex := {
+    ToFullRegIndex'interface: Modules;
+    ToFullRegIndex'toFullRegIndex : string;
+}.
 
-.
+Module mkToFullRegIndex.
+    Section Section'mkToFullRegIndex.
+    Variable instancePrefix: string.
+        Definition mkToFullRegIndexModule :=
+        (BKMODULE {
+           Method2 instancePrefix--"toFullRegIndex" (rType : (Maybe RegType)) (index : RegIndex) : (Maybe FullRegIndex) :=
+        Ret null
+
+    }). (* mkToFullRegIndex *)
+
+    Definition mkToFullRegIndex := Build_ToFullRegIndex mkToFullRegIndexModule%kami (instancePrefix--"toFullRegIndex").
+    End Section'mkToFullRegIndex.
+End mkToFullRegIndex.
 
 Definition NumArchReg := 64.
 
 Definition NumPhyReg := NumArchReg.
 
-Definition hasCSRPermission (csr: CSR) (prv: word 2) (write: bool): bool := 
-        LET csr_index <- 
+(* * interface HasCSRPermission *)
+Record HasCSRPermission := {
+    HasCSRPermission'interface: Modules;
+    HasCSRPermission'hasCSRPermission : string;
+}.
 
-                Ret (&& (>= #prv #csr_index[$9 : $8]) (|| !#write (!= #csr_index[$11 : $10] $2'b11)))
+Module mkHasCSRPermission.
+    Section Section'mkHasCSRPermission.
+    Variable instancePrefix: string.
+    Let packCSRpack := MethodSig (Pack'pack packCSR) (t) : Bit sz.
+               Let packCSR := mkPackCSR (instancePrefix--"packCSR").
+    Definition mkHasCSRPermissionModule :=
+        (BKMODULE {
+           (BKMod (FIXME'InterfaceName'instance packCSR :: nil))
+       with Method3 instancePrefix--"hasCSRPermission" (csr : CSR) (prv : (Bit 2)) (write : Bool) : Bool :=
+LET csr_index <- ;
+        Ret ((#prv >= #csr_index[$9 : $8]) && (!#write || (#csr_index[$11 : $10] != $2'b11)))
 
-.
+    }). (* mkHasCSRPermission *)
+
+    Definition mkHasCSRPermission := Build_HasCSRPermission mkHasCSRPermissionModule%kami (instancePrefix--"hasCSRPermission").
+    End Section'mkHasCSRPermission.
+End mkHasCSRPermission.
 
 Definition BrFuncFields := (STRUCT { "$tag" :: (Bit 8) }).
 Definition BrFunc := (Struct BrFuncFields).
@@ -496,26 +1752,41 @@ Definition TrapCauseFields := (STRUCT {
     "TcException" :: ExceptionCause;
     "TcInterrupt" :: InterruptCause}).
 Definition TrapCause := Struct (TrapCauseFields).
-Definition toCauseCSR (x: TrapCause): Data := 
-            If (#x!TrapCauseFields@."$tag" == $0) then
+(* * interface ToCauseCSR *)
+Record ToCauseCSR := {
+    ToCauseCSR'interface: Modules;
+    ToCauseCSR'toCauseCSR : string;
+}.
+
+Module mkToCauseCSR.
+    Section Section'mkToCauseCSR.
+    Variable instancePrefix: string.
+        Definition mkToCauseCSRModule :=
+        (BKMODULE {
+           Method instancePrefix--"toCauseCSR" (x : TrapCause) : Data :=
+    If (#x!TrapCauseFields@."$tag" == $0) then
               LET cause <- x;
         BKSTMTS {
-        LET pcause <- 
-        with         Ret (BinBit (Concat 28 4) $28'd0 #pcause)
+        LET pcause <- ;
+                Ret (BinBit (Concat 28 4) $28'd0 #pcause);
 ;
         Retv
     else
     If (#x!TrapCauseFields@."$tag" == $1) then
               LET cause <- x;
         BKSTMTS {
-        LET pcause <- 
-        with         Ret (BinBit (Concat 1 27) $1'b1 $27'd0)
+        LET pcause <- ;
+                Ret (BinBit (Concat 1 27) $1'b1 $27'd0);
 ;
         Retv
     else
         Retv
 
-.
+    }). (* mkToCauseCSR *)
+
+    Definition mkToCauseCSR := Build_ToCauseCSR mkToCauseCSRModule%kami (instancePrefix--"toCauseCSR").
+    End Section'mkToCauseCSR.
+End mkToCauseCSR.
 
 Definition CsrStateFields := (STRUCT {
     "prv" :: (Bit 2);
@@ -547,10 +1818,11 @@ Definition FullResultFields (xlen : nat) := (STRUCT {
     "cause" :: (Maybe ExceptionCause)}).
 Definition FullResult  (xlen : nat) := Struct (FullResultFields xlen).
 
-Definition toFullResult (x: t): (FullResult xlen) := 
-                Ret  updateFullResult(#x, #defaultValue)
-
-.
+(* * interface FullResultSubset#(t, xlen) *)
+Record FullResultSubset (t : Kind) (xlen : nat) := {
+    FullResultSubset'interface: Modules;
+    FullResultSubset'updateFullResult : string;
+}.
 
 Definition VMInfoFields (xlen : nat) := (STRUCT {
     "prv" :: (Bit 2);
@@ -568,10 +1840,25 @@ Notation MainMemory := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation IORom := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation IODevice := (STRUCT { "$tag" ::= $0 })%kami_expr.
 Notation IOEmpty := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Definition isCacheable (pma: PMA): bool := 
-                Ret null
+(* * interface IsCacheable *)
+Record IsCacheable := {
+    IsCacheable'interface: Modules;
+    IsCacheable'isCacheable : string;
+}.
 
-.
+Module mkIsCacheable.
+    Section Section'mkIsCacheable.
+    Variable instancePrefix: string.
+        Definition mkIsCacheableModule :=
+        (BKMODULE {
+           Method instancePrefix--"isCacheable" (pma : PMA) : Bool :=
+        Ret null
+
+    }). (* mkIsCacheable *)
+
+    Definition mkIsCacheable := Build_IsCacheable mkIsCacheableModule%kami (instancePrefix--"isCacheable").
+    End Section'mkIsCacheable.
+End mkIsCacheable.
 
 Definition TlbReqFields := (STRUCT {
     "op" :: RVMemOp;

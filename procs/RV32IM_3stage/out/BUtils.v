@@ -10,7 +10,7 @@ Set Implicit Arguments.
 
 Require Import Vector.
 Definition grab_left (value: b): a := 
-                Call result : tvar777 <-  truncate((>>  pack(#value)  fromInteger((- null null))))
+                Call result : tvar822 <-  truncate((>>  pack(#value)  fromInteger((- null null))))
 
                 Ret  unpack(#result)
 
@@ -78,7 +78,7 @@ Definition sExtend (value: word n): (word m) :=
 .
 
 Definition cExtend (value: b): a := 
-                Call out : tvar788 <-  unpack( zExtend( pack(#value)))
+                Call out : tvar833 <-  unpack( zExtend( pack(#value)))
 
                 Ret #out
 

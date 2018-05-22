@@ -32,7 +32,7 @@ Module mkFetchStage.
         Read es_v : Maybe ExecuteState xlen <- es;
         Read fs_v : Maybe FetchState xlen <- fs;
         Assert(#fs_v$taggedValid.fetchState(#es_v == STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }));
-               LET pc : tvar772 = #fetchState;
+               LET pc : tvar817 = #fetchState;
                Write fs : Maybe FetchState xlen <- STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
         ifetchreqenq(STRUCT { "addr" ::= #pc  });
                Write es : Maybe ExecuteState xlen <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "poisoned" ::= #False; "pc" ::= #pc  }; "Invalid" ::= $0 };

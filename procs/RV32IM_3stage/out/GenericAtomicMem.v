@@ -105,7 +105,7 @@ Module mkGenericAtomicBRAM.
     Variable numWords: nat.
             Definition mkGenericAtomicBRAMModule :=
         (BKMODULE {
-                   Call _m : tvar490 <-  mkGenericAtomicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
+                   Call _m : tvar535 <-  mkGenericAtomicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
        with         Ret #_m
     }). (* mkGenericAtomicBRAM *)
 
@@ -180,7 +180,7 @@ Module mkGenericAtomicBRAMLoad.
         Read atomicOpData_v : Bit dataSz <- atomicOpData;
         Read atomicOpWordAddr_v : Bit wordAddrSz <- atomicOpWordAddr;
         Assert(#pendingReq[$0]$taggedValid.req isAtomicMemOp(#req));
-               Call writeData : tvar504 <-  atomicMemOpFunc(#req, #bram, #atomicOpData_v, #req);
+               Call writeData : tvar549 <-  atomicMemOpFunc(#req, #bram, #atomicOpData_v, #req);
         bramput(#req, #atomicOpWordAddr_v, #writeData);
                Write pendingReq[$0] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "write_en" ::= #req; "atomic_op" ::= #nonAtomicMemOp; "rmw_write" ::= #True  }; "Invalid" ::= $0 };
                Write atomicOpData : Bit dataSz <- #bram;
@@ -239,7 +239,7 @@ Definition performGenericAtomicMemOpOnRegs (regs: Vector numRegs Reg word dataSz
 ;
         Retv
         else                 BKSTMTS {
-                Call write_data : tvar531 <-  atomicMemOpFunc(#req, #regs[#index], #req, #req)
+                Call write_data : tvar576 <-  atomicMemOpFunc(#req, #regs[#index], #req, #req)
         with         Write regs[#index] <-  emulateWriteEn(#regs[#index], #write_data, #req)
         with         Assign resp.data = #regs[#index]
 ;
@@ -272,14 +272,14 @@ Definition performGenericAtomicMemOpOnRegFile (rf: RegFile word rfWordAddrSz wor
         Retv
         else                 If ! isAtomicMemOp(#req)
         then                 BKSTMTS {
-                Call new_data : tvar539 <-  emulateWriteEn( rfsub(#index), #req, #req)
+                Call new_data : tvar584 <-  emulateWriteEn( rfsub(#index), #req, #req)
         with  rfupd(#index, #new_data)
 ;
         Retv
         else                 BKSTMTS {
-                Call old_data : tvar540 <-  rfsub(#index)
-        with         Call write_data : tvar544 <-  atomicMemOpFunc(#req, #old_data, #req, #req)
-        with         Call new_data : tvar547 <-  emulateWriteEn(#old_data, #write_data, #req)
+                Call old_data : tvar585 <-  rfsub(#index)
+        with         Call write_data : tvar589 <-  atomicMemOpFunc(#req, #old_data, #req, #req)
+        with         Call new_data : tvar592 <-  emulateWriteEn(#old_data, #write_data, #req)
         with  rfupd(#index, #new_data)
         with         Assign resp.data = #old_data
 ;
@@ -314,7 +314,7 @@ Module mkGenericAtomicMemFromRegs.
        with Rule instancePrefix--"performMemReq" :=
                LET req : t = #reqFIFO;
        #reqFIFO;
-               Call resp : tvar550 <-  performGenericAtomicMemOpOnRegs(#regs, #req);
+               Call resp : tvar595 <-  performGenericAtomicMemOpOnRegs(#regs, #req);
         respFIFOenq(#resp);
         Retv (* rule performMemReq *)
     }). (* mkGenericAtomicMemFromRegs *)
@@ -344,7 +344,7 @@ Module mkGenericAtomicMemFromRegFile.
        with Rule instancePrefix--"performMemReq" :=
                LET req : t = #reqFIFO;
        #reqFIFO;
-               Call resp : tvar553 <-  performGenericAtomicMemOpOnRegFile(#rf_v, #req);
+               Call resp : tvar598 <-  performGenericAtomicMemOpOnRegFile(#rf_v, #req);
         respFIFOenq(#resp);
         Retv (* rule performMemReq *)
     }). (* mkGenericAtomicMemFromRegFile *)
