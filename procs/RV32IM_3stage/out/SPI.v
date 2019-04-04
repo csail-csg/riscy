@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -11,7 +12,7 @@ Set Implicit Arguments.
 Require Import Clocks.
 (* * interface SPIMasterPins *)
 Record SPIMasterPins := {
-    SPIMasterPins'interface: Modules;
+    SPIMasterPins'modules: Modules;
     SPIMasterPins'sclk : string;
     SPIMasterPins'mosi : string;
     SPIMasterPins'miso : string;
@@ -20,7 +21,7 @@ Record SPIMasterPins := {
 
 (* * interface SPIMaster *)
 Record SPIMaster := {
-    SPIMaster'interface: Modules;
+    SPIMaster'modules: Modules;
     SPIMaster'setSclkDiv : string;
     SPIMaster'setNcs : string;
     SPIMaster'setCpol : string;

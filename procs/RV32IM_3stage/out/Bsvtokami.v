@@ -3,7 +3,13 @@ Require Import Kami.Lib.Struct.
 Require Import Bool Arith String Nat ZArith.
 
 Record Empty := {
-    Empty'interface: Modules;
+    Empty'modules: Modules;
+}.
+
+Record Reg (a : Kind) := {
+    Reg'modules: Modules;
+    Reg'_read : string;
+    Reg'_write : string;
 }.
 
 Fixpoint toBinaryP (p: positive) : string :=
@@ -147,10 +153,3 @@ Notation "'Method3' name ( p1 : d1 ) ( p2 : d2 )  ( p3 : d3 ) : retT := c" :=
                                                   LET p3 : d3g <-  #param!fields @."_3";
                                                   c)%kami_action : ActionT ty retT)))))
     (at level 0, name at level 0, p1 at level 0, d1 at level 0, p2 at level 0, d2 at level 0, p3 at level 0, d3 at level 0).
-
-(*
-Notation "'MethodSig3' name ( arg1T ) ( arg2T ) (arg3T ) : retT" :=
-  (Build_Attribute name {| arg := argT; ret := retT |})
-  (at level 0, name at level 0, argT at level 200, retT at level 200). *)
-
-

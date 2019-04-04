@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -23,7 +24,7 @@ Definition FrontEndCsrsFields (xlen : nat) := (STRUCT {
     "state" :: CsrState}).
 Definition FrontEndCsrs  (xlen : nat) := Struct (FrontEndCsrsFields xlen).
 
-Definition (RVIMMUReq addrSz) := (word addrSz).
+Definition (RVIMMUReq addrSz) := (Bit addrSz).
 
 Definition RVIMMURespFields (xlen : nat) := (STRUCT {
     "addr" :: (Bit xlen);
@@ -40,15 +41,14 @@ Definition (RVDMMUResp addrSz) := (RVIMMUResp addrSz).
 
 Definition FenceReq := Fence.
 
-Definition FenceResp := void.
+Definition FenceResp := Void.
 
 (* * interface Proc#(mainMemoryWidth) *)
 Record Proc (mainMemoryWidth : nat) := {
-    Proc'interface: Modules;
+    Proc'modules: Modules;
     Proc'start : string;
     Proc'stop : string;
     Proc'currVerificationPacket : string;
-    Proc'ram : (CoarseMemClientPort XLEN (TLog (TDiv mainMemoryWidth 8)));
     Proc'mmio : (CoarseMemClientPort XLEN (TLog (TDiv XLEN 8)));
     Proc'extmem : (CoarseMemServerPort XLEN (TLog (TDiv XLEN 8)));
     Proc'triggerExternalInterrupt : string;

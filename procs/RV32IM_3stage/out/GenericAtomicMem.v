@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -30,40 +31,40 @@ Definition (GenericAtomicMemServerPort writeEnSz atomicMemOpT wordAddrSz dataSz)
 
 Definition (GenericAtomicMemClientPort writeEnSz atomicMemOpT wordAddrSz dataSz) := (ClientPort (GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz) (GenericAtomicMemResp dataSz)).
 
-Definition AMONone := void.
+Definition AMONone := Void.
 
-Definition AMOSwapFields := (STRUCT { "$tag" :: (Bit 8) }).
+Definition AMOSwapFields := (STRUCT { "$tag" :: (Bit 1) }).
 Definition AMOSwap := (Struct AMOSwapFields).
-Notation AsNone := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AsSwap := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Definition AMOLogicalFields := (STRUCT { "$tag" :: (Bit 8) }).
+Notation AsNone := (STRUCT { "$tag" ::= $$(natToWord 1 0) })%kami_expr.
+Notation AsSwap := (STRUCT { "$tag" ::= $$(natToWord 1 1) })%kami_expr.
+Definition AMOLogicalFields := (STRUCT { "$tag" :: (Bit 3) }).
 Definition AMOLogical := (Struct AMOLogicalFields).
-Notation AlNone := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AlSwap := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AlAnd := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AlOr := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AlXor := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Definition AMOArithmeticFields := (STRUCT { "$tag" :: (Bit 8) }).
+Notation AlNone := (STRUCT { "$tag" ::= $$(natToWord 3 0) })%kami_expr.
+Notation AlSwap := (STRUCT { "$tag" ::= $$(natToWord 3 1) })%kami_expr.
+Notation AlAnd := (STRUCT { "$tag" ::= $$(natToWord 3 2) })%kami_expr.
+Notation AlOr := (STRUCT { "$tag" ::= $$(natToWord 3 3) })%kami_expr.
+Notation AlXor := (STRUCT { "$tag" ::= $$(natToWord 3 4) })%kami_expr.
+Definition AMOArithmeticFields := (STRUCT { "$tag" :: (Bit 4) }).
 Definition AMOArithmetic := (Struct AMOArithmeticFields).
-Notation AaNone := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaSwap := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaAnd := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaOr := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaXor := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaAdd := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaMin := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaMax := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaMinu := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation AaMaxu := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Definition writeEnExtend (write_en: word writeEnSz): (word dataSz) := 
-        LET write_en_vec <- 
+Notation AaNone := (STRUCT { "$tag" ::= $$(natToWord 4 0) })%kami_expr.
+Notation AaSwap := (STRUCT { "$tag" ::= $$(natToWord 4 1) })%kami_expr.
+Notation AaAnd := (STRUCT { "$tag" ::= $$(natToWord 4 2) })%kami_expr.
+Notation AaOr := (STRUCT { "$tag" ::= $$(natToWord 4 3) })%kami_expr.
+Notation AaXor := (STRUCT { "$tag" ::= $$(natToWord 4 4) })%kami_expr.
+Notation AaAdd := (STRUCT { "$tag" ::= $$(natToWord 4 5) })%kami_expr.
+Notation AaMin := (STRUCT { "$tag" ::= $$(natToWord 4 6) })%kami_expr.
+Notation AaMax := (STRUCT { "$tag" ::= $$(natToWord 4 7) })%kami_expr.
+Notation AaMinu := (STRUCT { "$tag" ::= $$(natToWord 4 8) })%kami_expr.
+Notation AaMaxu := (STRUCT { "$tag" ::= $$(natToWord 4 9) })%kami_expr.
+Definition writeEnExtend (write_en: Bit writeEnSz): (Bit dataSz) := 
+        CallM write_en_vec : (Vector writeEnSz (Bit 1)) <-  unpack(#write_en)
 
                 Ret  pack( map(#signExtend, #write_en_vec))
 
 .
 
-Definition emulateWriteEn (memData: word dataSz) (writeData: word dataSz) (writeEn: word writeEnSz): (word dataSz) := 
-        LET bitEn <- 
+Definition emulateWriteEn (memData: Bit dataSz) (writeData: Bit dataSz) (writeEn: Bit writeEnSz): (Bit dataSz) := 
+        CallM bitEn : (Bit dataSz) <-  writeEnExtend(#writeEn)
 
                 Ret (| (& #writeData #bitEn) (& #memData ~#bitEn))
 
@@ -76,7 +77,7 @@ Definition GenericAtomicBRAMPendingReqFields (writeEnSz : nat) (atomicMemOpT : T
 Definition GenericAtomicBRAMPendingReq  (writeEnSz : nat) (atomicMemOpT : Type) := Struct (GenericAtomicBRAMPendingReqFields writeEnSz atomicMemOpT).
 
 Definition to_BRAM_PORT_BE (bram: BRAM_PORT addrT dataT): (BRAM_PORT_BE addrT dataT writeEnSz) := 
-        Method3 instancePrefix--"put" (writeen : (word writeEnSz)) (addr : addrT) (data : dataT) : Void :=
+        Method3 instancePrefix--"put" (writeen : (Bit writeEnSz)) (addr : addrT) (data : dataT) : Void :=
  bramput((!= #writeen $0), #addr, #data);
         Retv
 
@@ -91,11 +92,11 @@ Definition to_BRAM_PORT_BE (bram: BRAM_PORT addrT dataT): (BRAM_PORT_BE addrT da
 
 Definition LoadFormatFields := (STRUCT {
     "$tag" :: (Bit 8);
-    "LfNone" :: void;
+    "LfNone" :: Void;
     "LfHex" :: String;
     "LfBinary" :: String}).
 Definition LoadFormat := Struct (LoadFormatFields).
-Module mkGenericAtomicBRAM.
+Module module'mkGenericAtomicBRAM.
     Section Section'mkGenericAtomicBRAM.
     Variable atomicMemOpT : Kind.
     Variable dataSz : Kind.
@@ -103,17 +104,23 @@ Module mkGenericAtomicBRAM.
     Variable writeEnSz : Kind.
     Variable instancePrefix: string.
     Variable numWords: nat.
-            Definition mkGenericAtomicBRAMModule :=
-        (BKMODULE {
-                   Call _m : tvar535 <-  mkGenericAtomicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
+    Variable TDiv#(dataSz,writeEnSz): nat.
+    Hypothesis HMul: (dataSz = TDiv#(dataSz,writeEnSz) * writeEnSz)%nat.
+    Variable atomicMemOpSz: nat.
+            Definition mkGenericAtomicBRAMModule: Modules.
+        refine  (BKMODULE {
+                   Call _m : tvar541 <-  mkGenericAtomicBRAMLoad($numWords, STRUCT {  "$tag" ::= $0; "LfBinary" ::= $0; "LfHex" ::= $0; "LfNone" ::= $0 })
        with         Ret #_m
-    }). (* mkGenericAtomicBRAM *)
+    }); abstract omega. Qed. (* mkGenericAtomicBRAM *)
 
-    Definition mkGenericAtomicBRAM := Build_ServerPort atomicMemOpT dataSz wordAddrSz writeEnSz mkGenericAtomicBRAMModule%kami (instancePrefix--"request") (instancePrefix--"response").
+(* Module mkGenericAtomicBRAM type Integer -> Module#(GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz)) return type GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz) *)
+    Definition mkGenericAtomicBRAM := Build_ServerPort (writeEnSz) (atomicMemOpT) (wordAddrSz) (dataSz) mkGenericAtomicBRAMModule%kami (instancePrefix--"request") (instancePrefix--"response").
     End Section'mkGenericAtomicBRAM.
-End mkGenericAtomicBRAM.
+End module'mkGenericAtomicBRAM.
 
-Module mkGenericAtomicBRAMLoad.
+Definition mkGenericAtomicBRAM := module'mkGenericAtomicBRAM.mkGenericAtomicBRAM.
+
+Module module'mkGenericAtomicBRAMLoad.
     Section Section'mkGenericAtomicBRAMLoad.
     Variable atomicMemOpT : Kind.
     Variable dataSz : Kind.
@@ -122,73 +129,84 @@ Module mkGenericAtomicBRAMLoad.
     Variable instancePrefix: string.
     Variable numWords: nat.
     Variable loadFile: LoadFormat.
-    Let bramput := MethodSig (BRAM_PORT_BE'put bram) (Bit n) : Function addr Function data Void.
-(* FIXME: interface BRAM_PORT_BE subinterface read *)
-    Let pendingRespenq := MethodSig (FIFOG'enq pendingResp) (t) : Void.
+    Variable TDiv#(dataSz,writeEnSz): nat.
+    Hypothesis HMul: (dataSz = TDiv#(dataSz,writeEnSz) * writeEnSz)%nat.
+    Variable atomicMemOpSz: nat.
                                                    Let pendingReq := mkEhr (instancePrefix--"pendingReq").
        Let pendingResp := mkBypassFIFOG (instancePrefix--"pendingResp").
        Let atomicOpWordAddr : string := instancePrefix--"atomicOpWordAddr".
        Let atomicOpData : string := instancePrefix--"atomicOpData".
-    Definition mkGenericAtomicBRAMLoadModule :=
-        (BKMODULE {
+    Let bramput : string := (BRAM_PORT_BE'put bram).
+(* FIXME: interface BRAM_PORT_BE subinterface read *)
+    Let pendingRespenq : string := (FIFOG'enq pendingResp).
+    Definition mkGenericAtomicBRAMLoadModule: Modules.
+        refine  (BKMODULE {
                    LET actualNumWords : nat <- ($numWords == $0)null$numWords
        with         LET bram : (BRAM_PORT_BE (Bit wordAddrSz) (Bit dataSz) writeEnSz)
        with         If (null == $1)
         then                 BKSTMTS {
                 LET bram_non_be : (BRAM_PORT (Bit wordAddrSz) (Bit dataSz))
-        with     If (#loadFile!LoadFormatFields@."$tag" == $0) then
-        Assign bram_non_be <-  mkBRAMCore1($actualNumWords, #False);
-        Retv
-    else
-    If (#loadFile!LoadFormatFields@."$tag" == $1) then
+        with     If (#loadFile!LoadFormatFields@."$tag" == $0) then (
+        Assign bram_non_be <-  mkBRAMCore1($actualNumWords, False)
+
+   ) else (
+    If (#loadFile!LoadFormatFields@."$tag" == $1) then (
               LET hexfile <- loadFile;
-        Assign bram_non_be <-  mkBRAMCore1Load($actualNumWords, #False, #hexfile, #False);
-        Retv
-    else
-    If (#loadFile!LoadFormatFields@."$tag" == $2) then
+        Assign bram_non_be <-  mkBRAMCore1Load($actualNumWords, False, #hexfile, False)
+
+   ) else (
+    If (#loadFile!LoadFormatFields@."$tag" == $2) then (
               LET binfile <- loadFile;
-        Assign bram_non_be <-  mkBRAMCore1Load($actualNumWords, #False, #binfile, #True);
-        Retv
-    else
-        Retv
+        Assign bram_non_be <-  mkBRAMCore1Load($actualNumWords, False, #binfile, True)
+
+   ) else (
+#noAction
+) as retval; Ret #retval
+) as retval; Ret #retval
+) as retval; Ret #retval
+
         with         Assign bram =  to_BRAM_PORT_BE(#bram_non_be)
 ;
         Retv
         else                 BKSTMTS {
-            If (#loadFile!LoadFormatFields@."$tag" == $0) then
-        Assign bram <-  mkBRAMCore1BE($actualNumWords, #False);
-        Retv
-    else
-    If (#loadFile!LoadFormatFields@."$tag" == $1) then
+            If (#loadFile!LoadFormatFields@."$tag" == $0) then (
+        Assign bram <-  mkBRAMCore1BE($actualNumWords, False)
+
+   ) else (
+    If (#loadFile!LoadFormatFields@."$tag" == $1) then (
               LET hexfile <- loadFile;
-        Assign bram <-  mkBRAMCore1BELoad($actualNumWords, #False, #hexfile, #False);
-        Retv
-    else
-    If (#loadFile!LoadFormatFields@."$tag" == $2) then
+        Assign bram <-  mkBRAMCore1BELoad($actualNumWords, False, #hexfile, False)
+
+   ) else (
+    If (#loadFile!LoadFormatFields@."$tag" == $2) then (
               LET binfile <- loadFile;
-        Assign bram <-  mkBRAMCore1BELoad($actualNumWords, #False, #binfile, #True);
-        Retv
-    else
-        Retv
+        Assign bram <-  mkBRAMCore1BELoad($actualNumWords, False, #binfile, True)
+
+   ) else (
+#noAction
+) as retval; Ret #retval
+) as retval; Ret #retval
+) as retval; Ret #retval
+
 ;
         Retv;
-       with (BKMod (FIXME'InterfaceName'instance pendingReq :: nil))
-       with (BKMod (FIXME'InterfaceName'instance pendingResp :: nil))
+       with (BKMod (t'modules pendingReq :: nil))
+       with (BKMod (FIFOG'modules pendingResp :: nil))
        with Register atomicOpWordAddr : Bit wordAddrSz <- $0
        with Register atomicOpData : Bit dataSz <- $0
        with Rule instancePrefix--"performAtomicMemoryOp" :=
         Read atomicOpData_v : Bit dataSz <- atomicOpData;
         Read atomicOpWordAddr_v : Bit wordAddrSz <- atomicOpWordAddr;
-        Assert(#pendingReq[$0]$taggedValid.req isAtomicMemOp(#req));
-               Call writeData : tvar549 <-  atomicMemOpFunc(#req, #bram, #atomicOpData_v, #req);
+        Assert(#pendingReq@[$0]$taggedValid.req isAtomicMemOp(#req));
+               Call writeData : tvar555 <-  atomicMemOpFunc(#req, #bram, #atomicOpData_v, #req);
         bramput(#req, #atomicOpWordAddr_v, #writeData);
-               Write pendingReq[$0] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "write_en" ::= #req; "atomic_op" ::= #nonAtomicMemOp; "rmw_write" ::= #True  }; "Invalid" ::= $0 };
+               Write pendingReq[$0] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "write_en" ::= (#req); "atomic_op" ::= (#nonAtomicMemOp); "rmw_write" ::= (True)  }; "Invalid" ::= $0 };
                Write atomicOpData : Bit dataSz <- #bram;
         Retv (* rule performAtomicMemoryOp *)
        with Rule instancePrefix--"getRespFromCore" :=
         Read atomicOpData_v : Bit dataSz <- atomicOpData;
-        Assert(#pendingReq[$0]$taggedValid.req! isAtomicMemOp(#req));
-        pendingRespenq(STRUCT { "write" ::= (#req != $0); "data" ::= #req#atomicOpData_v#bram  });
+        Assert(#pendingReq@[$0]$taggedValid.req! isAtomicMemOp(#req));
+        pendingRespenq(STRUCT { "write" ::= ((#req != $0)); "data" ::= (#req#atomicOpData_v#bram)  });
                Write pendingReq[$0] <- STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
         Retv (* rule getRespFromCore *)
        with Method instancePrefix--"enq" (req : (GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz)) : Void :=
@@ -204,44 +222,47 @@ Module mkGenericAtomicBRAMLoad.
          bramput(#req, #req, #req);
 ;
         Retv;;
-        Write pendingReq[$1] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "write_en" ::= #req; "atomic_op" ::= #atomic_op; "rmw_write" ::= #False  }; "Invalid" ::= $0 };
+        Write pendingReq[$1] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "write_en" ::= (#req); "atomic_op" ::= (#atomic_op); "rmw_write" ::= (False)  }; "Invalid" ::= $0 };
         Retv
 
        with Method instancePrefix--"canEnq" () : Bool :=
-        Ret ! isValid(#pendingReq[$1])
+        Ret ! isValid(#pendingReq@[$1])
 
-    }). (* mkGenericAtomicBRAMLoad *)
+    }); abstract omega. Qed. (* mkGenericAtomicBRAMLoad *)
 
-    Definition mkGenericAtomicBRAMLoad := Build_ServerPort atomicMemOpT dataSz wordAddrSz writeEnSz mkGenericAtomicBRAMLoadModule%kami (instancePrefix--"request") (instancePrefix--"response").
+(* Module mkGenericAtomicBRAMLoad type Integer -> LoadFormat -> Module#(GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz)) return type LoadFormat *)
+    Definition mkGenericAtomicBRAMLoad := Build_ServerPort mkGenericAtomicBRAMLoadModule%kami (instancePrefix--"request") (instancePrefix--"response").
     End Section'mkGenericAtomicBRAMLoad.
-End mkGenericAtomicBRAMLoad.
+End module'mkGenericAtomicBRAMLoad.
 
-Definition performGenericAtomicMemOpOnRegs (regs: Vector numRegs Reg word dataSz) (req: GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz): (ActionValue (GenericAtomicMemResp dataSz)) := 
-        LET index : (word (TLog numRegs)) <- (UniBit (Trunc wordAddrSz (TLog#(numRegs) - wordAddrSz)) #req)
+Definition mkGenericAtomicBRAMLoad := module'mkGenericAtomicBRAMLoad.mkGenericAtomicBRAMLoad.
 
-                LET resp : (GenericAtomicMemResp dataSz) <- STRUCT { "write" ::= (!= #req $0); "data" ::= $0  }
+Definition performGenericAtomicMemOpOnRegs (regs: Vector numRegs Reg Bit dataSz) (req: GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz): (ActionValue (GenericAtomicMemResp dataSz)) := 
+        LET index : (Bit (TLog numRegs)) <- UniBit (Trunc TLog#(numRegs) (wordAddrSz - TLog#(numRegs))) (castBits _ _ _ _ #req)
+
+                LET resp : (GenericAtomicMemResp dataSz) <- STRUCT { "write" ::= ((!= #req $0)); "data" ::= ($0)  }
 
                 If (<= #index  fromInteger((- null $1)))
         then                 BKSTMTS {
                 If (== #req $0)
         then                 BKSTMTS {
-                Assign resp.data = #regs[#index]
+                Assign resp.data = #regs@[#index]
 ;
         Retv
-        else                 If (&& (== #req $'1) ! isAtomicMemOp(#req))
+        else                 If (&& (== #req $1) ! isAtomicMemOp(#req))
         then                 BKSTMTS {
                 Write regs[#index] <- #req
 ;
         Retv
         else                 If ! isAtomicMemOp(#req)
         then                 BKSTMTS {
-                Write regs[#index] <-  emulateWriteEn(#regs[#index], #req, #req)
+                Write regs[#index] <-  emulateWriteEn(#regs@[#index], #req, #req)
 ;
         Retv
         else                 BKSTMTS {
-                Call write_data : tvar576 <-  atomicMemOpFunc(#req, #regs[#index], #req, #req)
-        with         Write regs[#index] <-  emulateWriteEn(#regs[#index], #write_data, #req)
-        with         Assign resp.data = #regs[#index]
+                Call write_data : tvar582 <-  atomicMemOpFunc(#req, #regs@[#index], #req, #req)
+        with         Write regs[#index] <-  emulateWriteEn(#regs@[#index], #write_data, #req)
+        with         Assign resp.data = #regs@[#index]
 ;
         Retv;;
         Retv;;
@@ -255,31 +276,31 @@ Definition performGenericAtomicMemOpOnRegs (regs: Vector numRegs Reg word dataSz
 
 .
 
-Definition performGenericAtomicMemOpOnRegFile (rf: RegFile word rfWordAddrSz word dataSz) (req: GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz): (ActionValue (GenericAtomicMemResp dataSz)) := 
-        LET index : (word rfWordAddrSz) <- (UniBit (Trunc wordAddrSz (rfWordAddrSz - wordAddrSz)) #req)
+Definition performGenericAtomicMemOpOnRegFile (rf: RegFile Bit rfWordAddrSz Bit dataSz) (req: GenericAtomicMemReq writeEnSz atomicMemOpT wordAddrSz dataSz): (ActionValue (GenericAtomicMemResp dataSz)) := 
+        LET index : (Bit rfWordAddrSz) <- UniBit (Trunc rfWordAddrSz (wordAddrSz - rfWordAddrSz)) (castBits _ _ _ _ #req)
 
-                LET resp : (GenericAtomicMemResp dataSz) <- STRUCT { "write" ::= (!= #req $0); "data" ::= $0  }
+                LET resp : (GenericAtomicMemResp dataSz) <- STRUCT { "write" ::= ((!= #req $0)); "data" ::= ($0)  }
 
                 If (== #req $0)
         then                 BKSTMTS {
                 Assign resp.data =  rfsub(#index)
 ;
         Retv
-        else                 If (&& (== #req $'1) ! isAtomicMemOp(#req))
+        else                 If (&& (== #req $1) ! isAtomicMemOp(#req))
         then                 BKSTMTS {
          rfupd(#index, #req)
 ;
         Retv
         else                 If ! isAtomicMemOp(#req)
         then                 BKSTMTS {
-                Call new_data : tvar584 <-  emulateWriteEn( rfsub(#index), #req, #req)
+                Call new_data : tvar590 <-  emulateWriteEn( rfsub(#index), #req, #req)
         with  rfupd(#index, #new_data)
 ;
         Retv
         else                 BKSTMTS {
-                Call old_data : tvar585 <-  rfsub(#index)
-        with         Call write_data : tvar589 <-  atomicMemOpFunc(#req, #old_data, #req, #req)
-        with         Call new_data : tvar592 <-  emulateWriteEn(#old_data, #write_data, #req)
+                Call old_data : tvar591 <-  rfsub(#index)
+        with         Call write_data : tvar595 <-  atomicMemOpFunc(#req, #old_data, #req, #req)
+        with         Call new_data : tvar598 <-  emulateWriteEn(#old_data, #write_data, #req)
         with  rfupd(#index, #new_data)
         with         Assign resp.data = #old_data
 ;
@@ -293,7 +314,7 @@ Definition performGenericAtomicMemOpOnRegFile (rf: RegFile word rfWordAddrSz wor
 
 .
 
-Module mkGenericAtomicMemFromRegs.
+Module module'mkGenericAtomicMemFromRegs.
     Section Section'mkGenericAtomicMemFromRegs.
     Variable atomicMemOpT : Kind.
     Variable dataSz : Kind.
@@ -301,29 +322,41 @@ Module mkGenericAtomicMemFromRegs.
     Variable wordAddrSz : Kind.
     Variable writeEnSz : Kind.
     Variable instancePrefix: string.
-    Variable regs: (Vector numRegs (Reg (word dataSz))).
-(* FIXME: interface FIFOG subinterface deq *)
-(* FIXME: interface FIFOG subinterface first *)
-    Let respFIFOenq := MethodSig (FIFOG'enq respFIFO) (t) : Void.
+    Variable regs: (Vector numRegs (Reg (Bit dataSz))).
+    Variable byteSz: nat.
+    Hypothesis HMul: (dataSz = writeEnSz * byteSz)%nat.
+    Variable a__: nat.
+    Variable 1: nat.
+    Hypothesis HAdd: (byteSz = a__ + 1)%nat.
+    Variable b__: nat.
+    Variable TLog#(numRegs): nat.
+    Hypothesis HAdd: (wordAddrSz = b__ + TLog#(numRegs))%nat.
+    Variable atomicMemOpSz: nat.
                            Let reqFIFO := mkLFIFOG (instancePrefix--"reqFIFO").
        Let respFIFO := mkBypassFIFOG (instancePrefix--"respFIFO").
-    Definition mkGenericAtomicMemFromRegsModule :=
-        (BKMODULE {
-           (BKMod (FIXME'InterfaceName'instance reqFIFO :: nil))
-       with (BKMod (FIXME'InterfaceName'instance respFIFO :: nil))
+(* FIXME: interface FIFOG subinterface deq *)
+(* FIXME: interface FIFOG subinterface first *)
+    Let respFIFOenq : string := (FIFOG'enq respFIFO).
+    Definition mkGenericAtomicMemFromRegsModule: Modules.
+        refine  (BKMODULE {
+           (BKMod (FIFOG'modules reqFIFO :: nil))
+       with (BKMod (FIFOG'modules respFIFO :: nil))
        with Rule instancePrefix--"performMemReq" :=
                LET req : t = #reqFIFO;
        #reqFIFO;
-               Call resp : tvar595 <-  performGenericAtomicMemOpOnRegs(#regs, #req);
+               Call resp : tvar601 <-  performGenericAtomicMemOpOnRegs(#regs, #req);
         respFIFOenq(#resp);
         Retv (* rule performMemReq *)
-    }). (* mkGenericAtomicMemFromRegs *)
+    }); abstract omega. Qed. (* mkGenericAtomicMemFromRegs *)
 
-    Definition mkGenericAtomicMemFromRegs := Build_ServerPort atomicMemOpT dataSz numRegs wordAddrSz writeEnSz mkGenericAtomicMemFromRegsModule%kami (instancePrefix--"request") (instancePrefix--"response").
+(* Module mkGenericAtomicMemFromRegs type Vector#(numRegs, Reg#(Bit#(dataSz))) -> Module#(GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz)) return type GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz) *)
+    Definition mkGenericAtomicMemFromRegs := Build_ServerPort (writeEnSz) (atomicMemOpT) (wordAddrSz) (dataSz) mkGenericAtomicMemFromRegsModule%kami (instancePrefix--"request") (instancePrefix--"response").
     End Section'mkGenericAtomicMemFromRegs.
-End mkGenericAtomicMemFromRegs.
+End module'mkGenericAtomicMemFromRegs.
 
-Module mkGenericAtomicMemFromRegFile.
+Definition mkGenericAtomicMemFromRegs := module'mkGenericAtomicMemFromRegs.mkGenericAtomicMemFromRegs.
+
+Module module'mkGenericAtomicMemFromRegFile.
     Section Section'mkGenericAtomicMemFromRegFile.
     Variable atomicMemOpT : Kind.
     Variable dataSz : Kind.
@@ -331,25 +364,36 @@ Module mkGenericAtomicMemFromRegFile.
     Variable wordAddrSz : Kind.
     Variable writeEnSz : Kind.
     Variable instancePrefix: string.
-    Variable rf: (RegFile (word rfWordAddrSz) (word dataSz)).
-(* FIXME: interface FIFOG subinterface deq *)
-(* FIXME: interface FIFOG subinterface first *)
-    Let respFIFOenq := MethodSig (FIFOG'enq respFIFO) (t) : Void.
+    Variable rf: (RegFile (Bit rfWordAddrSz) (Bit dataSz)).
+    Variable byteSz: nat.
+    Hypothesis HMul: (dataSz = writeEnSz * byteSz)%nat.
+    Variable a__: nat.
+    Variable 1: nat.
+    Hypothesis HAdd: (byteSz = a__ + 1)%nat.
+    Variable b__: nat.
+    Hypothesis HAdd: (wordAddrSz = b__ + rfWordAddrSz)%nat.
+    Variable atomicMemOpSz: nat.
                            Let reqFIFO := mkLFIFOG (instancePrefix--"reqFIFO").
        Let respFIFO := mkBypassFIFOG (instancePrefix--"respFIFO").
-    Definition mkGenericAtomicMemFromRegFileModule :=
-        (BKMODULE {
-           (BKMod (FIXME'InterfaceName'instance reqFIFO :: nil))
-       with (BKMod (FIXME'InterfaceName'instance respFIFO :: nil))
+(* FIXME: interface FIFOG subinterface deq *)
+(* FIXME: interface FIFOG subinterface first *)
+    Let respFIFOenq : string := (FIFOG'enq respFIFO).
+    Definition mkGenericAtomicMemFromRegFileModule: Modules.
+        refine  (BKMODULE {
+           (BKMod (FIFOG'modules reqFIFO :: nil))
+       with (BKMod (FIFOG'modules respFIFO :: nil))
        with Rule instancePrefix--"performMemReq" :=
                LET req : t = #reqFIFO;
        #reqFIFO;
-               Call resp : tvar598 <-  performGenericAtomicMemOpOnRegFile(#rf_v, #req);
+               Call resp : tvar604 <-  performGenericAtomicMemOpOnRegFile(#rf_v, #req);
         respFIFOenq(#resp);
         Retv (* rule performMemReq *)
-    }). (* mkGenericAtomicMemFromRegFile *)
+    }); abstract omega. Qed. (* mkGenericAtomicMemFromRegFile *)
 
-    Definition mkGenericAtomicMemFromRegFile := Build_ServerPort atomicMemOpT dataSz rfWordAddrSz wordAddrSz writeEnSz mkGenericAtomicMemFromRegFileModule%kami (instancePrefix--"request") (instancePrefix--"response").
+(* Module mkGenericAtomicMemFromRegFile type RegFile#(Bit#(rfWordAddrSz), Bit#(dataSz)) -> Module#(GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz)) return type GenericAtomicMemServerPort#(writeEnSz, atomicMemOpT, wordAddrSz, dataSz) *)
+    Definition mkGenericAtomicMemFromRegFile := Build_ServerPort (writeEnSz) (atomicMemOpT) (wordAddrSz) (dataSz) mkGenericAtomicMemFromRegFileModule%kami (instancePrefix--"request") (instancePrefix--"response").
     End Section'mkGenericAtomicMemFromRegFile.
-End mkGenericAtomicMemFromRegFile.
+End module'mkGenericAtomicMemFromRegFile.
+
+Definition mkGenericAtomicMemFromRegFile := module'mkGenericAtomicMemFromRegFile.mkGenericAtomicMemFromRegFile.
 

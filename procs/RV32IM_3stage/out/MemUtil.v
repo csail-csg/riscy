@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -44,18 +45,18 @@ Definition ByteEnMemReq  (addrSz : nat) (logNumBytes : nat) := Struct (ByteEnMem
 
 Definition (ByteEnMemResp logNumBytes) := (CoarseMemResp logNumBytes).
 
-Definition AtomicMemOpFields := (STRUCT { "$tag" :: (Bit 8) }).
+Definition AtomicMemOpFields := (STRUCT { "$tag" :: (Bit 4) }).
 Definition AtomicMemOp := (Struct AtomicMemOpFields).
-Notation None := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Swap := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Add := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Xor := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation And := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Or := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Min := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Max := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Minu := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Maxu := (STRUCT { "$tag" ::= $0 })%kami_expr.
+Notation None := (STRUCT { "$tag" ::= $$(natToWord 4 0) })%kami_expr.
+Notation Swap := (STRUCT { "$tag" ::= $$(natToWord 4 1) })%kami_expr.
+Notation Add := (STRUCT { "$tag" ::= $$(natToWord 4 2) })%kami_expr.
+Notation Xor := (STRUCT { "$tag" ::= $$(natToWord 4 3) })%kami_expr.
+Notation And := (STRUCT { "$tag" ::= $$(natToWord 4 4) })%kami_expr.
+Notation Or := (STRUCT { "$tag" ::= $$(natToWord 4 5) })%kami_expr.
+Notation Min := (STRUCT { "$tag" ::= $$(natToWord 4 6) })%kami_expr.
+Notation Max := (STRUCT { "$tag" ::= $$(natToWord 4 7) })%kami_expr.
+Notation Minu := (STRUCT { "$tag" ::= $$(natToWord 4 8) })%kami_expr.
+Notation Maxu := (STRUCT { "$tag" ::= $$(natToWord 4 9) })%kami_expr.
 Definition AtomicMemReqFields (addrSz : nat) (logNumBytes : nat) := (STRUCT {
     "write_en" :: (Bit (TExp logNumBytes));
     "atomic_op" :: AtomicMemOp;
@@ -145,12 +146,12 @@ Definition (AtomicMem64ServerPort addrSz) := (AtomicMemServerPort addrSz 3).
 
 Definition (AtomicMem64ClientPort addrSz) := (AtomicMemClientPort addrSz 3).
 
-Definition MemTypeFields := (STRUCT { "$tag" :: (Bit 8) }).
+Definition MemTypeFields := (STRUCT { "$tag" :: (Bit 2) }).
 Definition MemType := (Struct MemTypeFields).
-Notation ReadOnly := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Coarse := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation ByteEn := (STRUCT { "$tag" ::= $0 })%kami_expr.
-Notation Atomic := (STRUCT { "$tag" ::= $0 })%kami_expr.
+Notation ReadOnly := (STRUCT { "$tag" ::= $$(natToWord 2 0) })%kami_expr.
+Notation Coarse := (STRUCT { "$tag" ::= $$(natToWord 2 1) })%kami_expr.
+Notation ByteEn := (STRUCT { "$tag" ::= $$(natToWord 2 2) })%kami_expr.
+Notation Atomic := (STRUCT { "$tag" ::= $$(natToWord 2 3) })%kami_expr.
 Definition TaggedMemServerPortFields (addrSz : nat) (logNumBytes : nat) := (STRUCT {
     "$tag" :: (Bit 8);
     "ReadOnly" :: (ReadOnlyMemServerPort addrSz logNumBytes);
@@ -158,64 +159,46 @@ Definition TaggedMemServerPortFields (addrSz : nat) (logNumBytes : nat) := (STRU
     "ByteEn" :: (ByteEnMemServerPort addrSz logNumBytes);
     "Atomic" :: (AtomicMemServerPort addrSz logNumBytes)}).
 Definition TaggedMemServerPort (addrSz : nat) (logNumBytes : nat) := Struct (TaggedMemServerPortFields addrSz logNumBytes).
-Definition toReadOnlyMemReq (req: memReqT): (ReadOnlyMemReq addrSz logNumBytes) := 
-                Ret STRUCT { "addr" ::=  getAddr(#req)  }
+(* * interface CoarseBRAM#(addrSz, logNumBytes, numBytes) *)
+Record CoarseBRAM (addrSz : nat) (logNumBytes : nat) (numBytes : nat) := {
+    CoarseBRAM'modules: Modules;
+    CoarseBRAM'portA : (CoarseMemServerPort addrSz logNumBytes);
+}.
 
-.
+(* * interface ByteEnBRAM#(addrSz, logNumBytes, numBytes) *)
+Record ByteEnBRAM (addrSz : nat) (logNumBytes : nat) (numBytes : nat) := {
+    ByteEnBRAM'modules: Modules;
+    ByteEnBRAM'portA : (ByteEnMemServerPort addrSz logNumBytes);
+}.
 
-Definition isReadOnlyMemReq (req: memReqT): bool := 
-                Ret ! isWrite(#req)
+(* * interface AtomicBRAM#(addrSz, logNumBytes, numBytes) *)
+Record AtomicBRAM (addrSz : nat) (logNumBytes : nat) (numBytes : nat) := {
+    AtomicBRAM'modules: Modules;
+    AtomicBRAM'portA : (AtomicMemServerPort addrSz logNumBytes);
+}.
 
-.
+Definition AtomicBRAMPendingReqFields (logNumBytes : nat) := (STRUCT {
+    "write_en" :: (Bit (TExp logNumBytes));
+    "atomic_op" :: AtomicMemOp;
+    "rmw_write" :: Bool}).
+Definition AtomicBRAMPendingReq  (logNumBytes : nat) := Struct (AtomicBRAMPendingReqFields logNumBytes).
 
-Definition toCoarseMemReq (req: memReqT): (CoarseMemReq addrSz logNumBytes) := 
-                Ret STRUCT { "write" ::=  isWrite(#req); "addr" ::=  getAddr(#req); "data" ::=  getData(#req)  }
+Definition MemBusItemFields (memReqT : Type) (memRespT : Type) (addrSz : nat) := (STRUCT {
+    "addr_mask" :: (Bit addrSz);
+    "addr_match" :: (Bit addrSz);
+    "ifc" :: (ServerPort memReqT memRespT)}).
+Definition MemBusItem  (memReqT : Type) (memRespT : Type) (addrSz : nat) := Struct (MemBusItemFields memReqT memRespT addrSz).
 
-.
+Definition MixedMemBusItemFields (addrSz : nat) (logNumBytes : nat) := (STRUCT {
+    "addr_mask" :: (Bit addrSz);
+    "addr_match" :: (Bit addrSz);
+    "ifc" :: (TaggedMemServerPort addrSz logNumBytes)}).
+Definition MixedMemBusItem  (addrSz : nat) (logNumBytes : nat) := Struct (MixedMemBusItemFields addrSz logNumBytes).
 
-Definition isCoarseMemReq (req: memReqT): bool := 
-                Ret (|| ! isWrite(#req) (&& (==  getWriteEn(#req) $'1) (==  getAtomicOp(#req) #None)))
+(* * interface MixedAtomicMemBus#(nClients, addrSz, logNumBytes) *)
+Record MixedAtomicMemBus (nClients : nat) (addrSz : nat) (logNumBytes : nat) := {
+    MixedAtomicMemBus'modules: Modules;
+    MixedAtomicMemBus'clients : (Vector nClients (AtomicMemServerPort addrSz logNumBytes));
+    MixedAtomicMemBus'getMemType : string;
+}.
 
-.
-
-Definition toByteEnMemReq (req: memReqT): (ByteEnMemReq addrSz logNumBytes) := 
-                Ret STRUCT { "write_en" ::=  getWriteEn(#req); "addr" ::=  getAddr(#req); "data" ::=  getData(#req)  }
-
-.
-
-Definition isByteEnMemReq (req: memReqT): bool := 
-                Ret (|| ! isWrite(#req) (==  getAtomicOp(#req) #None))
-
-.
-
-Definition toAtomicMemReq (req: memReqT): (AtomicMemReq addrSz logNumBytes) := 
-                Ret STRUCT { "write_en" ::=  getWriteEn(#req); "atomic_op" ::=  getAtomicOp(#req); "addr" ::=  getAddr(#req); "data" ::=  getData(#req)  }
-
-.
-
-Definition isAtomicMemReq (req: memReqT): bool := 
-                Ret #True
-
-.
-
-Definition fromByteEnMemResp (resp: CoarseMemResp logNumBytes): memRespT := 
-                Ret  fromCoarseMemResp(#resp)
-
-.
-
-Definition fromAtomicMemResp (resp: CoarseMemResp logNumBytes): memRespT := 
-                Ret  fromCoarseMemResp(#resp)
-
-.
-
-Definition toByteEnMemResp (resp: memRespT): (ByteEnMemResp logNumBytes) := 
-                Ret  toCoarseMemResp(#resp)
-
-.
-
-Definition toAtomicMemResp (resp: memRespT): (AtomicMemResp logNumBytes) := 
-                Ret  toCoarseMemResp(#resp)
-
-.
-
-Definition atomicMemOpAlu (op: AtomicMemOp) (memData: word dataSz) (operandData: word dataSz) (byteEn: word numBytes): (word dataSz) := 

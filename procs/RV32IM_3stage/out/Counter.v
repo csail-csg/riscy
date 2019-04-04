@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -10,7 +11,7 @@ Set Implicit Arguments.
 
 (* * interface Counter#(sz) *)
 Record Counter (sz : nat) := {
-    Counter'interface: Modules;
+    Counter'modules: Modules;
     Counter'up : string;
     Counter'down : string;
     Counter'dec : string;
@@ -20,14 +21,14 @@ Record Counter (sz : nat) := {
     Counter'value : string;
 }.
 
-Module mkCounter.
+Module module'mkCounter.
     Section Section'mkCounter.
     Variable sz : nat.
     Variable instancePrefix: string.
     Variable init: nat.
                                        Let counter : string := instancePrefix--"counter".
-    Definition mkCounterModule :=
-        (BKMODULE {
+    Definition mkCounterModule: Modules :=
+         (BKMODULE {
            Register counter : Bit sz <- $init
        with Method instancePrefix--"dec" (v : (Bit sz)) : Void :=
         Read counter_v : Bit sz <- "counter";        Write counter : Bit sz <- (#counter_v - #v);
@@ -58,7 +59,10 @@ Module mkCounter.
 
     }). (* mkCounter *)
 
-    Definition mkCounter := Build_Counter sz mkCounterModule%kami (instancePrefix--"clear") (instancePrefix--"dec") (instancePrefix--"down") (instancePrefix--"inc") (instancePrefix--"setF") (instancePrefix--"up") (instancePrefix--"value").
+(* Module mkCounter type Integer -> Module#(Counter#(sz)) return type Counter#(sz) *)
+    Definition mkCounter := Build_Counter (sz) mkCounterModule%kami (instancePrefix--"clear") (instancePrefix--"dec") (instancePrefix--"down") (instancePrefix--"inc") (instancePrefix--"setF") (instancePrefix--"up") (instancePrefix--"value").
     End Section'mkCounter.
-End mkCounter.
+End module'mkCounter.
+
+Definition mkCounter := module'mkCounter.mkCounter.
 

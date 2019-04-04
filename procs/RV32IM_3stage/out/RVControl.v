@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -9,19 +10,19 @@ Set Implicit Arguments.
 
 
 Require Import RVTypes.
-Definition execControl (brFunc: BrFunc) (rVal1: word xlen) (rVal2: word xlen) (imm: Maybe word xlen) (pc: word xlen): (word xlen) := 
-        LET taken <- 
+Definition execControl (brFunc: BrFunc) (rVal1: Bit xlen) (rVal2: Bit xlen) (imm: Maybe Bit xlen) (pc: Bit xlen): (Bit xlen) := 
+        CallM taken : bool <-  aluBr(#brFunc, #rVal1, #rVal2)
 
-        LET targetPc <- 
+        CallM targetPc : (Bit xlen) <-  brAddrCalc(#brFunc, #pc, #rVal1,  fromMaybe(null, #imm))
 
                 Ret #taken#targetPc(+ #pc $4)
 
 .
 
-Definition aluBr (brFunc: BrFunc) (a: word xlen) (b: word xlen): bool := 
+Definition aluBr (brFunc: BrFunc) (a: Bit xlen) (b: Bit xlen): bool := 
                 LET eq : bool <- (== #a #b)
 
-        LET lt <- 
+        CallM lt : bool <-  signedLT(#a, #b)
 
                 LET ltu : bool <- (bitlt #a #b)
 
@@ -31,12 +32,12 @@ Definition aluBr (brFunc: BrFunc) (a: word xlen) (b: word xlen): bool :=
 
 .
 
-Definition brAddrCalc (brFunc: BrFunc) (pc: word xlen) (val: word xlen) (imm: word xlen): (word xlen) := 
-                LET in1 : (word xlen) <- (== #brFunc #BrJalr)#val#pc
+Definition brAddrCalc (brFunc: BrFunc) (pc: Bit xlen) (val: Bit xlen) (imm: Bit xlen): (Bit xlen) := 
+                LET in1 : (Bit xlen) <- (== #brFunc BrJalr)#val#pc
 
-                LET addOut : (word xlen) <- (+ #in1 #imm)
+                LET addOut : (Bit xlen) <- (+ #in1 #imm)
 
-                LET targetAddr : (word xlen) <- (== #brFunc #BrJalr)(& #addOut ~$1)#addOut
+                LET targetAddr : (Bit xlen) <- (== #brFunc BrJalr)(& #addOut ~$1)#addOut
 
                 Ret #targetAddr
 

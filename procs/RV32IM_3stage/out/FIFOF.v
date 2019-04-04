@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -10,7 +11,7 @@ Set Implicit Arguments.
 
 (* * interface FIFOF#(element_type) *)
 Record FIFOF (element_type : Kind) := {
-    FIFOF'interface: Modules;
+    FIFOF'modules: Modules;
     FIFOF'first : string;
     FIFOF'enq : string;
     FIFOF'deq : string;
@@ -19,14 +20,14 @@ Record FIFOF (element_type : Kind) := {
     FIFOF'clear : string;
 }.
 
-Module mkLFIFOF.
+Module module'mkLFIFOF.
     Section Section'mkLFIFOF.
     Variable element_type : Kind.
     Variable instancePrefix: string.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkLFIFOFModule :=
-        (BKMODULE {
+    Definition mkLFIFOFModule: Modules :=
+         (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -53,18 +54,21 @@ Module mkLFIFOF.
 
     }). (* mkLFIFOF *)
 
-    Definition mkLFIFOF := Build_FIFOF element_type mkLFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkLFIFOF type Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkLFIFOF := Build_FIFOF (element_type) mkLFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkLFIFOF.
-End mkLFIFOF.
+End module'mkLFIFOF.
 
-Module mkFIFOF1.
+Definition mkLFIFOF := module'mkLFIFOF.mkLFIFOF.
+
+Module module'mkFIFOF1.
     Section Section'mkFIFOF1.
     Variable element_type : Kind.
     Variable instancePrefix: string.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkFIFOF1Module :=
-        (BKMODULE {
+    Definition mkFIFOF1Module: Modules :=
+         (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -91,18 +95,22 @@ Module mkFIFOF1.
 
     }). (* mkFIFOF1 *)
 
-    Definition mkFIFOF1 := Build_FIFOF element_type mkFIFOF1Module%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkFIFOF1 type Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkFIFOF1 := Build_FIFOF (element_type) mkFIFOF1Module%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkFIFOF1.
-End mkFIFOF1.
+End module'mkFIFOF1.
 
-Module mkUGFIFOF.
+Definition mkFIFOF1 := module'mkFIFOF1.mkFIFOF1.
+
+Module module'mkUGFIFOF.
     Section Section'mkUGFIFOF.
     Variable element_type : Kind.
     Variable instancePrefix: string.
+    Variable width_any: nat.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkUGFIFOFModule :=
-        (BKMODULE {
+    Definition mkUGFIFOFModule: Modules.
+        refine  (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -127,20 +135,24 @@ Module mkUGFIFOF.
        with Method instancePrefix--"notFull" () : Bool :=
         Read valid_v : Bit 0 <- "valid";        Ret (#valid_v != $1)
 
-    }). (* mkUGFIFOF *)
+    }); abstract omega. Qed. (* mkUGFIFOF *)
 
-    Definition mkUGFIFOF := Build_FIFOF element_type mkUGFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkUGFIFOF type Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkUGFIFOF := Build_FIFOF (element_type) mkUGFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkUGFIFOF.
-End mkUGFIFOF.
+End module'mkUGFIFOF.
 
-Module mkUGFIFO1.
+Definition mkUGFIFOF := module'mkUGFIFOF.mkUGFIFOF.
+
+Module module'mkUGFIFO1.
     Section Section'mkUGFIFO1.
     Variable element_type : Kind.
     Variable instancePrefix: string.
+    Variable width_any: nat.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkUGFIFO1Module :=
-        (BKMODULE {
+    Definition mkUGFIFO1Module: Modules.
+        refine  (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -165,21 +177,25 @@ Module mkUGFIFO1.
        with Method instancePrefix--"notFull" () : Bool :=
         Read valid_v : Bit 0 <- "valid";        Ret (#valid_v != $1)
 
-    }). (* mkUGFIFO1 *)
+    }); abstract omega. Qed. (* mkUGFIFO1 *)
 
-    Definition mkUGFIFO1 := Build_FIFOF element_type mkUGFIFO1Module%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkUGFIFO1 type Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkUGFIFO1 := Build_FIFOF (element_type) mkUGFIFO1Module%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkUGFIFO1.
-End mkUGFIFO1.
+End module'mkUGFIFO1.
 
-Module mkUGSizedFIFOF.
+Definition mkUGFIFO1 := module'mkUGFIFO1.mkUGFIFO1.
+
+Module module'mkUGSizedFIFOF.
     Section Section'mkUGSizedFIFOF.
     Variable element_type : Kind.
     Variable instancePrefix: string.
     Variable n: nat.
+    Variable width_any: nat.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkUGSizedFIFOFModule :=
-        (BKMODULE {
+    Definition mkUGSizedFIFOFModule: Modules.
+        refine  (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -204,21 +220,25 @@ Module mkUGSizedFIFOF.
        with Method instancePrefix--"notFull" () : Bool :=
         Read valid_v : Bit 0 <- "valid";        Ret (#valid_v != $1)
 
-    }). (* mkUGSizedFIFOF *)
+    }); abstract omega. Qed. (* mkUGSizedFIFOF *)
 
-    Definition mkUGSizedFIFOF := Build_FIFOF element_type mkUGSizedFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkUGSizedFIFOF type Integer -> Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkUGSizedFIFOF := Build_FIFOF (element_type) mkUGSizedFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkUGSizedFIFOF.
-End mkUGSizedFIFOF.
+End module'mkUGSizedFIFOF.
 
-Module mkSizedFIFOF.
+Definition mkUGSizedFIFOF := module'mkUGSizedFIFOF.mkUGSizedFIFOF.
+
+Module module'mkSizedFIFOF.
     Section Section'mkSizedFIFOF.
     Variable element_type : Kind.
     Variable instancePrefix: string.
     Variable n: nat.
+    Variable width_any: nat.
                                        Let v : string := instancePrefix--"v".
        Let valid : string := instancePrefix--"valid".
-    Definition mkSizedFIFOFModule :=
-        (BKMODULE {
+    Definition mkSizedFIFOFModule: Modules.
+        refine  (BKMODULE {
            Register v : element_type <- Default
        with Register valid : Bit 0 <- $0
        with Method instancePrefix--"first" () : element_type :=
@@ -243,9 +263,12 @@ Module mkSizedFIFOF.
        with Method instancePrefix--"notFull" () : Bool :=
         Read valid_v : Bit 0 <- "valid";        Ret (#valid_v != $1)
 
-    }). (* mkSizedFIFOF *)
+    }); abstract omega. Qed. (* mkSizedFIFOF *)
 
-    Definition mkSizedFIFOF := Build_FIFOF element_type mkSizedFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
+(* Module mkSizedFIFOF type Integer -> Module#(FIFOF#(element_type)) return type FIFOF#(element_type) *)
+    Definition mkSizedFIFOF := Build_FIFOF (element_type) mkSizedFIFOFModule%kami (instancePrefix--"clear") (instancePrefix--"deq") (instancePrefix--"enq") (instancePrefix--"first") (instancePrefix--"notEmpty") (instancePrefix--"notFull").
     End Section'mkSizedFIFOF.
-End mkSizedFIFOF.
+End module'mkSizedFIFOF.
+
+Definition mkSizedFIFOF := module'mkSizedFIFOF.mkSizedFIFOF.
 

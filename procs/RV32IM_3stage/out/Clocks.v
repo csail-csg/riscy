@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -10,17 +11,17 @@ Set Implicit Arguments.
 
 (* * interface Clock *)
 Record Clock := {
-    Clock'interface: Modules;
+    Clock'modules: Modules;
 }.
 
 (* * interface Reset *)
 Record Reset := {
-    Reset'interface: Modules;
+    Reset'modules: Modules;
 }.
 
 (* * interface SyncFIFOIfc#(a_type) *)
 Record SyncFIFOIfc (a_type : Kind) := {
-    SyncFIFOIfc'interface: Modules;
+    SyncFIFOIfc'modules: Modules;
     SyncFIFOIfc'enq : string;
     SyncFIFOIfc'deq : string;
     SyncFIFOIfc'first : string;

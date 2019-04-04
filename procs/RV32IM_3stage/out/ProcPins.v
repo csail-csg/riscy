@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -12,7 +13,7 @@ Require Import RS232.
 Require Import SPI.
 (* * interface ProcPins *)
 Record ProcPins := {
-    ProcPins'interface: Modules;
+    ProcPins'modules: Modules;
     ProcPins'uart : RS232;
     ProcPins'spi : SPIMasterPins;
     ProcPins'deleteme_unused_clock : Clock;

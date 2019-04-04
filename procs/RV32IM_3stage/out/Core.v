@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -31,24 +32,25 @@ Require Import RVMemory.
 Require Import RVMulDiv.
 (* * interface Core#(xlen) *)
 Record Core (xlen : nat) := {
-    Core'interface: Modules;
+    Core'modules: Modules;
     Core'start : string;
     Core'stop : string;
     Core'stallPipeline : string;
     Core'currVerificationPacket : string;
 }.
 
-Module mkThreeStageCore.
+Module module'mkThreeStageCore.
     Section Section'mkThreeStageCore.
     Variable xlen : Kind.
     Variable instancePrefix: string.
     Variable ifetch: (ReadOnlyMemServerPort xlen 2).
     Variable dmem: (AtomicMemServerPort xlen (TLog (TDiv xlen 8))).
-    Variable ipi: bool.
-    Variable timerInterrupt: bool.
-    Variable timer: (word 64).
-    Variable externalInterrupt: bool.
-    Variable hartID: (word xlen).
+    Variable ipi: Bool.
+    Variable timerInterrupt: Bool.
+    Variable timer: string.
+    Variable externalInterrupt: Bool.
+    Variable hartID: (Bit xlen).
+    Variable 32: nat.
                                                                        Let stallReg : string := instancePrefix--"stallReg".
        Let rf := mkRVRegFileBypass (instancePrefix--"rf").
        Let csrf := mkRVCsrFile (instancePrefix--"csrf").
@@ -60,27 +62,27 @@ Module mkThreeStageCore.
        Let f := mkFetchStage (instancePrefix--"f").
        Let e := mkExecStage (instancePrefix--"e").
        Let w := mkWriteBackStage (instancePrefix--"w").
-    Definition mkThreeStageCoreModule :=
-        (BKMODULE {
+    Definition mkThreeStageCoreModule: Modules.
+        refine  (BKMODULE {
            Register stallReg : Bool <- $False
-       with (BKMod (FIXME'InterfaceName'instance rf :: nil))
-       with (BKMod (FIXME'InterfaceName'instance csrf :: nil))
-       with (BKMod (FIXME'InterfaceName'instance mulDiv :: nil))
-       with (BKMod (FIXME'InterfaceName'instance fetchStateEhr :: nil))
-       with (BKMod (FIXME'InterfaceName'instance executeStateEhr :: nil))
-       with (BKMod (FIXME'InterfaceName'instance writeBackStateEhr :: nil))
-       with (BKMod (FIXME'InterfaceName'instance verificationPacketEhr :: nil))
-       with (BKMod (FIXME'InterfaceName'instance f :: nil))
-       with (BKMod (FIXME'InterfaceName'instance e :: nil))
-       with (BKMod (FIXME'InterfaceName'instance w :: nil))
+       with (BKMod (Bool'modules rf :: nil))
+       with (BKMod (Data'modules csrf :: nil))
+       with (BKMod (MulDivExec'modules mulDiv :: nil))
+       with (BKMod (t'modules fetchStateEhr :: nil))
+       with (BKMod (t'modules executeStateEhr :: nil))
+       with (BKMod (t'modules writeBackStateEhr :: nil))
+       with (BKMod (t'modules verificationPacketEhr :: nil))
+       with (BKMod (Reg'modules f :: nil))
+       with (BKMod (Reg'modules e :: nil))
+       with (BKMod (Reg'modules w :: nil))
        with Rule instancePrefix--"clearVerificationPacketEhr" :=
                Write verificationPacketEhr[$0] <- STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
         Retv (* rule clearVerificationPacketEhr *)
        with Method instancePrefix--"start" (startPc : (Bit xlen)) : Void :=
-        Write fetchStateEhr[$3] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "pc" ::= #startPc  }; "Invalid" ::= $0 };
+        Write fetchStateEhr[$3] <- STRUCT {  "$tag" ::= $0; "Valid" ::= STRUCT { "pc" ::= (#startPc)  }; "Invalid" ::= $0 };
         Write executeStateEhr[$3] <- STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
         Write writeBackStateEhr[$3] <- STRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 };
-        Write stallReg : Bool <- #False;
+        Write stallReg : Bool <- False;
         Retv
 
        with Method instancePrefix--"stop" () : Void :=
@@ -94,11 +96,14 @@ Module mkThreeStageCore.
         Retv
 
        with Method instancePrefix--"currVerificationPacket" () : (Maybe VerificationPacket) :=
-        Read stallReg_v : Bool <- "stallReg";        Ret #stallReg_vSTRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }#verificationPacketEhr[$0]
+        Read stallReg_v : Bool <- "stallReg";        Ret #stallReg_vSTRUCT {  "$tag" ::= $1; "Invalid" ::= $0; "Valid" ::= $0 }#verificationPacketEhr@[$0]
 
-    }). (* mkThreeStageCore *)
+    }); abstract omega. Qed. (* mkThreeStageCore *)
 
-    Definition mkThreeStageCore := Build_Core xlen mkThreeStageCoreModule%kami (instancePrefix--"currVerificationPacket") (instancePrefix--"stallPipeline") (instancePrefix--"start") (instancePrefix--"stop").
+(* Module mkThreeStageCore type ReadOnlyMemServerPort#(xlen, 2) -> AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen, 8))) -> Bool -> Bool -> Reg#(Bit#(64)) -> Bool -> Bit#(xlen) -> Module#(Core#(xlen)) return type AtomicMemServerPort#(xlen, TLog#(TDiv#(xlen, 8))) *)
+    Definition mkThreeStageCore := Build_Core (xlen) (TLog TDiv xlen 8) mkThreeStageCoreModule%kami (instancePrefix--"currVerificationPacket") (instancePrefix--"stallPipeline") (instancePrefix--"start") (instancePrefix--"stop").
     End Section'mkThreeStageCore.
-End mkThreeStageCore.
+End module'mkThreeStageCore.
+
+Definition mkThreeStageCore := module'mkThreeStageCore.mkThreeStageCore.
 

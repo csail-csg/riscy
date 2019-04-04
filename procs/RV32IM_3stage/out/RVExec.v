@@ -1,4 +1,5 @@
 Require Import Bool String List Arith.
+Require Import Omega.
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Bsvtokami.
@@ -15,190 +16,254 @@ Require Import RVAlu.
 Require Import RVControl.
 Require Import RVMemory.
 Definition ExecResultFields (xlen : nat) := (STRUCT {
-    "data" :: (Bit xlen);
-    "addr" :: (Bit xlen);
+    "data" :: (Bit XLEN);
+    "addr" :: (Bit XLEN);
     "taken" :: Bool;
-    "nextPc" :: (Bit xlen)}).
+    "nextPc" :: (Bit XLEN)}).
 Definition ExecResult  (xlen : nat) := Struct (ExecResultFields xlen).
 
-Definition execRef (dInst: RVDecodedInst) (rVal1: word xlen) (rVal2: word xlen) (pc: word xlen): (ExecResult xlen) := 
-                LET data : (word xlen) <- $0
+(* * interface RVExec *)
+Record RVExec := {
+    RVExec'modules: Modules;
+    RVExec'execRef : string;
+}.
 
-                LET addr : (word xlen) <- $0
-
-                LET pcPlus4 : (word xlen) <- (+ #pc $4)
-
-                LET taken : bool <- #False
-
-                LET nextPc : (word xlen) <- #pcPlus4
-
-        LET imm <- 
-
-            If (#dInst!ExecFuncFields@."$tag" == $0) then
+Module module'mkRVExec.
+    Section Section'mkRVExec.
+    Variable instancePrefix: string.
+               Let rvDecoder := mkRVDecode (instancePrefix--"rvDecoder").
+    Let rvDecodergetImmediate : string := (RVDecode'getImmediate rvDecoder).
+    Definition mkRVExecModule: Modules :=
+         (BKMODULE {
+           (BKMod (RVDecode'modules rvDecoder :: nil))
+       with Method4 instancePrefix--"execRef" (dInst : RVDecodedInst) (rVal1 : (Bit XLEN)) (rVal2 : (Bit XLEN)) (pc : (Bit XLEN)) : (ExecResult XLEN) :=
+        LET data : (Bit XLEN) <- $0;
+        LET addr : (Bit XLEN) <- $0;
+        LET pcPlus4 : (Bit XLEN) <- (#pc + $4);
+        LET taken : Bool <- False;
+        LET nextPc : (Bit XLEN) <- #pcPlus4;
+CallM imm : (Maybe (Bit XLEN)) <-  rvDecodergetImmediate(#dInst, #dInst);
+    If (#dInst!ExecFuncFields@."$tag" == $0) then (
               LET aluInst <- dInst.execFunc;
         BKSTMTS {
-                Assign data =  execAluInst(#aluInst, #rVal1, #rVal2, #imm, #pc)
-;
-        Retv
-    else
-    If (#dInst!ExecFuncFields@."$tag" == $1) then
+                Assign data =  execAluInst(#aluInst, #rVal1, #rVal2, #imm, #pc);
+
+
+   ) else (
+    If (#dInst!ExecFuncFields@."$tag" == $1) then (
               LET brFunc <- dInst.execFunc;
         BKSTMTS {
-                Assign data = #pcPlus4
-        with         Assign addr =  brAddrCalc(#brFunc, #pc, #rVal1,  fromMaybe(null, #imm))
-        with         Assign taken =  aluBr(#brFunc, #rVal1, #rVal2)
-        with         Assign nextPc = #taken#addr#pcPlus4
-;
-        Retv
-    else
-    If (#dInst!ExecFuncFields@."$tag" == $2) then
+                Assign data = #pcPlus4;
+                Assign addr =  brAddrCalc(#brFunc, #pc, #rVal1,  fromMaybe(null, #imm));
+                Assign taken =  aluBr(#brFunc, #rVal1, #rVal2);
+                Assign nextPc = #taken#addr#pcPlus4;
+
+
+   ) else (
+    If (#dInst!ExecFuncFields@."$tag" == $2) then (
               LET memInst <- dInst.execFunc;
         BKSTMTS {
-                Assign data = #rVal2
-        with         Assign addr =  addrCalc(#rVal1, #imm)
-;
-        Retv
-    else
-    If (#dInst!ExecFuncFields@."$tag" == $6) then
+                Assign data = #rVal2;
+                Assign addr =  addrCalc(#rVal1, #imm);
+
+
+   ) else (
+    If (#dInst!ExecFuncFields@."$tag" == $6) then (
               LET systemInst <- dInst.execFunc;
         BKSTMTS {
-                Assign data =  fromMaybe(#rVal1, #imm)
+                Assign data =  fromMaybe(#rVal1, #imm);
+
+
+   ) else (
+        Assign data = $0
+) as retval; Ret #retval
+) as retval; Ret #retval
+) as retval; Ret #retval
+) as retval; Ret #retval
 ;
-        Retv
-    else
-        Retv
+        Ret STRUCT { "data" ::= (#data); "addr" ::= (#addr); "taken" ::= (#taken); "nextPc" ::= (#nextPc)  }
 
-                Ret STRUCT { "data" ::= #data; "addr" ::= #addr; "taken" ::= #taken; "nextPc" ::= #nextPc  }
+    }). (* mkRVExec *)
 
-.
+(* Module mkRVExec type Module#(RVExec) return type RVExec *)
+    Definition mkRVExec := Build_RVExec mkRVExecModule%kami (instancePrefix--"execRef").
+    End Section'mkRVExec.
+End module'mkRVExec.
 
-Definition alu (func: AluFunc) (w: bool) (a: word xlen) (b: word xlen): (word xlen) := 
-                If (== null $32)
+Definition mkRVExec := module'mkRVExec.mkRVExec.
+
+(* * interface BasicExecInternal *)
+Record BasicExecInternal := {
+    BasicExecInternal'modules: Modules;
+    BasicExecInternal'brAddrCalc : string;
+    BasicExecInternal'alu : string;
+    BasicExecInternal'aluBr : string;
+}.
+
+Module module'mkBasicExecInternal.
+    Section Section'mkBasicExecInternal.
+    Variable instancePrefix: string.
+                Definition mkBasicExecInternalModule: Modules :=
+         (BKMODULE {
+           Method4 instancePrefix--"brAddrCalc" (brFunc : BrFunc) (pc : (Bit XLEN)) (val : (Bit XLEN)) (imm : (Bit XLEN)) : (Bit XLEN) :=
+        LET targetAddr : (Bit XLEN) <- null;
+        Ret #targetAddr
+
+       with Method4 instancePrefix--"alu" (func : AluFunc) (w : Bool) (a : (Bit XLEN)) (b : (Bit XLEN)) : (Bit XLEN) :=
+        If (null == $32)
         then                 BKSTMTS {
-                Assign w = #True
+                Assign w = True;
 ;
-        Retv
-
-                If #w
+        Retv;
+        If #w
         then                 BKSTMTS {
-                Assign a = (== #func #AluSra) signExtend(#a[$31 : $0]) zeroExtend(#a[$31 : $0])
-        with         Assign b =  zeroExtend(#b[$31 : $0])
+                Assign a = (#func == AluSra) signExtend(#a$[31:0]@32) zeroExtend(#a$[31:0]@32);
+                Assign b =  zeroExtend(#b$[31:0]@32);
 ;
-        Retv
-
-        LET shamt : (word 6) <- (UniBit (Trunc xlen (6 - xlen)) #b)
-
-                If #w
+        Retv;
+LET shamt : (Bit 6) <- UniBit (Trunc 6 (32 - 6)) (castBits _ _ _ _ #b);
+        If #w
         then                 BKSTMTS {
-                Assign shamt = (BinBit (Concat 1 tvar1606) $1'b0 #shamt[$4 : $0])
+                Assign shamt = castBits _ _ _ _ (BinBit (Concat 1 tvar1653) $0 #shamt$[4:0]@6);
 ;
-        Retv
-
-                LET res : (word xlen) <- null
-
-                If #w
+        Retv;
+        LET res : (Bit XLEN) <- null;
+        If #w
         then                 BKSTMTS {
-                Assign res =  signExtend(#res[$31 : $0])
+                Assign res =  signExtend(#res$[31:0]@32);
 ;
-        Retv
+        Retv;
+        Ret #res
 
-                Ret #res
+       with Method3 instancePrefix--"aluBr" (brFunc : BrFunc) (a : (Bit XLEN)) (b : (Bit XLEN)) : Bool :=
+        LET brTaken : Bool <- null;
+        Ret #brTaken
 
-.
+    }). (* mkBasicExecInternal *)
 
-Definition aluBr (brFunc: BrFunc) (a: word xlen) (b: word xlen): bool := 
-                LET brTaken : bool <- null
+(* Module mkBasicExecInternal type Module#(BasicExecInternal) return type BasicExecInternal *)
+    Definition mkBasicExecInternal := Build_BasicExecInternal mkBasicExecInternalModule%kami (instancePrefix--"alu") (instancePrefix--"aluBr") (instancePrefix--"brAddrCalc").
+    End Section'mkBasicExecInternal.
+End module'mkBasicExecInternal.
 
-                Ret #brTaken
+Definition mkBasicExecInternal := module'mkBasicExecInternal.mkBasicExecInternal.
 
-.
+(* * interface BasicExec *)
+Record BasicExec := {
+    BasicExec'modules: Modules;
+    BasicExec'basicExec : string;
+}.
 
-Definition brAddrCalc (brFunc: BrFunc) (pc: word xlen) (val: word xlen) (imm: word xlen): (word xlen) := 
-                LET targetAddr : (word xlen) <- null
-
-                Ret #targetAddr
-
-.
-
-Definition basicExec (dInst: RVDecodedInst) (rVal1: word xlen) (rVal2: word xlen) (pc: word xlen): (ExecResult xlen) := 
-                LET pcPlus4 : (word xlen) <- (+ #pc $4)
-
-                LET data : (word xlen) <- $0
-
-                LET addr : (word xlen) <- $0
-
-                LET taken : bool <- #False
-
-                LET nextPc : (word xlen) <- #pcPlus4
-
-        LET imm <- 
-
-                If #dInst$taggedEF_Mem.*
+Module module'mkBasicExec.
+    Section Section'mkBasicExec.
+    Variable instancePrefix: string.
+                   Let basicExecInternal := mkBasicExecInternal (instancePrefix--"basicExecInternal").
+       Let rvDecoder := mkRVDecode (instancePrefix--"rvDecoder").
+    Let basicExecInternalalu : string := (BasicExecInternal'alu basicExecInternal).
+    Let basicExecInternalaluBr : string := (BasicExecInternal'aluBr basicExecInternal).
+    Let basicExecInternalbrAddrCalc : string := (BasicExecInternal'brAddrCalc basicExecInternal).
+    Let rvDecodergetImmediate : string := (RVDecode'getImmediate rvDecoder).
+    Definition mkBasicExecModule: Modules :=
+         (BKMODULE {
+           (BKMod (BasicExecInternal'modules basicExecInternal :: nil))
+       with (BKMod (RVDecode'modules rvDecoder :: nil))
+       with Method4 instancePrefix--"basicExec" (dInst : RVDecodedInst) (rVal1 : (Bit XLEN)) (rVal2 : (Bit XLEN)) (pc : (Bit XLEN)) : (ExecResult XLEN) :=
+        LET pcPlus4 : (Bit XLEN) <- (#pc + $4);
+        LET data : (Bit XLEN) <- $0;
+        LET addr : (Bit XLEN) <- $0;
+        LET taken : Bool <- False;
+        LET nextPc : (Bit XLEN) <- #pcPlus4;
+CallM imm : (Maybe (Bit XLEN)) <-  rvDecodergetImmediate(#dInst, #dInst);
+        If #dInst$taggedEF_Mem.*
         then                 BKSTMTS {
                 If ! isValid(#imm)
         then                 BKSTMTS {
-                Assign imm = STRUCT {  "$tag" ::= $0; "Valid" ::= $0; "Invalid" ::= $0 }
+                Assign imm = STRUCT {  "$tag" ::= $0; "Valid" ::= $0; "Invalid" ::= $0 };
 ;
-        Retv
+        Retv;
 ;
-        Retv
-
-                LET aluVal1 : (word xlen) <- #rVal1
-
-                LET aluVal2 : (word xlen) <- #imm$taggedValid.validImm#validImm#rVal2
-
-                If #dInst$taggedEF_Alu.aluInst
+        Retv;
+        LET aluVal1 : (Bit XLEN) <- #rVal1;
+        LET aluVal2 : (Bit XLEN) <- #imm$taggedValid.validImm#validImm#rVal2;
+        If #dInst$taggedEF_Alu.aluInst
         then                 BKSTMTS {
-            If (#aluInst!AluFuncFields@."$tag" == $16) then
-        Assign aluVal1 = #pc;
-        Retv
-    else
-    If (#aluInst!AluFuncFields@."$tag" == $24) then
-        Assign aluVal1 = $0;
-        Retv
-    else
-        Retv
+            If (#aluInst!AluFuncFields@."$tag" == $16) then (
+        Assign aluVal1 = #pc
+
+   ) else (
+    If (#aluInst!AluFuncFields@."$tag" == $24) then (
+        Assign aluVal1 = $0
+
+   ) else (
+        Assign aluVal1 = $0
+) as retval; Ret #retval
+) as retval; Ret #retval
 ;
-        Retv
-
-                LET aluF : AluFunc <- #dInst$taggedEF_Alu.aluInst#aluInst#AluAdd
-
-                LET w : bool <- #dInst$taggedEF_Alu.aluInst#aluInst#False
-
-        LET aluResult <- 
-
-                If #dInst$taggedEF_Br.brFunc
+;
+        Retv;
+        LET aluF : AluFunc <- #dInst$taggedEF_Alu.aluInst#aluInstAluAdd;
+        LET w : Bool <- #dInst$taggedEF_Alu.aluInst#aluInstFalse;
+CallM aluResult : (Bit XLEN) <-  basicExecInternalalu(#aluF, #w, #aluVal1, #aluVal2);
+        If #dInst$taggedEF_Br.brFunc
         then                 BKSTMTS {
-                Assign taken =  aluBr(#brFunc, #rVal1, #rVal2)
-        with         If #taken
+                Assign taken =  basicExecInternalaluBr(#brFunc, #rVal1, #rVal2);
+                If #taken
         then                 BKSTMTS {
-                Assign nextPc =  brAddrCalc(#brFunc, #pc, #rVal1,  fromMaybe(null, #imm))
+                Assign nextPc =  basicExecInternalbrAddrCalc(#brFunc, #pc, #rVal1,  fromMaybe(null, #imm));
 ;
-        Retv
+        Retv;
 ;
-        Retv
+        Retv;
+        Assign data = null;
+        Assign addr = null;
+        Ret STRUCT { "data" ::= (#data); "addr" ::= (#addr); "taken" ::= (#taken); "nextPc" ::= (#nextPc)  }
 
-                Assign data = null
+    }). (* mkBasicExec *)
 
-                Assign addr = null
+(* Module mkBasicExec type Module#(BasicExec) return type BasicExec *)
+    Definition mkBasicExec := Build_BasicExec mkBasicExecModule%kami (instancePrefix--"basicExec").
+    End Section'mkBasicExec.
+End module'mkBasicExec.
 
-                Ret STRUCT { "data" ::= #data; "addr" ::= #addr; "taken" ::= #taken; "nextPc" ::= #nextPc  }
+Definition mkBasicExec := module'mkBasicExec.mkBasicExec.
 
-.
+(* * interface ScatterGatherLoadStore *)
+Record ScatterGatherLoadStore := {
+    ScatterGatherLoadStore'modules: Modules;
+    ScatterGatherLoadStore'gatherLoad : string;
+    ScatterGatherLoadStore'scatterStore : string;
+}.
 
-Definition gatherLoad (byteSel: word TLog TDiv xlen 8) (size: RVMemSize) (isUnsigned: bool) (data: word xlen): (word xlen) := 
-Definition extend:  := 
+Module module'mkScatterGatherLoadStore.
+    Section Section'mkScatterGatherLoadStore.
+    Variable instancePrefix: string.
+        Definition extend:  := 
     #isUnsigned#zeroExtend#signExtend
 .
 
-                LET bitsToShiftBy : word tvar1603 = (BinBit (Concat TLog#(TDiv#(xlen, 8)) 3) #byteSel $3'b0)
+           Let toPermutedDataByteEn := mkToPermutedDataByteEn (instancePrefix--"toPermutedDataByteEn").
+    Let toPermutedDataByteEntoPermutedDataByteEn : string := (ToPermutedDataByteEn'toPermutedDataByteEn toPermutedDataByteEn).
+    Definition mkScatterGatherLoadStoreModule: Modules :=
+         (BKMODULE {
+           (BKMod (ToPermutedDataByteEn'modules toPermutedDataByteEn :: nil))
+       with Method4 instancePrefix--"gatherLoad" (byteSel : (Bit (TLog (TDiv XLEN 8)))) (size : RVMemSize) (isUnsigned : Bool) (data : (Bit XLEN)) : (Bit XLEN) :=
+        LET bitsToShiftBy : Bit tvar1649 = castBits _ _ _ _ (BinBit (Concat TLog#(TDiv#(XLEN, 8)) 3) #byteSel $0);
+        Assign data = (#data >> #bitsToShiftBy);
+        Assign data = null;
+        Ret #data
 
-                Assign data = (>> #data #bitsToShiftBy)
+       with Method3 instancePrefix--"scatterStore" (byteSel : DataByteSel) (size : RVMemSize) (data : (Bit XLEN)) : (Tuple2 DataByteEn (Bit XLEN)) :=
+        LET bitsToShiftBy : (Bit 5) <- ( extend(#byteSel) * $8);
+        Assign data = (#data << #bitsToShiftBy);
+CallM permutedByteEn : DataByteEn <-  toPermutedDataByteEntoPermutedDataByteEn(#size, #byteSel);
+        Ret  tuple2(#permutedByteEn, #data)
 
-                Assign data = null
+    }). (* mkScatterGatherLoadStore *)
 
-                Ret #data
+(* Module mkScatterGatherLoadStore type Module#(ScatterGatherLoadStore) return type ScatterGatherLoadStore *)
+    Definition mkScatterGatherLoadStore := Build_ScatterGatherLoadStore mkScatterGatherLoadStoreModule%kami (instancePrefix--"gatherLoad") (instancePrefix--"scatterStore").
+    End Section'mkScatterGatherLoadStore.
+End module'mkScatterGatherLoadStore.
 
-.
+Definition mkScatterGatherLoadStore := module'mkScatterGatherLoadStore.mkScatterGatherLoadStore.
 
-Definition scatterStore (byteSel: DataByteSel) (size: RVMemSize) (data: word xlen): (Tuple2 DataByteEn (word xlen)) := 
