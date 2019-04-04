@@ -86,10 +86,10 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
                         &&& !stall);
         let pc = writeBackState.pc;
         let trap = writeBackState.trap;
-        let dInst = writeBackState.dInst;
-        let inst = dInst.inst;
-        let addr = writeBackState.addr;
-        let data = writeBackState.data;
+        RVDecodedInst dInst = writeBackState.dInst;
+        Instruction inst = dInst.inst;
+        Bit#(XLEN) addr = writeBackState.addr;
+        Bit#(XLEN) data = writeBackState.data;
         ws <= tagged Invalid;
 
 `ifdef CONFIG_M
@@ -101,7 +101,8 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
 
         if (dInst.execFunc matches tagged EF_Mem .memInst &&& trap == tagged Invalid) begin
             if (isMemOp.getsResponse(memInst.op)) begin
-                data = dmemres.first.data >> {addr[1:0], 3'b0};
+	        Bit#(2) addrlsb = addr[1:0];
+                data = dmemres.first.data >> {addrlsb, 3'b0};
                 let extendFunc = memInst.isUnsigned ? zeroExtend : signExtend;
                 data = (case (memInst.size)
                         B: extendFunc(data[7:0]);
@@ -141,6 +142,7 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
                 maybeData = tagged Valid data;
             tagged None:
                 noAction;
+	   default: noAction;
         endcase
 
         // send verification packet
@@ -158,15 +160,19 @@ Bool stall)(WriteBackStage) provisos (NumAlias#(xlen, 32));
                     isException = True;
                     trapCause = pack(x);
                 end
+	   default:
+	      noAction;
         endcase
 	InstructionFields instFields = getInstFields.getInstFields(inst);
+        Maybe#(RegType) dst = dInst.dst;
+        Bit#(2) dstbits = pack(dst);
         verificationPackets <= tagged Valid VerificationPacket {
                 skippedPackets: 0,
                 pc: signExtend(pc),
                 data: signExtend(fromMaybe(data, maybeData)),
                 addr: signExtend(addr),
                 instruction: inst,
-                dst: {pack(dInst.dst), instFields.rd},
+                dst: {dstbits, instFields.rd},
                 exception: isException,
                 interrupt: isInterrupt,
                 cause: trapCause };

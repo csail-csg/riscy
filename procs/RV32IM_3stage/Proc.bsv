@@ -120,7 +120,9 @@ module mkProc(Proc#(DataSz));
                     extInterruptWire, // external interrupt
                     0); // hart ID
 
+`ifdef SupportMemClientPort
    let ramPort <- nullClientPort();
+`endif
 
     // Processor Control
     method Action start();
@@ -135,8 +137,10 @@ module mkProc(Proc#(DataSz));
         return core.currVerificationPacket;
     endmethod
 
+`ifdef SupportMemClientPort
     // Main Memory Connection
     interface CoarseMemClientPort ram = ramPort;
+`endif
 
     interface CoarseMemServerPort mmio = mmio_client;
 

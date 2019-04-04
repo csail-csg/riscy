@@ -119,9 +119,9 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
 
             // execute instruction
             let execResult = basicExec.basicExec(dInst, rVal1, rVal2, pc);
-            let data = execResult.data;
-            let addr = execResult.addr;
-            let nextPc = execResult.nextPc;
+            Bit#(XLEN) data = execResult.data;
+            Bit#(XLEN) addr = execResult.addr;
+            Bit#(XLEN) nextPc = execResult.nextPc;
 
             // check for next address alignment
             if (nextPc[1:0] != 0 && trap == tagged Invalid) begin
@@ -152,7 +152,8 @@ module mkExecStage#(    Reg#(Maybe#(FetchState#(xlen))) fs,
                     //     data: data } );
 
                     //// This assumes xlen == 32
-                    Bit#(32) aligned_data = data << {addr[1:0], 3'b0};
+		    Bit#(2) addrlsb = addr[1:0];
+                    Bit#(32) aligned_data = data << {addrlsb, 3'b0};
                     Bit#(4) write_en = dInst.execFunc.EF_Mem.op == tagged MemOp Ld ? 0 : 
                                         (case(memInst.size)
                                             B: ('b0001 << addr[1:0]);

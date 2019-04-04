@@ -55,11 +55,11 @@ interface RVCsrFile#(numeric type xlen);
             Bool xDirty);
 
     // Outputs for CSRs that the rest of the processor needs to know about
-    method VMInfo#(xlen) vmI;
-    method VMInfo#(xlen) vmD;
-    method CsrState csrState; // prv, frm, f_enabled, x_enabled
-    method Maybe#(InterruptCause) readyInterrupt; // TODO: fix this data type
-    method Bool wakeFromWFI;
+    method VMInfo#(xlen) vmI();
+    method VMInfo#(xlen) vmD();
+    method CsrState csrState(); // prv, frm, f_enabled, x_enabled
+    method Maybe#(InterruptCause) readyInterrupt(); // TODO: fix this data type
+    method Bool wakeFromWFI();
 endinterface
 
 
@@ -331,153 +331,13 @@ module mkRVCsrFile#(
     Reg#(Data) mucounteren_csr = concatReg4(readOnlyReg(0), u_ir_field, u_tm_field, u_cy_field);
     Reg#(Data) mscounteren_csr = concatReg4(readOnlyReg(0), s_ir_field, s_tm_field, s_cy_field);
 
-    function Reg#(Data) getCSR(CSR csr);
-        return (case (csr)
-                CSRfflags:              fflags_csr;
-                CSRfrm:                 frm_csr;
-                CSRfcsr:                fcsr_csr;
-                CSRcycle:               cycle_csr;
-                CSRtime:                time_csr;
-                CSRinstreth:            instreth_csr;
-                CSRcycleh:              cycleh_csr;
-                CSRtimeh:               timeh_csr;
-                CSRinstret:             instret_csr;
-                CSRsstatus:             sstatus_csr;
-                CSRsedeleg:             sedeleg_csr;
-                CSRsideleg:             sideleg_csr;
-                CSRsie:                 sie_csr;
-                CSRstvec:               stvec_csr;
-                CSRsscratch:            sscratch_csr;
-                CSRsepc:                sepc_csr;
-                CSRscause:              scause_csr;
-                CSRsbadaddr:            sbadaddr_csr;
-                CSRsip:                 sip_csr;
-                CSRsptbr:               sptbr_csr;
-                CSRscycle:              scycle_csr;
-                CSRstime:               stime_csr;
-                CSRsinstret:            sinstret_csr;
-                CSRscycleh:             scycleh_csr;
-                CSRstimeh:              stimeh_csr;
-                CSRsinstreth:           sinstreth_csr;
-                CSRmisa:                misa_csr;
-                CSRmvendorid:           mvendorid_csr;
-                CSRmarchid:             marchid_csr;
-                CSRmimpid:              mimpid_csr;
-                CSRmhartid:             mhartid_csr;
-                CSRmstatus:             mstatus_csr;
-                CSRmedeleg:             medeleg_csr;
-                CSRmideleg:             mideleg_csr;
-                CSRmie:                 mie_csr;
-                CSRmtvec:               mtvec_csr;
-                CSRmscratch:            mscratch_csr;
-                CSRmepc:                mepc_csr;
-                CSRmcause:              mcause_csr;
-                CSRmbadaddr:            mbadaddr_csr;
-                CSRmip:                 mip_csr;
-                CSRmbase:               mbase_csr;
-                CSRmbound:              mbound_csr;
-                CSRmibase:              mibase_csr;
-                CSRmibound:             mibound_csr;
-                CSRmdbase:              mdbase_csr;
-                CSRmdbound:             mdbound_csr;
-                CSRmcycle:              mcycle_csr;
-                CSRmtime:               mtime_csr;
-                CSRminstret:            minstret_csr;
-                CSRmcycleh:             mcycleh_csr;
-                CSRmtimeh:              mtimeh_csr;
-                CSRminstreth:           minstreth_csr;
-                CSRmucounteren:         mucounteren_csr;
-                CSRmscounteren:         mscounteren_csr;
-                CSRmucycle_delta:       mucycle_delta_csr;
-                CSRmutime_delta:        mutime_delta_csr;
-                CSRmuinstret_delta:     muinstret_delta_csr;
-                CSRmscycle_delta:       mscycle_delta_csr;
-                CSRmstime_delta:        mstime_delta_csr;
-                CSRmsinstret_delta:     msinstret_delta_csr;
-                CSRmucycle_deltah:      mucycle_deltah_csr;
-                CSRmutime_deltah:       mutime_deltah_csr;
-                CSRmuinstret_deltah:    muinstret_deltah_csr;
-                CSRmscycle_deltah:      mscycle_deltah_csr;
-                CSRmstime_deltah:       mstime_deltah_csr;
-                CSRmsinstret_deltah:    msinstret_deltah_csr;
-                default:                (readOnlyReg(0));
-            endcase);
-    endfunction
+   HasCSRPermission hasCSRPermission <- mkHasCSRPermission();
+   ToCauseCSR toCauseCSR <- mkToCauseCSR();
 
-    function Bool isLegalCSR(CSR csr);
-        return (case (csr)
-                CSRfflags:              (fs_field != 0);
-                CSRfrm:                 (fs_field != 0);
-                CSRfcsr:                (fs_field != 0);
-                CSRcycle:               (u_cy_field == 1);
-                CSRtime:                (u_tm_field == 1);
-                CSRinstret:             (u_ir_field == 1);
-                CSRcycleh:              ((u_cy_field == 1) && is32bit);
-                CSRtimeh:               ((u_tm_field == 1) && is32bit);
-                CSRinstreth:            ((u_ir_field == 1) && is32bit);
-                CSRsstatus:             True;
-                CSRsedeleg:             True;
-                CSRsideleg:             True;
-                CSRsie:                 True;
-                CSRstvec:               True;
-                CSRsscratch:            True;
-                CSRsepc:                True;
-                CSRscause:              True;
-                CSRsbadaddr:            True;
-                CSRsip:                 True;
-                CSRsptbr:               True;
-                CSRscycle:              (s_cy_field == 1);
-                CSRstime:               (s_tm_field == 1);
-                CSRsinstret:            (s_ir_field == 1);
-                CSRscycleh:             ((s_cy_field == 1) && is32bit);
-                CSRstimeh:              ((s_tm_field == 1) && is32bit);
-                CSRsinstreth:           ((s_ir_field == 1) && is32bit);
-                CSRmisa:                True;
-                CSRmvendorid:           True;
-                CSRmarchid:             True;
-                CSRmimpid:              True;
-                CSRmhartid:             True;
-                CSRmstatus:             True;
-                CSRmedeleg:             True;
-                CSRmideleg:             True;
-                CSRmie:                 True;
-                CSRmtvec:               True;
-                CSRmscratch:            True;
-                CSRmepc:                True;
-                CSRmcause:              True;
-                CSRmbadaddr:            True;
-                CSRmip:                 True;
-                CSRmbase:               True;
-                CSRmbound:              True;
-                CSRmibase:              True;
-                CSRmibound:             True;
-                CSRmdbase:              True;
-                CSRmdbound:             True;
-                CSRmcycle:              True;
-                CSRmtime:               True;
-                CSRminstret:            True;
-                CSRmcycleh:             is32bit;
-                CSRmtimeh:              is32bit;
-                CSRminstreth:           is32bit;
-                CSRmucounteren:         True;
-                CSRmscounteren:         True;
-                CSRmucycle_delta:       True;
-                CSRmutime_delta:        True;
-                CSRmuinstret_delta:     True;
-                CSRmscycle_delta:       True;
-                CSRmstime_delta:        True;
-                CSRmsinstret_delta:     True;
-                CSRmucycle_deltah:      is32bit;
-                CSRmutime_deltah:       is32bit;
-                CSRmuinstret_deltah:    is32bit;
-                CSRmscycle_deltah:      is32bit;
-                CSRmstime_deltah:       is32bit;
-                CSRmsinstret_deltah:    is32bit;
-                default:                False;
-            endcase);
-    endfunction
+    // RULES
+    ////////////////////////////////////////////////////////
 
-    function Maybe#(InterruptCause) readyInterruptFunc();
+    rule setReadyInterruptWire;
         Bit#(12) ready_interrupts = truncate(mip_csr) & truncate(mie_csr);
         // machine mode
         let ready_machine_interrupts = ready_interrupts & ~truncate(mideleg_csr);
@@ -499,17 +359,7 @@ module mkRVCsrFile#(
             // UInt#(TLog#(TAdd#(12,1))) == UInt#(4) -> Bit#(4) -> InterruptCause
             ret = tagged Valid unpack(pack(countZerosLSB(ready_interrupts)));
         end
-        return ret;
-    endfunction
-
-   HasCSRPermission hasCSRPermission <- mkHasCSRPermission();
-   ToCauseCSR toCauseCSR <- mkToCauseCSR();
-
-    // RULES
-    ////////////////////////////////////////////////////////
-
-    rule setReadyInterruptWire;
-        readyInterruptWire <= readyInterruptFunc();
+       readyInterruptWire <= ret;
     endrule
 
     rule incrementCycle;
@@ -613,10 +463,82 @@ module mkRVCsrFile#(
                     begin
                         Bool read = (validSysInst != CSRW);
                         Bool write = (validSysInst != CSRR);
-                        if (!isLegalCSR(csr) || !hasCSRPermission.hasCSRPermission(csr, prv, write)) begin
+		        Bool isLegalCSR = (case (csr)
+			  CSRfflags:              (fs_field != 0);
+			  CSRfrm:                 (fs_field != 0);
+			  CSRfcsr:                (fs_field != 0);
+			  CSRcycle:               (u_cy_field == 1);
+			  CSRtime:                (u_tm_field == 1);
+			  CSRinstret:             (u_ir_field == 1);
+			  CSRcycleh:              ((u_cy_field == 1) && is32bit);
+			  CSRtimeh:               ((u_tm_field == 1) && is32bit);
+			  CSRinstreth:            ((u_ir_field == 1) && is32bit);
+			  CSRsstatus:             True;
+			  CSRsedeleg:             True;
+			  CSRsideleg:             True;
+			  CSRsie:                 True;
+			  CSRstvec:               True;
+			  CSRsscratch:            True;
+			  CSRsepc:                True;
+			  CSRscause:              True;
+			  CSRsbadaddr:            True;
+			  CSRsip:                 True;
+			  CSRsptbr:               True;
+			  CSRscycle:              (s_cy_field == 1);
+			  CSRstime:               (s_tm_field == 1);
+			  CSRsinstret:            (s_ir_field == 1);
+			  CSRscycleh:             ((s_cy_field == 1) && is32bit);
+			  CSRstimeh:              ((s_tm_field == 1) && is32bit);
+			  CSRsinstreth:           ((s_ir_field == 1) && is32bit);
+			  CSRmisa:                True;
+			  CSRmvendorid:           True;
+			  CSRmarchid:             True;
+			  CSRmimpid:              True;
+			  CSRmhartid:             True;
+			  CSRmstatus:             True;
+			  CSRmedeleg:             True;
+			  CSRmideleg:             True;
+			  CSRmie:                 True;
+			  CSRmtvec:               True;
+			  CSRmscratch:            True;
+			  CSRmepc:                True;
+			  CSRmcause:              True;
+			  CSRmbadaddr:            True;
+			  CSRmip:                 True;
+			  CSRmbase:               True;
+			  CSRmbound:              True;
+			  CSRmibase:              True;
+			  CSRmibound:             True;
+			  CSRmdbase:              True;
+			  CSRmdbound:             True;
+			  CSRmcycle:              True;
+			  CSRmtime:               True;
+			  CSRminstret:            True;
+			  CSRmcycleh:             is32bit;
+			  CSRmtimeh:              is32bit;
+			  CSRminstreth:           is32bit;
+			  CSRmucounteren:         True;
+			  CSRmscounteren:         True;
+			  CSRmucycle_delta:       True;
+			  CSRmutime_delta:        True;
+			  CSRmuinstret_delta:     True;
+			  CSRmscycle_delta:       True;
+			  CSRmstime_delta:        True;
+			  CSRmsinstret_delta:     True;
+			  CSRmucycle_deltah:      is32bit;
+			  CSRmutime_deltah:       is32bit;
+			  CSRmuinstret_deltah:    is32bit;
+			  CSRmscycle_deltah:      is32bit;
+			  CSRmstime_deltah:       is32bit;
+			  CSRmsinstret_deltah:    is32bit;
+			  default:                False;
+			  endcase);
+                        if (!isLegalCSR || !hasCSRPermission.hasCSRPermission(csr, prv, write)) begin
                             trapToTake = tagged Valid (tagged TcException IllegalInst);
                         end
                     end
+	       default:
+	       trapToTake = tagged Invalid;
             endcase
         end
 
@@ -647,6 +569,9 @@ module mkRVCsrFile#(
                     tagged TcException StoreAddrMisaligned,
                     tagged TcException StoreAccessFault:
                         sbadaddr_csr <= addr;
+		   default: begin
+			       sbadaddr_csr <= sbadaddr_csr;
+			    end
                 endcase
                 // update mstatus fields
                 spp_field <= (prv == prvU) ? 0 : 1;
@@ -666,6 +591,8 @@ module mkRVCsrFile#(
                     tagged TcException StoreAddrMisaligned,
                     tagged TcException StoreAccessFault:
                         mbadaddr_csr <= addr;
+		   default:
+		   mbadaddr_csr <= mbadaddr_csr;
                 endcase
                 // update mstatus fields
                 mpp_field <= prv;
@@ -718,7 +645,76 @@ module mkRVCsrFile#(
                         Bool read = (validSysInst != CSRW);
                         Bool write = (validSysInst != CSRR);
                         // CSR read/write operation
-			Reg#(Data) csrReg = getCSR(csr);
+		       Reg#(Data) csrReg = (case (csr)
+			  CSRfflags:              fflags_csr;
+			  CSRfrm:                 frm_csr;
+			  CSRfcsr:                fcsr_csr;
+			  CSRcycle:               cycle_csr;
+			  CSRtime:                time_csr;
+			  CSRinstreth:            instreth_csr;
+			  CSRcycleh:              cycleh_csr;
+			  CSRtimeh:               timeh_csr;
+			  CSRinstret:             instret_csr;
+			  CSRsstatus:             sstatus_csr;
+			  CSRsedeleg:             sedeleg_csr;
+			  CSRsideleg:             sideleg_csr;
+			  CSRsie:                 sie_csr;
+			  CSRstvec:               stvec_csr;
+			  CSRsscratch:            sscratch_csr;
+			  CSRsepc:                sepc_csr;
+			  CSRscause:              scause_csr;
+			  CSRsbadaddr:            sbadaddr_csr;
+			  CSRsip:                 sip_csr;
+			  CSRsptbr:               sptbr_csr;
+			  CSRscycle:              scycle_csr;
+			  CSRstime:               stime_csr;
+			  CSRsinstret:            sinstret_csr;
+			  CSRscycleh:             scycleh_csr;
+			  CSRstimeh:              stimeh_csr;
+			  CSRsinstreth:           sinstreth_csr;
+			  CSRmisa:                misa_csr;
+			  CSRmvendorid:           mvendorid_csr;
+			  CSRmarchid:             marchid_csr;
+			  CSRmimpid:              mimpid_csr;
+			  CSRmhartid:             mhartid_csr;
+			  CSRmstatus:             mstatus_csr;
+			  CSRmedeleg:             medeleg_csr;
+			  CSRmideleg:             mideleg_csr;
+			  CSRmie:                 mie_csr;
+			  CSRmtvec:               mtvec_csr;
+			  CSRmscratch:            mscratch_csr;
+			  CSRmepc:                mepc_csr;
+			  CSRmcause:              mcause_csr;
+			  CSRmbadaddr:            mbadaddr_csr;
+			  CSRmip:                 mip_csr;
+			  CSRmbase:               mbase_csr;
+			  CSRmbound:              mbound_csr;
+			  CSRmibase:              mibase_csr;
+			  CSRmibound:             mibound_csr;
+			  CSRmdbase:              mdbase_csr;
+			  CSRmdbound:             mdbound_csr;
+			  CSRmcycle:              mcycle_csr;
+			  CSRmtime:               mtime_csr;
+			  CSRminstret:            minstret_csr;
+			  CSRmcycleh:             mcycleh_csr;
+			  CSRmtimeh:              mtimeh_csr;
+			  CSRminstreth:           minstreth_csr;
+			  CSRmucounteren:         mucounteren_csr;
+			  CSRmscounteren:         mscounteren_csr;
+			  CSRmucycle_delta:       mucycle_delta_csr;
+			  CSRmutime_delta:        mutime_delta_csr;
+			  CSRmuinstret_delta:     muinstret_delta_csr;
+			  CSRmscycle_delta:       mscycle_delta_csr;
+			  CSRmstime_delta:        mstime_delta_csr;
+			  CSRmsinstret_delta:     msinstret_delta_csr;
+			  CSRmucycle_deltah:      mucycle_deltah_csr;
+			  CSRmutime_deltah:       mutime_deltah_csr;
+			  CSRmuinstret_deltah:    muinstret_deltah_csr;
+			  CSRmscycle_deltah:      mscycle_deltah_csr;
+			  CSRmstime_deltah:       mstime_deltah_csr;
+			  CSRmsinstret_deltah:    msinstret_deltah_csr;
+			  default:                (readOnlyReg(0));
+			  endcase);
                         Data oldVal = csrReg._read();
                         Data newVal = (case(validSysInst)
                                 CSRW, CSRR, CSRRW: data;

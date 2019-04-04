@@ -87,8 +87,10 @@ interface Proc#(numeric type mainMemoryWidth);
     // Verification
     method Maybe#(VerificationPacket) currVerificationPacket;
 
+`ifdef SupportMemClientPort
     // Cached Connections
     interface CoarseMemClientPort#(XLEN, TLog#(TDiv#(mainMemoryWidth,8))) ram;
+`endif
     // Uncached Connections
     interface CoarseMemClientPort#(XLEN, TLog#(TDiv#(XLEN,8))) mmio;
     // External Connections

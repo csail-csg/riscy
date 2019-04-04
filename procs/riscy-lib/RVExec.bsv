@@ -83,6 +83,8 @@ method ExecResult#(XLEN) execRef(RVDecodedInst dInst, Bit#(XLEN) rVal1, Bit#(XLE
                 // data for CSR instructions
                 data = fromMaybe(rVal1, imm);
             end
+       default:
+           data = 0;
     endcase
     return ExecResult {
             data: data,
@@ -94,7 +96,7 @@ endmethod
 endmodule
 
 interface BasicExecInternal;
-   method Bit#(XLEN) brAddrCalc(BrFunc brFunc, Bit#(XLEN) pc, Bit#(XLEN) val, Bit#(XLEN) imm) provisos (Add#(a__, 1, XLEN));
+   method Bit#(XLEN) brAddrCalc(BrFunc brFunc, Bit#(XLEN) pc, Bit#(XLEN) val, Bit#(XLEN) imm);
    method Bit#(XLEN) alu(AluFunc func, Bool w, Bit#(XLEN) a, Bit#(XLEN) b);
    method Bool aluBr(BrFunc brFunc, Bit#(XLEN) a, Bit#(XLEN) b);
 endinterface
@@ -128,16 +130,16 @@ method Bit#(XLEN) alu(AluFunc func, Bool w, Bit#(XLEN) a, Bit#(XLEN) b)
     end
 
     Bit#(XLEN) res = (case(func)
-            AluAdd, AluAuipc, AluLui: (a + b);
-            AluSub:        (a - b);
-            AluAnd:        (a & b);
-            AluOr:         (a | b);
-            AluXor:        (a ^ b);
-            AluSlt:        zeroExtend( pack( signedLT(a, b) ) );
-            AluSltu:       zeroExtend( pack( a < b ) );
-            AluSll:        (a << shamt);
-            AluSrl:        (a >> shamt);
-            AluSra:        signedShiftRight(a, shamt);
+            tagged AluAdd, tagged AluAuipc, tagged AluLui: (a + b);
+            tagged AluSub:        (a - b);
+            tagged AluAnd:        (a & b);
+            tagged AluOr:         (a | b);
+            tagged AluXor:        (a ^ b);
+            tagged AluSlt:        zeroExtend( pack( signedLT(a, b) ) );
+            tagged AluSltu:       zeroExtend( pack( a < b ) );
+            tagged AluSll:        (a << shamt);
+            tagged AluSrl:        (a >> shamt);
+            tagged AluSra:        signedShiftRight(a, shamt);
             default:    0;
         endcase);
 
@@ -198,8 +200,9 @@ module mkBasicExec(BasicExec);
     if (dInst.execFunc matches tagged EF_Alu .aluInst) begin
         // Special functions use special inputs
         case (aluInst.op) matches
-            AluAuipc: aluVal1 = pc;
-            AluLui:   aluVal1 = 0;
+            tagged AluAuipc: aluVal1 = pc;
+            tagged AluLui:   aluVal1 = 0;
+	    default: aluVal1 = 0;
         endcase
     end
     // Use Add as default for memory instructions so alu result is the address
@@ -257,13 +260,14 @@ module mkScatterGatherLoadStore(ScatterGatherLoadStore);
 	      H: extend(data[15:0]);
 	      W: extend(data[31:0]);
 	      D: data;
+	      default: 0;
          endcase);
 
       return data;
    endmethod
    method Tuple2#(DataByteEn, Bit#(XLEN)) scatterStore(DataByteSel byteSel, RVMemSize size, Bit#(XLEN) data)
       provisos (NumAlias#(XLEN, XLEN));
-      let bitsToShiftBy = {byteSel, 3'b0}; // byteSel * 8
+      Bit#(5) bitsToShiftBy = extend(byteSel) * 8; // byteSel * 8
       data = data << bitsToShiftBy;
       DataByteEn permutedByteEn = toPermutedDataByteEn.toPermutedDataByteEn(size, byteSel);
       return tuple2(permutedByteEn, data);

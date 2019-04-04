@@ -72,8 +72,10 @@ module mkProcVerilator(ProcVerilator);
     CoarseMemServerPort#(XLEN, TLog#(TDiv#(MainMemoryWidth,8))) simRam <- mkSimRam(`CONFIG_RAM_INIT_HEX_FILE);
     Proc#(MainMemoryWidth) proc <- mkProc;
 
+`ifdef SupportMemClientPort
     // connect the processor to the simRam
     mkConnection(proc.ram, simRam);
+`endif
 
     // some of our processors write to a certain location when finished executing:
     rule checkForFinish if ((proc.mmio.request.first.addr == 'h6000_0000) && (proc.mmio.request.first.write));

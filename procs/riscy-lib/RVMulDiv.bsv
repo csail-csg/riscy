@@ -117,6 +117,7 @@ module mkBoothMultiplier(Multiplier#(xlen))
       3'b100: new_p = new_p + unpack(m_neg << 1);
       3'b101: new_p = new_p + unpack(m_neg);
       3'b110: new_p = new_p + unpack(m_neg);
+       default: noAction;
     endcase
     new_p = new_p >> 2;
     p <= pack(new_p);
@@ -126,9 +127,12 @@ module mkBoothMultiplier(Multiplier#(xlen))
   method Action multiply(Bit#(TAdd#(xlen, 1)) multiplicand, Bit#(TAdd#(xlen, 1)) multiplier) if (i == fromInteger(valueOf(_InputSize)/2+1));
     Bit#(_InputSize) x = signExtend(multiplicand);
     Bit#(_InputSize) y = signExtend(multiplier);
-    m_pos <= {msb(x), x, 0};
-    m_neg <= {msb(-x), -x, 0};
-    p <= {0, y, 1'b0};
+     Bit#(1) xmsb = msb(x);
+     Bit#(1) negxmsb = msb(-x);
+    m_pos <= {xmsb, x, 0};
+    m_neg <= {negxmsb, -x, 0};
+    Bit#(TSub#(_MultSize,_InputSize)) zero = 0;
+    p <= {zero, y, 1'b0};
     i <= 0;
   endmethod
 
@@ -158,7 +162,8 @@ module mkBluesimDivider(Divider#(xlen)) provisos (Add#(1, a__, xlen));
     Int#(TAdd#(xlen, 1)) quotent = (divisor != 0) ? (unpack(dividend) / ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack('1);
     Int#(TAdd#(xlen, 1)) remainder = (divisor != 0) ? (unpack(dividend) % ((divisor != 0) ? unpack(divisor) : unpack(1))) : unpack(dividend);
 
-    if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
+    Bit#(TSub#(xlen,1)) zero = 0;
+    if ((dividend == {2'b11, zero}) && (divisor == '1)) begin
       quotent = unpack(dividend);
       remainder = 0;
     end
@@ -199,7 +204,8 @@ module mkRoughDivider(Divider#(xlen))
 
   method Action divide(Bit#(TAdd#(xlen, 1)) dividend, Bit#(TAdd#(xlen, 1)) divisor) if (current_bit == fromInteger(valueOf(_InputSize) + 1));
     // Optimization: Divide by zero and handle signed overflow very fast
-    if ((dividend == {2'b11, 0}) && (divisor == '1)) begin
+    Bit#(TSub#(xlen,1)) zero = 0;
+    if ((dividend == {2'b11, zero}) && (divisor == '1)) begin
       quotent <= unpack(signExtend(dividend));
       remainder <= 0;
       quotent_negative <= False;
@@ -277,11 +283,13 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
         a = signExtend(rVal1);
         b = zeroExtend(rVal2);
       end
+       default: noAction;
     endcase
 
     case (mdInst.func)
       Mul, Mulh : mul_unit.multiply(a, b);
       Div, Rem  : div_unit.divide(a, b);
+       default: noAction;
     endcase
 
     func_fifo.enq(mdInst);
@@ -332,6 +340,7 @@ module mkMulDivExec#(Multiplier#(xlen) mul_unit, Divider#(xlen) div_unit)(MulDiv
     case (mdInst.func)
       Mul, Mulh : mul_unit.result_deq;
       Div, Rem  : div_unit.result_deq;
+       default: noAction;
     endcase
   endmethod
 endmodule

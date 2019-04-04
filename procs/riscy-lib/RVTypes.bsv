@@ -37,9 +37,6 @@ typedef XLEN DataSz;
 //typedef Bit#(DataSz) Data;
 //typedef Bit#(TDiv#(DataSz,8)) DataByteEn;
 //typedef Bit#(TLog#(TDiv#(DataSz,8))) DataByteSel; // Type of byte select value for Data
-`ifdef BSVTOKAMI
-(* nogen *)
-`endif
 typedef Bit#(32) Data;
 `ifdef BSVTOKAMI
 (* nogen *)
@@ -53,9 +50,6 @@ typedef Bit#(2) DataByteSel; // Type of byte select value for Data
 typedef 512 CacheLineSz; // Used in DCache.bsv
 
 typedef 32 InstSz;
-`ifdef BSVTOKAMI
-(* nogen *)
-`endif
 typedef Bit#(InstSz) Instruction;
 
 // Virtual address
@@ -114,7 +108,8 @@ module mkPackRVRoundMode(Pack#(RVRoundMode,3));
 	 tagged RDN: return 3'b010;
 	 tagged RUP: return 3'b011;
 	 tagged RMM: return 3'b100;
-	 tagged RDyn: return 3'b11;
+	 tagged RDyn: return 3'b111;
+	 default: return 3'b111;
 	 endcase
    endmethod
 endmodule
@@ -167,6 +162,7 @@ module mkPackOpcode(Pack#(Opcode,7));
 	 7'b1100111: return Jalr;
 	 7'b1101111: return Jal;
 	 7'b1110011: return System;
+	 default: return System;
       endcase
    endmethod
    method Bit#(7) pack(Opcode v);
@@ -192,6 +188,7 @@ module mkPackOpcode(Pack#(Opcode,7));
 	 tagged Jalr: return 7'b1100111;
 	 tagged Jal: return 7'b1101111;
 	 tagged System: return 7'b1110011;
+	 default: return 7'b0000000;
       endcase
    endmethod
 endmodule
@@ -396,6 +393,7 @@ module mkPackCSR(Pack#(CSR,12));
 	 12'h788: return CSRmhcycle_deltah;
 	 12'h789: return CSRmhtime_deltah;
 	 12'h78a: return CSRmhinstret_deltah;
+	 default: return CSRmhinstret_deltah;
       endcase
    endmethod
    method Bit#(12) pack(CSR v);
@@ -497,6 +495,7 @@ module mkPackCSR(Pack#(CSR,12));
       tagged CSRmhcycle_deltah: return 12'h788;
       tagged CSRmhtime_deltah: return 12'h789;
       tagged CSRmhinstret_deltah: return 12'h78a;
+      default: return 12'h0;
       endcase
    endmethod
 endmodule
@@ -516,9 +515,9 @@ typedef struct {
     Bit#(7)     funct7;
     Bit#(2)     fmt;
     RVRoundMode rm;
-    Opcode      opcode; // Bit#(7)
+//    Opcode      opcode; // Bit#(7)
     Bit#(12)    csrAddr;
-    CSR         csr;
+//    CSR         csr;
 } InstructionFields;
 // XXX: probably don't want a Bits instance for this type
 `ifdef UNUSED
@@ -549,6 +548,25 @@ instance FShow#(InstructionFields);
 endinstance
 `endif
 
+typedef struct {
+Bit#(32) inst;
+Bit#(5) rd;
+CSR csr;
+} TestStruct;
+
+interface GetTestStruct;
+   method TestStruct getTestStruct(Bit#(32) x);
+endinterface
+
+module mkTestStruct(GetTestStruct);
+   Pack#(CSR,12) packCSR <- mkPackCSR();
+   method TestStruct getTestStruct(Bit#(32) x);
+      CSR xcsr = packCSR.unpack(x[31:20]);   
+      TestStruct ts = TestStruct { inst: x, rd: x[4:0], csr: xcsr };
+      return ts;
+   endmethod
+endmodule
+
 // XXX: we probably just want this function
 interface GetInstFields;
    method InstructionFields getInstFields(Instruction x);
@@ -559,6 +577,9 @@ module mkGetInstFields(GetInstFields);
    Pack#(Opcode,7) packOpcode <- mkPackOpcode();
    Pack#(CSR,12) packCSR <- mkPackCSR();
    method InstructionFields getInstFields(Instruction x);
+      RVRoundMode xroundMode = packRVRoundMode.unpack(x[14:12]);
+      Opcode xopcode = packOpcode.unpack(x[6:0]);   
+      CSR xcsr = packCSR.unpack(x[31:20]);
     return InstructionFields {
             inst:       x,
             rd:         x[11:7],
@@ -570,10 +591,10 @@ module mkGetInstFields(GetInstFields);
             funct5:     x[31:27],
             funct7:     x[31:25],
             fmt:        x[26:25],
-            rm:         packRVRoundMode.unpack(x[14:12]),
-            opcode:     packOpcode.unpack(x[6:0]),
-            csrAddr:    x[31:20],
-            csr:        packCSR.unpack(x[31:20])
+            rm:         xroundMode,
+//            opcode:     xopcode,
+            csrAddr:    x[31:20] //,
+//            csr:        xcsr
         };
    endmethod
 endmodule
